@@ -6,30 +6,9 @@ import { isMatched, SLOT_ORDER } from '@/domain/match';
 import { JOB_LABEL, newTutorialGame, SLOT_LABEL } from '@/domain/seed';
 import { isTutorialAssignmentReady, place } from '@/domain/tick';
 import type { Employee, GameState, SlotKind } from '@/domain/types';
+import { COLOR, FONT_STACK, TEXT_COLOR } from '@/theme';
 
-const FONT_STACK =
-  '"Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", Pretendard, system-ui, sans-serif';
-
-/** 색상 토큰. 후속에서 src/theme.ts로 분리 예정. */
-const COLOR = {
-  panel: 0x2a2a38,
-  panelStroke: 0x4a4a62,
-  panelEmpty: 0x20202a,
-  selected: 0x4f6fff,
-  matchOk: 0x3ec07b,
-  matchBad: 0xe55f5f,
-  btn: 0x4f6fff,
-  btnDown: 0x3d58cc,
-  btnDisabled: 0x3a3a48,
-} as const;
-
-const TEXT_COLOR = {
-  primary: '#f2f2f7',
-  dim: '#9b9bb0',
-  ok: '#3ec07b',
-  bad: '#e55f5f',
-  disabled: '#6a6a78',
-} as const;
+import { SCENE_KEYS } from './keys';
 
 const CX = GAME_WIDTH / 2;
 
@@ -53,7 +32,7 @@ interface EmployeeView {
 
 /** 슬롯 4×직원 3 배치 화면. v1 튜토리얼 — 사운드 슬롯은 비어 있어도 진행 가능. */
 export class AssignmentScene extends Phaser.Scene {
-  static readonly KEY = 'AssignmentScene';
+  static readonly KEY = SCENE_KEYS.Assignment;
 
   private state: GameState = newTutorialGame();
   private selectedEmpId: string | null = null;
@@ -66,7 +45,14 @@ export class AssignmentScene extends Phaser.Scene {
   private statusText!: Phaser.GameObjects.Text;
 
   constructor() {
-    super({ key: AssignmentScene.KEY });
+    super({ key: SCENE_KEYS.Assignment });
+  }
+
+  /** Boot 또는 Result에서 GameState를 인계 받아 다시 시작할 수 있게 한다. */
+  init(data?: { state?: GameState }): void {
+    if (data?.state) this.state = data.state;
+    else this.state = newTutorialGame();
+    this.selectedEmpId = null;
   }
 
   create(): void {
@@ -283,10 +269,7 @@ export class AssignmentScene extends Phaser.Scene {
   private onStartButtonUp(): void {
     this.drawStartButton(false);
     if (!isTutorialAssignmentReady(this.state)) return;
-    // 다음 슬라이스(개발 씬)는 후속 커밋. 지금은 상태만 표시.
-    this.statusText
-      .setText('배치 완료. (다음 슬라이스에서 개발 씬으로 전환)')
-      .setColor(TEXT_COLOR.ok);
+    this.scene.start(SCENE_KEYS.Development, { state: this.state });
   }
 
   // ────────────────────────── render ──────────────────────────
