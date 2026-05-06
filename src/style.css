@@ -23,26 +23,26 @@ body {
   margin: 0;
   padding: 0;
   width: 100%;
-  min-height: 100vh;
-  min-height: 100dvh;
+  height: 100%;
   overflow: hidden;
   background: #0e0e12;
 }
 
+/*
+ * #app은 fixed-inset 으로 viewport에 강제 고정한다.
+ * - PC에서 min-height: 100vh + flex 조합이 캔버스 크기에 맞춰 #app 자체를 키우는 경우가 있어
+ *   캔버스 하단이 body { overflow: hidden } 에 잘렸음.
+ * - position: fixed; inset: 0 은 모바일 dvh도 같이 따라가므로 별도 fallback 불필요.
+ */
 #app {
-  width: 100%;
-  min-height: 100vh;
-  min-height: 100dvh;
-  min-height: -webkit-fill-available;
+  position: fixed;
+  inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-/* 인라인 캔버스 아래 여백·잘림 방지 */
 #app canvas {
   display: block;
   vertical-align: top;
-  max-width: 100%;
-  max-height: 100%;
 }
