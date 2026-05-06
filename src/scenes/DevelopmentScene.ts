@@ -4,7 +4,8 @@ import type { Types } from 'phaser';
 import { GAME_WIDTH } from '@/constants';
 import { isMatched, SLOT_ORDER } from '@/domain/match';
 import { JOB_LABEL, SLOT_LABEL } from '@/domain/seed';
-import { advanceWeek, canRelease, polishWeek, release } from '@/domain/tick';
+import { shipProject } from '@/domain/result';
+import { advanceWeek, canRelease, polishWeek } from '@/domain/tick';
 import type { GameState, SlotKind } from '@/domain/types';
 import { COLOR, FONT_STACK, TEXT_COLOR } from '@/theme';
 
@@ -339,9 +340,9 @@ export class DevelopmentScene extends Phaser.Scene {
   }
 
   private handleRelease(): void {
-    this.state = release(this.state);
+    const outcome = shipProject(this.state, this.polishCount);
     this.scene.start(SCENE_KEYS.Result, {
-      state: this.state,
+      outcome,
       polishCount: this.polishCount,
     });
   }

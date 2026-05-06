@@ -6,6 +6,7 @@ import { isMatched, SLOT_ORDER } from '@/domain/match';
 import { JOB_LABEL, newTutorialGame, SLOT_LABEL } from '@/domain/seed';
 import { isTutorialAssignmentReady, place } from '@/domain/tick';
 import type { Employee, GameState, SlotKind } from '@/domain/types';
+import type { SavedResult } from '@/save';
 import { COLOR, FONT_STACK, TEXT_COLOR } from '@/theme';
 
 import { SCENE_KEYS } from './keys';
@@ -36,6 +37,7 @@ export class AssignmentScene extends Phaser.Scene {
 
   private state: GameState = newTutorialGame();
   private selectedEmpId: string | null = null;
+  private lastResult: SavedResult | null = null;
 
   private slotViews = new Map<SlotKind, SlotView>();
   private empViews = new Map<string, EmployeeView>();
@@ -48,10 +50,11 @@ export class AssignmentScene extends Phaser.Scene {
     super({ key: SCENE_KEYS.Assignment });
   }
 
-  /** Boot 또는 Result에서 GameState를 인계 받아 다시 시작할 수 있게 한다. */
-  init(data?: { state?: GameState }): void {
+  /** Boot 또는 Result에서 GameState/지난 결과를 인계 받아 다시 시작할 수 있게 한다. */
+  init(data?: { state?: GameState; lastResult?: SavedResult }): void {
     if (data?.state) this.state = data.state;
     else this.state = newTutorialGame();
+    this.lastResult = data?.lastResult ?? null;
     this.selectedEmpId = null;
   }
 
@@ -88,6 +91,24 @@ export class AssignmentScene extends Phaser.Scene {
         '직원을 담당에 배치하세요. 정배치 시 효율 100%, 오배치 시 50% + BugDebt +2/주.',
         subStyle,
       )
+      .setOrigin(0.5);
+    this.buildCarryoverHint();
+  }
+
+  private buildCarryoverHint(): void {
+    if (!this.lastResult && this.state.gold === 0) return;
+    const parts: string[] = [];
+    if (this.state.gold > 0) parts.push(`이월 골드 ${this.state.gold}`);
+    if (this.lastResult) {
+      const stars = '★'.repeat(this.lastResult.stars) + '☆'.repeat(5 - this.lastResult.stars);
+      parts.push(`지난 작품 ${stars} (${this.lastResult.reviewScore}점)`);
+    }
+    this.add
+      .text(CX, 126, parts.join('  ·  '), {
+        fontFamily: FONT_STACK,
+        fontSize: '12px',
+        color: TEXT_COLOR.warn,
+      })
       .setOrigin(0.5);
   }
 
