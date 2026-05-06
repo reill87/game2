@@ -15,6 +15,8 @@ export const gameConfig: Phaser.Types.Core.GameConfig = {
     autoCenter: Phaser.Scale.CENTER_BOTH,
     width: GAME_WIDTH,
     height: GAME_HEIGHT,
+    // 일부 환경에서 expandParent + flex 부모가 캔버스 기준점을 어색하게 만들 수 있어 끔
+    expandParent: false,
   },
   plugins: {
     scene: [
