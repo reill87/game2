@@ -1,10 +1,10 @@
 import Phaser from 'phaser';
 import UIPlugin from 'phaser3-rex-plugins/templates/ui/ui-plugin.js';
+import { GAME_HEIGHT, GAME_WIDTH } from './constants';
 import { AssignmentScene } from './scenes/AssignmentScene';
 import { BootScene } from './scenes/BootScene';
 
-export const GAME_WIDTH = 720;
-export const GAME_HEIGHT = 1280;
+export { GAME_HEIGHT, GAME_WIDTH };
 
 export const gameConfig: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,

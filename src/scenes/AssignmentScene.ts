@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import type { Types } from 'phaser';
 
-import { GAME_WIDTH } from '@/config';
+import { GAME_WIDTH } from '@/constants';
 import { isMatched, SLOT_ORDER } from '@/domain/match';
 import { JOB_LABEL, newTutorialGame, SLOT_LABEL } from '@/domain/seed';
 import { isTutorialAssignmentReady, place } from '@/domain/tick';
