@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import UIPlugin from 'phaser3-rex-plugins/templates/ui/ui-plugin.js';
+import { AssignmentScene } from './scenes/AssignmentScene';
 import { BootScene } from './scenes/BootScene';
-import { RexUISampleScene } from './scenes/RexUISampleScene';
 
 export const GAME_WIDTH = 720;
 export const GAME_HEIGHT = 1280;
@@ -27,5 +27,5 @@ export const gameConfig: Phaser.Types.Core.GameConfig = {
       },
     ],
   },
-  scene: [BootScene, RexUISampleScene],
+  scene: [BootScene, AssignmentScene],
 };
