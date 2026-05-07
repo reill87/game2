@@ -12,6 +12,9 @@ export type SlotKind = 'planning' | 'graphics' | 'sound' | 'programming';
 export type GenreId = 'G1' | 'G2' | 'G3';
 export type ThemeId = 'T1' | 'T2' | 'T3';
 
+/** 출시 직전 홍보 단계 — 2작부터 노출. BALANCE.md §7. */
+export type PromoTier = 'none' | 'small' | 'medium';
+
 export interface Employee {
   readonly id: string;
   readonly name: string;

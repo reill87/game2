@@ -2,7 +2,7 @@
  * 밸런스 v0.1 상수. 모든 수치는 docs/BALANCE.md의 표와 1:1 대응.
  * 변경 시 문서도 함께 갱신할 것.
  */
-import type { GenreId, ThemeId } from './types';
+import type { GenreId, PromoTier, ThemeId } from './types';
 
 export const BALANCE = {
   /** 정배치 직원 1명이 1주에 내는 진행도(%) — 3명 정배치 시 약 +10.5%/주 (목표 +9~11%). */
@@ -59,4 +59,13 @@ export const THEME_MOD: Readonly<Record<ThemeId, { progressMul: number; bugMul: 
   T2: { progressMul: 0.95, bugMul: 0.9 },
   /** T3 — 버그한테 잡아먹힘: 버그 ↑ */
   T3: { progressMul: 1.0, bugMul: 1.1 },
+};
+
+/** 홍보 — BALANCE.md §7. cost는 출시 직전 차감, revenueMul은 매출에 곱, reviewBonus는 score에 가산. */
+export const PROMO: Readonly<
+  Record<PromoTier, { cost: number; revenueMul: number; reviewBonus: number; label: string }>
+> = {
+  none: { cost: 0, revenueMul: 1.0, reviewBonus: 0, label: '없음' },
+  small: { cost: 40, revenueMul: 1.08, reviewBonus: 2, label: '소' },
+  medium: { cost: 100, revenueMul: 1.18, reviewBonus: 5, label: '중' },
 };

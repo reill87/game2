@@ -3,10 +3,11 @@ import type { Types } from 'phaser';
 
 import { GAME_WIDTH } from '@/constants';
 import { isMatched, SLOT_ORDER } from '@/domain/match';
+import { PROMO } from '@/domain/balance';
 import { GENRE_LABEL, JOB_LABEL, SLOT_LABEL, THEME_LABEL } from '@/domain/seed';
 import { shipProject } from '@/domain/result';
 import { advanceWeek, canRelease, polishWeek } from '@/domain/tick';
-import type { GameState, SlotKind } from '@/domain/types';
+import type { GameState, PromoTier, SlotKind } from '@/domain/types';
 import { COLOR, FONT_STACK, TEXT_COLOR } from '@/theme';
 
 import { SCENE_KEYS } from './keys';
@@ -67,6 +68,19 @@ export class DevelopmentScene extends Phaser.Scene {
   private crunchBtnText!: Phaser.GameObjects.Text;
   private crunchBtnRect!: Phaser.Geom.Rectangle;
 
+  // promo selector (2작부터, 출시 패널 동안만 노출)
+  private selectedPromo: PromoTier = 'none';
+  private promoLabel: Phaser.GameObjects.Text | null = null;
+  private promoButtons = new Map<
+    PromoTier,
+    {
+      bg: Phaser.GameObjects.Graphics;
+      text: Phaser.GameObjects.Text;
+      rect: Phaser.Geom.Rectangle;
+      hit: Phaser.GameObjects.Zone;
+    }
+  >();
+
   constructor() {
     super({ key: SCENE_KEYS.Development });
   }
@@ -83,6 +97,7 @@ export class DevelopmentScene extends Phaser.Scene {
     this.buildAssignmentRecap();
     this.buildStatus();
     this.buildActions();
+    if (this.state.productIndex >= 1) this.buildPromoSelector();
     this.redraw();
   }
 
@@ -326,6 +341,82 @@ export class DevelopmentScene extends Phaser.Scene {
     this.setReleasePanelVisible(false);
   }
 
+  private buildPromoSelector(): void {
+    const tiers: ReadonlyArray<PromoTier> = ['none', 'small', 'medium'];
+    const labelStyle = {
+      fontFamily: FONT_STACK,
+      fontSize: '12px',
+      color: TEXT_COLOR.dim,
+    } satisfies Types.GameObjects.Text.TextStyle;
+
+    this.promoLabel = this.add
+      .text(CX, 866, '홍보 (출시 시 골드 차감)', labelStyle)
+      .setOrigin(0.5);
+
+    const btnW = 184;
+    const btnH = 44;
+    const gap = 14;
+    const totalW = btnW * 3 + gap * 2;
+    const startX = (GAME_WIDTH - totalW) / 2;
+    const y = 890;
+
+    tiers.forEach((tier, i) => {
+      const x = startX + i * (btnW + gap);
+      const rect = new Phaser.Geom.Rectangle(x, y, btnW, btnH);
+      const bg = this.add.graphics();
+      const promo = PROMO[tier];
+      const labelText =
+        tier === 'none' ? promo.label : `${promo.label} · -${promo.cost}g · +${Math.round((promo.revenueMul - 1) * 100)}%`;
+      const text = this.add
+        .text(x + btnW / 2, y + btnH / 2, labelText, {
+          fontFamily: FONT_STACK,
+          fontSize: '13px',
+          fontStyle: 'bold',
+          color: TEXT_COLOR.primary,
+        })
+        .setOrigin(0.5);
+      const hit = this.add
+        .zone(x + btnW / 2, y + btnH / 2, btnW, btnH)
+        .setInteractive({ useHandCursor: true });
+      hit.on('pointerup', () => this.handlePromoTap(tier));
+      this.promoButtons.set(tier, { bg, text, rect, hit });
+    });
+  }
+
+  private handlePromoTap(tier: PromoTier): void {
+    if (this.state.gold < PROMO[tier].cost) return;
+    this.selectedPromo = tier;
+    this.drawPromoSelector();
+  }
+
+  private drawPromoSelector(): void {
+    for (const [tier, view] of this.promoButtons) {
+      const promo = PROMO[tier];
+      const affordable = this.state.gold >= promo.cost;
+      const selected = this.selectedPromo === tier;
+      const fill = !affordable
+        ? COLOR.btnDisabled
+        : selected
+          ? COLOR.btn
+          : COLOR.btnSecondary;
+      view.bg.clear();
+      view.bg.fillStyle(fill, 1);
+      view.bg.fillRoundedRect(view.rect.x, view.rect.y, view.rect.width, view.rect.height, 12);
+      view.text.setColor(affordable ? TEXT_COLOR.primary : TEXT_COLOR.disabled);
+      if (view.hit.input) view.hit.input.enabled = affordable;
+    }
+  }
+
+  private setPromoVisible(visible: boolean): void {
+    if (this.state.productIndex < 1) return;
+    if (this.promoLabel) this.promoLabel.setVisible(visible);
+    for (const view of this.promoButtons.values()) {
+      view.bg.setVisible(visible);
+      view.text.setVisible(visible);
+      if (view.hit.input) view.hit.input.enabled = visible;
+    }
+  }
+
   private makeButton(opts: {
     x: number;
     y: number;
@@ -385,6 +476,7 @@ export class DevelopmentScene extends Phaser.Scene {
     setButtonShown(this.weekBtn, !visible);
     setButtonShown(this.releaseBtn, visible);
     setButtonShown(this.polishBtn, visible);
+    this.setPromoVisible(visible);
   }
 
   // ────────────────────────── interactions ──────────────────────────
@@ -400,7 +492,7 @@ export class DevelopmentScene extends Phaser.Scene {
   }
 
   private handleRelease(): void {
-    const outcome = shipProject(this.state, this.polishCount);
+    const outcome = shipProject(this.state, this.polishCount, this.selectedPromo);
     this.scene.start(SCENE_KEYS.Result, {
       outcome,
       polishCount: this.polishCount,
@@ -490,10 +582,15 @@ export class DevelopmentScene extends Phaser.Scene {
 
   private updateActionPanel(): void {
     const releaseReady = canRelease(this.state);
+    // 보유 골드가 떨어져 현재 선택 단계가 더 이상 살 수 없으면 자동 강등.
+    if (this.state.gold < PROMO[this.selectedPromo].cost) {
+      this.selectedPromo = 'none';
+    }
     this.setReleasePanelVisible(releaseReady);
     if (releaseReady) {
       this.releaseBtn.redraw(false);
       this.polishBtn.redraw(false);
+      if (this.state.productIndex >= 1) this.drawPromoSelector();
     } else {
       this.weekBtn.redraw(false);
     }

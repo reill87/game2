@@ -2,9 +2,9 @@
  * 출시 결과 산정 — 순수 함수.
  * 모든 수치는 docs/BALANCE.md v0.1 대역에 맞춤. 추후 문서 갱신과 함께 조정.
  */
-import { BALANCE } from './balance';
+import { BALANCE, PROMO } from './balance';
 import { release } from './tick';
-import type { GameState } from './types';
+import type { GameState, PromoTier } from './types';
 
 function clamp(n: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, n));
@@ -25,8 +25,15 @@ export interface ReleaseOutcome {
     readonly polishBonus: number;
     /** Appeal이 활성화된 작품에서만 0보다 큼. */
     readonly appealBonus: number;
+    /** 홍보 단계에 따른 리뷰 가산. */
+    readonly promoBonus: number;
   };
-  /** released=true, gold += revenue. */
+  readonly promo: {
+    readonly tier: PromoTier;
+    readonly cost: number;
+    readonly revenueMul: number;
+  };
+  /** released=true, gold = (prev.gold − promo.cost) + revenue. */
   readonly state: GameState;
 }
 
@@ -47,7 +54,7 @@ function computeStars(score: number): ReviewStars {
 }
 
 function computeReview(state: GameState, polishCount: number): {
-  score: number;
+  rawScore: number;
   base: number;
   bugPenalty: number;
   overrunPenalty: number;
@@ -63,12 +70,9 @@ function computeReview(state: GameState, polishCount: number): {
   const appealBonus = project.appealEnabled
     ? Math.round(project.appeal * BALANCE.appealReviewFactor)
     : 0;
-  const score = clamp(
-    base - bugPenalty - overrunPenalty + polishBonus + appealBonus,
-    0,
-    100,
-  );
-  return { score, base, bugPenalty, overrunPenalty, polishBonus, appealBonus };
+  // promo bonus는 shipProject에서 합쳐 clamp.
+  const rawScore = base - bugPenalty - overrunPenalty + polishBonus + appealBonus;
+  return { rawScore, base, bugPenalty, overrunPenalty, polishBonus, appealBonus };
 }
 
 /** BALANCE.md 첫 매출 대역 약 150~400 골드. */
@@ -76,14 +80,28 @@ function computeRevenue(score: number): number {
   return Math.round(150 + score * 2.5);
 }
 
-export function shipProject(prev: GameState, polishCount: number): ReleaseOutcome {
+export function shipProject(
+  prev: GameState,
+  polishCount: number,
+  promoTier: PromoTier = 'none',
+): ReleaseOutcome {
   const r = computeReview(prev, polishCount);
-  const stars = computeStars(r.score);
-  const revenue = computeRevenue(r.score);
-  const released = release(prev);
+  const promo = PROMO[promoTier];
+  // 홍보 비용이 보유 골드보다 크면 자동으로 'none'으로 강등.
+  const effectiveTier: PromoTier = prev.gold >= promo.cost ? promoTier : 'none';
+  const eff = PROMO[effectiveTier];
+
+  const finalScore = clamp(r.rawScore + eff.reviewBonus, 0, 100);
+  const stars = computeStars(finalScore);
+  const baseRevenue = computeRevenue(finalScore);
+  const revenue = Math.round(baseRevenue * eff.revenueMul);
+
+  const goldAfterPromo = Math.max(0, prev.gold - eff.cost);
+  const released = release({ ...prev, gold: goldAfterPromo });
   const state: GameState = { ...released, gold: released.gold + revenue };
+
   return {
-    reviewScore: r.score,
+    reviewScore: finalScore,
     stars,
     headline: HEADLINE_BY_STARS[stars],
     revenue,
@@ -93,6 +111,12 @@ export function shipProject(prev: GameState, polishCount: number): ReleaseOutcom
       overrunPenalty: r.overrunPenalty,
       polishBonus: r.polishBonus,
       appealBonus: r.appealBonus,
+      promoBonus: eff.reviewBonus,
+    },
+    promo: {
+      tier: effectiveTier,
+      cost: eff.cost,
+      revenueMul: eff.revenueMul,
     },
     state,
   };
