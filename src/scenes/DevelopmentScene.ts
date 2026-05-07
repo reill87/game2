@@ -86,8 +86,13 @@ export class DevelopmentScene extends Phaser.Scene {
   }
 
   init(data: { state: GameState }): void {
-    this.state = data.state;
+    // 튜토리얼은 야근 토글을 노출하지 않으므로, 외부에서 crunch=true가 흘러 들어와도
+    // 토글 없이 ON 상태로 잠기는 일을 방지한다.
+    const incoming = data.state;
+    this.state =
+      incoming.productIndex < 1 && incoming.crunch ? { ...incoming, crunch: false } : incoming;
     this.polishCount = 0;
+    this.selectedPromo = 'none';
   }
 
   create(): void {
