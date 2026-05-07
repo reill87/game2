@@ -2,7 +2,10 @@ import Phaser from 'phaser';
 import type { Types } from 'phaser';
 
 import { GAME_WIDTH } from '@/constants';
+import { BALANCE } from '@/domain/balance';
 import type { ReleaseOutcome, ReviewStars } from '@/domain/result';
+import { SOUND_HIRE_CANDIDATE } from '@/domain/seed';
+import type { Employee } from '@/domain/types';
 import { loadData, saveData } from '@/save';
 import { COLOR, FONT_STACK, TEXT_COLOR } from '@/theme';
 
@@ -17,6 +20,24 @@ export class ResultScene extends Phaser.Scene {
   private outcome!: ReleaseOutcome;
   private polishCount = 0;
   private savedAt: number | null = null;
+  private saveFooterText: Phaser.GameObjects.Text | null = null;
+
+  // mutable office-state — Result 내에서 업그레이드/채용 가능
+  private liveGold = 0;
+  private officeLevel: 1 | 2 = 1;
+  private hiredEmployees: Employee[] = [];
+
+  // office panel widgets
+  private officeStatusText: Phaser.GameObjects.Text | null = null;
+  private officeGoldText: Phaser.GameObjects.Text | null = null;
+  private upgradeBtnBg: Phaser.GameObjects.Graphics | null = null;
+  private upgradeBtnText: Phaser.GameObjects.Text | null = null;
+  private upgradeBtnRect: Phaser.Geom.Rectangle | null = null;
+  private upgradeBtnHit: Phaser.GameObjects.Zone | null = null;
+  private hireBtnBg: Phaser.GameObjects.Graphics | null = null;
+  private hireBtnText: Phaser.GameObjects.Text | null = null;
+  private hireBtnRect: Phaser.Geom.Rectangle | null = null;
+  private hireBtnHit: Phaser.GameObjects.Zone | null = null;
 
   constructor() {
     super({ key: SCENE_KEYS.Result });
@@ -26,6 +47,22 @@ export class ResultScene extends Phaser.Scene {
     this.outcome = data.outcome;
     this.polishCount = data.polishCount ?? 0;
     this.savedAt = null;
+    this.liveGold = data.outcome.state.gold;
+
+    const existing = loadData();
+    this.officeLevel = existing?.officeLevel ?? 1;
+    this.hiredEmployees = existing?.hiredEmployees ? [...existing.hiredEmployees] : [];
+    // 업그레이드/채용 위젯은 매 init마다 다시 만들기 위해 null로 비움.
+    this.officeStatusText = null;
+    this.officeGoldText = null;
+    this.upgradeBtnBg = null;
+    this.upgradeBtnText = null;
+    this.upgradeBtnRect = null;
+    this.upgradeBtnHit = null;
+    this.hireBtnBg = null;
+    this.hireBtnText = null;
+    this.hireBtnRect = null;
+    this.hireBtnHit = null;
   }
 
   create(): void {
@@ -33,6 +70,7 @@ export class ResultScene extends Phaser.Scene {
     this.buildHeader();
     this.buildHeadline();
     this.buildBreakdown();
+    this.buildOfficePanel();
     this.buildResetButton();
     this.buildSaveFooter();
   }
@@ -41,12 +79,11 @@ export class ResultScene extends Phaser.Scene {
   private persistResult(): void {
     const o = this.outcome;
     const project = o.state.project;
-    const existing = loadData();
     const saved = saveData({
-      gold: o.state.gold,
+      gold: this.liveGold,
       productCount: o.state.productIndex + 1,
-      officeLevel: existing?.officeLevel ?? 1,
-      hiredEmployees: existing?.hiredEmployees ?? [],
+      officeLevel: this.officeLevel,
+      hiredEmployees: this.hiredEmployees,
       lastResult: {
         genre: project.genre,
         theme: project.theme,
@@ -151,7 +188,6 @@ export class ResultScene extends Phaser.Scene {
 
     const baseRows: ReadonlyArray<readonly [string, string, string]> = [
       ['매출', `+${o.revenue} 골드`, TEXT_COLOR.ok],
-      ['보유 골드', `${o.state.gold}`, TEXT_COLOR.primary],
       ['BugDebt', `${Math.round(project.bugDebt)} / 100`, project.bugDebt >= 70 ? TEXT_COLOR.bad : TEXT_COLOR.primary],
       ...(project.appealEnabled
         ? ([['Appeal', `${Math.round(project.appeal)} / 100`, TEXT_COLOR.primary]] as const)
@@ -206,12 +242,142 @@ export class ResultScene extends Phaser.Scene {
     });
   }
 
+  // ────────────────────────── office panel ──────────────────────────
+  private buildOfficePanel(): void {
+    const panelX = (GAME_WIDTH - 660) / 2;
+    const panelY = 760;
+    const panelW = 660;
+    const panelH = 170;
+
+    const g = this.add.graphics();
+    g.fillStyle(COLOR.panel, 1);
+    g.lineStyle(2, COLOR.panelStroke, 1);
+    g.fillRoundedRect(panelX, panelY, panelW, panelH, 14);
+    g.strokeRoundedRect(panelX, panelY, panelW, panelH, 14);
+
+    this.add.text(panelX + 20, panelY + 14, '사무실', {
+      fontFamily: FONT_STACK,
+      fontSize: '13px',
+      fontStyle: 'bold',
+      color: TEXT_COLOR.dim,
+    });
+
+    this.officeStatusText = this.add.text(panelX + 20, panelY + 48, '', {
+      fontFamily: FONT_STACK,
+      fontSize: '15px',
+      color: TEXT_COLOR.primary,
+    });
+
+    this.officeGoldText = this.add
+      .text(panelX + panelW - 20, panelY + 48, '', {
+        fontFamily: FONT_STACK,
+        fontSize: '15px',
+        color: TEXT_COLOR.primary,
+      })
+      .setOrigin(1, 0);
+
+    // 두 액션 버튼: 좌(업그레이드), 우(채용). 절반 너비씩.
+    const btnY = panelY + 90;
+    const btnH = 60;
+    const halfW = (panelW - 60) / 2; // 20 padding 양쪽 + 20 사이 여백
+
+    const upgradeX = panelX + 20;
+    this.upgradeBtnRect = new Phaser.Geom.Rectangle(upgradeX, btnY, halfW, btnH);
+    this.upgradeBtnBg = this.add.graphics();
+    this.upgradeBtnText = this.add
+      .text(upgradeX + halfW / 2, btnY + btnH / 2, `사무실 업그레이드 (-${BALANCE.officeUpgradeCost}g)`, {
+        fontFamily: FONT_STACK,
+        fontSize: '14px',
+        fontStyle: 'bold',
+        color: TEXT_COLOR.primary,
+      })
+      .setOrigin(0.5);
+    this.upgradeBtnHit = this.add
+      .zone(upgradeX + halfW / 2, btnY + btnH / 2, halfW, btnH)
+      .setInteractive({ useHandCursor: true });
+    this.upgradeBtnHit.on('pointerup', () => this.handleUpgrade());
+
+    const hireX = upgradeX + halfW + 20;
+    this.hireBtnRect = new Phaser.Geom.Rectangle(hireX, btnY, halfW, btnH);
+    this.hireBtnBg = this.add.graphics();
+    this.hireBtnText = this.add
+      .text(hireX + halfW / 2, btnY + btnH / 2, '사운드 채용', {
+        fontFamily: FONT_STACK,
+        fontSize: '14px',
+        fontStyle: 'bold',
+        color: TEXT_COLOR.primary,
+      })
+      .setOrigin(0.5);
+    this.hireBtnHit = this.add
+      .zone(hireX + halfW / 2, btnY + btnH / 2, halfW, btnH)
+      .setInteractive({ useHandCursor: true });
+    this.hireBtnHit.on('pointerup', () => this.handleHire());
+
+    this.refreshOfficePanel();
+  }
+
+  private refreshOfficePanel(): void {
+    if (!this.officeStatusText || !this.officeGoldText) return;
+    const cap = BALANCE.officeHireCap[this.officeLevel];
+    const totalEmps = 3 + this.hiredEmployees.length;
+    this.officeStatusText.setText(`${this.officeLevel}단계 — 고용 ${totalEmps}/${cap}명`);
+    this.officeGoldText.setText(`보유 ${this.liveGold}g`);
+
+    const canUpgrade = this.officeLevel === 1 && this.liveGold >= BALANCE.officeUpgradeCost;
+    const canHire = this.officeLevel === 2 && totalEmps < BALANCE.officeHireCap[2];
+
+    this.drawSecondaryButton(this.upgradeBtnBg, this.upgradeBtnText, this.upgradeBtnRect, this.upgradeBtnHit, canUpgrade);
+    this.drawSecondaryButton(this.hireBtnBg, this.hireBtnText, this.hireBtnRect, this.hireBtnHit, canHire);
+
+    if (this.officeLevel === 2 && this.upgradeBtnText) {
+      this.upgradeBtnText.setText('사무실 2단계 (완료)');
+    }
+    if (canHire === false && this.officeLevel === 2 && totalEmps >= BALANCE.officeHireCap[2] && this.hireBtnText) {
+      this.hireBtnText.setText('사운드 채용 (완료)');
+    }
+  }
+
+  private drawSecondaryButton(
+    bg: Phaser.GameObjects.Graphics | null,
+    text: Phaser.GameObjects.Text | null,
+    rect: Phaser.Geom.Rectangle | null,
+    hit: Phaser.GameObjects.Zone | null,
+    enabled: boolean,
+  ): void {
+    if (!bg || !text || !rect || !hit) return;
+    bg.clear();
+    bg.fillStyle(enabled ? COLOR.btn : COLOR.btnDisabled, 1);
+    bg.fillRoundedRect(rect.x, rect.y, rect.width, rect.height, 12);
+    text.setColor(enabled ? TEXT_COLOR.primary : TEXT_COLOR.disabled);
+    if (hit.input) hit.input.enabled = enabled;
+  }
+
+  private handleUpgrade(): void {
+    if (this.officeLevel !== 1) return;
+    if (this.liveGold < BALANCE.officeUpgradeCost) return;
+    this.liveGold -= BALANCE.officeUpgradeCost;
+    this.officeLevel = 2;
+    this.persistResult();
+    this.refreshOfficePanel();
+    this.refreshSaveFooter();
+  }
+
+  private handleHire(): void {
+    if (this.officeLevel !== 2) return;
+    const cap = BALANCE.officeHireCap[2];
+    if (3 + this.hiredEmployees.length >= cap) return;
+    this.hiredEmployees = [...this.hiredEmployees, SOUND_HIRE_CANDIDATE];
+    this.persistResult();
+    this.refreshOfficePanel();
+    this.refreshSaveFooter();
+  }
+
   // ────────────────────────── reset button ──────────────────────────
   private buildResetButton(): void {
     const w = 360;
     const h = 72;
     const x = CX - w / 2;
-    const y = 1000;
+    const y = 960;
     const rect = new Phaser.Geom.Rectangle(x, y, w, h);
     const bg = this.add.graphics();
     this.add
@@ -244,14 +410,21 @@ export class ResultScene extends Phaser.Scene {
 
   // ────────────────────────── save footer ──────────────────────────
   private buildSaveFooter(): void {
-    const text = this.savedAt ? `저장됨 — ${this.formatTime(this.savedAt)}` : '저장 실패 (localStorage 비활성)';
-    this.add
-      .text(CX, 1110, text, {
+    this.saveFooterText = this.add
+      .text(CX, 1100, '', {
         fontFamily: FONT_STACK,
         fontSize: '12px',
-        color: this.savedAt ? TEXT_COLOR.dim : TEXT_COLOR.bad,
       })
       .setOrigin(0.5);
+    this.refreshSaveFooter();
+  }
+
+  private refreshSaveFooter(): void {
+    if (!this.saveFooterText) return;
+    const text = this.savedAt
+      ? `저장됨 — ${this.formatTime(this.savedAt)}`
+      : '저장 실패 (localStorage 비활성)';
+    this.saveFooterText.setText(text).setColor(this.savedAt ? TEXT_COLOR.dim : TEXT_COLOR.bad);
   }
 
   private formatTime(ts: number): string {

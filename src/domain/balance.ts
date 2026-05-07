@@ -38,6 +38,10 @@ export const BALANCE = {
   appealReviewFactor: 0.3,
   /** Appeal 활성 시 리뷰 base score (튜토리얼은 80, 2작부터 70 + appeal). */
   appealEnabledBaseScore: 70,
+  /** 사무실 1→2 업그레이드 비용 (골드). */
+  officeUpgradeCost: 300,
+  /** 사무실 단계별 고용 상한. */
+  officeHireCap: { 1: 3, 2: 4 },
 } as const;
 
 /**

@@ -174,15 +174,16 @@ export class AssignmentScene extends Phaser.Scene {
 
   // ────────────────────────── employee cards ──────────────────────────
   private buildEmployees(): void {
-    const cardW = 200;
+    const count = this.state.employees.length;
+    const cardW = count <= 3 ? 200 : 162;
     const cardH = 150;
-    const gap = 14;
-    const totalW = cardW * 3 + gap * 2;
+    const gap = count <= 3 ? 14 : 12;
+    const totalW = cardW * count + gap * (count - 1);
     const startX = (GAME_WIDTH - totalW) / 2;
     const startY = 540;
 
     this.add
-      .text(CX, startY - 26, '직원 (3명)', {
+      .text(CX, startY - 26, `직원 (${count}명)`, {
         fontFamily: FONT_STACK,
         fontSize: '14px',
         color: TEXT_COLOR.dim,
