@@ -3,7 +3,7 @@ import type { Types } from 'phaser';
 
 import { GAME_WIDTH } from '@/constants';
 import type { ReleaseOutcome, ReviewStars } from '@/domain/result';
-import { saveData } from '@/save';
+import { loadData, saveData } from '@/save';
 import { COLOR, FONT_STACK, TEXT_COLOR } from '@/theme';
 
 import { SCENE_KEYS } from './keys';
@@ -41,8 +41,12 @@ export class ResultScene extends Phaser.Scene {
   private persistResult(): void {
     const o = this.outcome;
     const project = o.state.project;
+    const existing = loadData();
     const saved = saveData({
       gold: o.state.gold,
+      productCount: o.state.productIndex + 1,
+      officeLevel: existing?.officeLevel ?? 1,
+      hiredEmployees: existing?.hiredEmployees ?? [],
       lastResult: {
         genre: project.genre,
         theme: project.theme,

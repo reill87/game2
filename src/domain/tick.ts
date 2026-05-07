@@ -2,7 +2,7 @@
  * 순수 도메인 리듀서. Phaser·DOM 비의존.
  * 모든 함수는 입력 state를 변경하지 않고 새 객체를 반환한다.
  */
-import { BALANCE } from './balance';
+import { BALANCE, GENRE_MOD, THEME_MOD } from './balance';
 import { isMatched, SLOT_ORDER } from './match';
 import type { Assignment, GameState, SlotKind } from './types';
 
@@ -30,8 +30,15 @@ export function advanceWeek(prev: GameState): GameState {
     if (!matched) mismatchedCount += 1;
   }
 
+  // 장르 × 테마 보정 — progress·bugDebt 둘 다 곱연산
+  const gMod = GENRE_MOD[prev.project.genre];
+  const tMod = THEME_MOD[prev.project.theme];
+  progressDelta *= gMod.progressMul * tMod.progressMul;
+
   let bugDebtDelta =
-    BALANCE.baseBugDebtPerWeek + mismatchedCount * BALANCE.mismatchBugDebt;
+    (BALANCE.baseBugDebtPerWeek + mismatchedCount * BALANCE.mismatchBugDebt) *
+    gMod.bugMul *
+    tMod.bugMul;
   if (prev.crunch) {
     progressDelta *= BALANCE.crunchProgressMul;
     bugDebtDelta += BALANCE.crunchBugDebtBonus;

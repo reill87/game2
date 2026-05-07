@@ -3,7 +3,7 @@ import type { Types } from 'phaser';
 
 import { GAME_WIDTH } from '@/constants';
 import { isMatched, SLOT_ORDER } from '@/domain/match';
-import { JOB_LABEL, SLOT_LABEL } from '@/domain/seed';
+import { GENRE_LABEL, JOB_LABEL, SLOT_LABEL, THEME_LABEL } from '@/domain/seed';
 import { shipProject } from '@/domain/result';
 import { advanceWeek, canRelease, polishWeek } from '@/domain/tick';
 import type { GameState, SlotKind } from '@/domain/types';
@@ -76,7 +76,7 @@ export class DevelopmentScene extends Phaser.Scene {
 
   create(): void {
     this.buildHeader();
-    this.buildCrunchToggle();
+    if (this.state.productIndex >= 1) this.buildCrunchToggle();
     this.buildStats();
     this.buildAssignmentRecap();
     this.buildStatus();
@@ -92,9 +92,9 @@ export class DevelopmentScene extends Phaser.Scene {
       fontStyle: 'bold',
       color: TEXT_COLOR.primary,
     };
-    this.add
-      .text(CX, 50, '개발 중 — 초단타 터치 × 야근과 치킨', titleStyle)
-      .setOrigin(0.5);
+    const genre = GENRE_LABEL[this.state.project.genre].name;
+    const theme = THEME_LABEL[this.state.project.theme].name;
+    this.add.text(CX, 50, `개발 중 — ${genre} × ${theme}`, titleStyle).setOrigin(0.5);
 
     this.weekText = this.add
       .text(CX, 88, '', {
@@ -406,7 +406,7 @@ export class DevelopmentScene extends Phaser.Scene {
     this.drawGauge(this.progressBar, panelX, 172, project.progress / 100, COLOR.gaugeFillProgress);
     this.drawGauge(this.bugBar, panelX, 252, project.bugDebt / 100, COLOR.gaugeFillBug);
 
-    this.drawCrunchToggle();
+    if (this.state.productIndex >= 1) this.drawCrunchToggle();
     this.redrawAssignmentRecap();
     this.updateStatus();
     this.updateActionPanel();

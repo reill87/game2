@@ -4,6 +4,7 @@ import { GAME_HEIGHT, GAME_WIDTH } from './constants';
 import { AssignmentScene } from './scenes/AssignmentScene';
 import { BootScene } from './scenes/BootScene';
 import { DevelopmentScene } from './scenes/DevelopmentScene';
+import { GenreSelectScene } from './scenes/GenreSelectScene';
 import { ResultScene } from './scenes/ResultScene';
 
 export { GAME_HEIGHT, GAME_WIDTH };
@@ -29,5 +30,5 @@ export const gameConfig: Phaser.Types.Core.GameConfig = {
       },
     ],
   },
-  scene: [BootScene, AssignmentScene, DevelopmentScene, ResultScene],
+  scene: [BootScene, AssignmentScene, GenreSelectScene, DevelopmentScene, ResultScene],
 };

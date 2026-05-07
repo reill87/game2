@@ -2,6 +2,8 @@
  * 밸런스 v0.1 상수. 모든 수치는 docs/BALANCE.md의 표와 1:1 대응.
  * 변경 시 문서도 함께 갱신할 것.
  */
+import type { GenreId, ThemeId } from './types';
+
 export const BALANCE = {
   /** 정배치 직원 1명이 1주에 내는 진행도(%) — 3명 정배치 시 약 +10.5%/주 (목표 +9~11%). */
   matchedProgressPerWeek: 3.5,
@@ -22,3 +24,24 @@ export const BALANCE = {
   /** G1 튜토리얼 목표 주 수. */
   tutorialWeeksTarget: 10,
 } as const;
+
+/**
+ * 장르/테마 보정. 튜토리얼 G1+T1은 baseline(1.0).
+ * 곱연산으로 advanceWeek에 적용 — progressMul, bugMul 모두 (genreMul × themeMul) 형태.
+ * 야근(crunch) 보너스/페널티는 별도 가산.
+ */
+export const GENRE_MOD: Readonly<Record<GenreId, { progressMul: number; bugMul: number }>> = {
+  G1: { progressMul: 1.0, bugMul: 1.0 },
+  /** G2 — 디버깅 부담↑ */
+  G2: { progressMul: 0.9, bugMul: 1.2 },
+  /** G3 — 그래픽 부담↓, 진행 약간 빠름 */
+  G3: { progressMul: 1.05, bugMul: 0.95 },
+};
+
+export const THEME_MOD: Readonly<Record<ThemeId, { progressMul: number; bugMul: number }>> = {
+  T1: { progressMul: 1.0, bugMul: 1.0 },
+  /** T2 — 회의가 레벨이다: 진행 살짝 느리지만 버그 적음 */
+  T2: { progressMul: 0.95, bugMul: 0.9 },
+  /** T3 — 버그한테 잡아먹힘: 버그 ↑ */
+  T3: { progressMul: 1.0, bugMul: 1.1 },
+};

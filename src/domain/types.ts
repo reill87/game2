@@ -44,6 +44,8 @@ export interface GameState {
   readonly assignment: Assignment;
   readonly project: ProjectState;
   readonly gold: number;
-  /** 야근 토글. v1 튜토리얼은 OFF 고정 노출 안 함. */
+  /** 야근 토글. UI는 2작부터 노출. */
   readonly crunch: boolean;
+  /** 0 = 첫 작품 (튜토리얼). 출시 직후 +1. UI/도메인 분기에 사용. */
+  readonly productIndex: number;
 }

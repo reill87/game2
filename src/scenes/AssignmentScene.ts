@@ -3,7 +3,7 @@ import type { Types } from 'phaser';
 
 import { GAME_WIDTH } from '@/constants';
 import { isMatched, SLOT_ORDER } from '@/domain/match';
-import { JOB_LABEL, newTutorialGame, SLOT_LABEL } from '@/domain/seed';
+import { GENRE_LABEL, JOB_LABEL, newTutorialGame, SLOT_LABEL, THEME_LABEL } from '@/domain/seed';
 import { isTutorialAssignmentReady, place } from '@/domain/tick';
 import type { Employee, GameState, SlotKind } from '@/domain/types';
 import type { SavedResult } from '@/save';
@@ -83,7 +83,11 @@ export class AssignmentScene extends Phaser.Scene {
       wordWrap: { width: GAME_WIDTH - 80, useAdvancedWrap: true },
     };
 
-    this.add.text(CX, 56, '첫 작품 — 초단타 터치 × 야근과 치킨', titleStyle).setOrigin(0.5);
+    const idx = this.state.productIndex;
+    const order = idx === 0 ? '첫 작품' : `${idx + 1}번째 작품`;
+    const genre = GENRE_LABEL[this.state.project.genre].name;
+    const theme = THEME_LABEL[this.state.project.theme].name;
+    this.add.text(CX, 56, `${order} — ${genre} × ${theme}`, titleStyle).setOrigin(0.5);
     this.add
       .text(
         CX,
