@@ -10,6 +10,7 @@ import { advanceWeek, canRelease, polishWeek } from '@/domain/tick';
 import type { GameState, PromoTier, SlotKind } from '@/domain/types';
 import { ICONS } from '@/icons';
 import { COLOR, FONT_STACK, TEXT_COLOR, TINT } from '@/theme';
+import { drawConditionFill } from '@/util/condition';
 import { applyHiDPI } from '@/util/hidpi';
 import { makePanel } from '@/util/ui';
 
@@ -38,6 +39,19 @@ interface ButtonView {
 }
 
 /**
+ * 토글 가능한 컨트롤 버튼 — 액티브(현재 선택)/비액티브 색이 다르고, setActive로 전환.
+ * 재생 컨트롤(⏸/1×/2×/4×)에 사용.
+ */
+interface ControlButton {
+  bg: Phaser.GameObjects.Graphics;
+  text: Phaser.GameObjects.Text;
+  rect: Phaser.Geom.Rectangle;
+  hit: Phaser.GameObjects.Zone;
+  setActive: (active: boolean) => void;
+  setVisible: (visible: boolean) => void;
+}
+
+/**
  * 주간 개발 틱 화면.
  * - [다음 주 →] 탭 = advanceWeek()
  * - Progress 100% 도달 시 출시 패널로 전환 (액션 영역만 교체)
@@ -60,10 +74,30 @@ export class DevelopmentScene extends Phaser.Scene {
   private appealBar: Phaser.GameObjects.Graphics | null = null;
   private appealText: Phaser.GameObjects.Text | null = null;
   private goldText!: Phaser.GameObjects.Text;
-  private slotSummaryTexts = new Map<SlotKind, Phaser.GameObjects.Text>();
+  private slotSummaryViews = new Map<
+    SlotKind,
+    {
+      text: Phaser.GameObjects.Text;
+      moraleFill: Phaser.GameObjects.Graphics;
+      staminaFill: Phaser.GameObjects.Graphics;
+      barX: number;
+      barW: number;
+      moraleBarY: number;
+      staminaBarY: number;
+      barH: number;
+    }
+  >();
   private statusText!: Phaser.GameObjects.Text;
 
-  private weekBtn!: ButtonView;
+  // Playback controls (Slice 5)
+  private paused = true;
+  private speed: 1 | 2 | 4 = 1;
+  private weekTimer: Phaser.Time.TimerEvent | null = null;
+  private controlPause!: ControlButton;
+  private controlSpeed1!: ControlButton;
+  private controlSpeed2!: ControlButton;
+  private controlSpeed4!: ControlButton;
+
   private releaseBtn!: ButtonView;
   private polishBtn!: ButtonView;
 
@@ -97,6 +131,11 @@ export class DevelopmentScene extends Phaser.Scene {
       incoming.productIndex < 1 && incoming.crunch ? { ...incoming, crunch: false } : incoming;
     this.polishCount = 0;
     this.selectedPromo = 'none';
+    // 재생 컨트롤 — 매 진입 시 일시정지 상태로 리셋. 기존 타이머 정리.
+    this.paused = true;
+    this.speed = 1;
+    this.weekTimer?.remove();
+    this.weekTimer = null;
   }
 
   create(): void {
@@ -315,7 +354,32 @@ export class DevelopmentScene extends Phaser.Scene {
         fontSize: '14px',
         color: TEXT_COLOR.primary,
       });
-      this.slotSummaryTexts.set(slot, t);
+
+      // 컨디션 미니바 — 우측에 두 줄 (사기 위, 체력 아래)
+      const barW = 56;
+      const barH = 3;
+      const barX = x + tileW - 14 - barW;
+      const moraleBarY = y + 30;
+      const staminaBarY = y + 38;
+      const moraleBg = this.add.graphics();
+      moraleBg.fillStyle(COLOR.gaugeBg, 1);
+      moraleBg.fillRect(barX, moraleBarY, barW, barH);
+      const moraleFill = this.add.graphics();
+      const staminaBg = this.add.graphics();
+      staminaBg.fillStyle(COLOR.gaugeBg, 1);
+      staminaBg.fillRect(barX, staminaBarY, barW, barH);
+      const staminaFill = this.add.graphics();
+
+      this.slotSummaryViews.set(slot, {
+        text: t,
+        moraleFill,
+        staminaFill,
+        barX,
+        barW,
+        moraleBarY,
+        staminaBarY,
+        barH,
+      });
     });
   }
 
@@ -333,15 +397,45 @@ export class DevelopmentScene extends Phaser.Scene {
   }
 
   private buildActions(): void {
-    // [다음 주] 풀폭 큰 버튼
-    this.weekBtn = this.makeButton({
-      x: CX - 360 / 2,
-      y: 970,
-      w: 360,
-      h: 72,
-      label: '다음 주 →',
-      onTap: () => this.handleAdvanceWeek(),
-      primary: true,
+    // 재생 컨트롤 — ⏸ / 1× / 2× / 4×
+    const ctrlW = 80;
+    const ctrlH = 56;
+    const ctrlGap = 8;
+    const ctrlTotal = ctrlW * 4 + ctrlGap * 3;
+    const ctrlStartX = CX - ctrlTotal / 2;
+    const ctrlY = 978;
+    this.controlPause = this.makeControlButton({
+      x: ctrlStartX,
+      y: ctrlY,
+      w: ctrlW,
+      h: ctrlH,
+      label: '⏸',
+      fontSize: 22,
+      onTap: () => this.handlePause(),
+    });
+    this.controlSpeed1 = this.makeControlButton({
+      x: ctrlStartX + (ctrlW + ctrlGap),
+      y: ctrlY,
+      w: ctrlW,
+      h: ctrlH,
+      label: '1×',
+      onTap: () => this.handleSpeed(1),
+    });
+    this.controlSpeed2 = this.makeControlButton({
+      x: ctrlStartX + 2 * (ctrlW + ctrlGap),
+      y: ctrlY,
+      w: ctrlW,
+      h: ctrlH,
+      label: '2×',
+      onTap: () => this.handleSpeed(2),
+    });
+    this.controlSpeed4 = this.makeControlButton({
+      x: ctrlStartX + 3 * (ctrlW + ctrlGap),
+      y: ctrlY,
+      w: ctrlW,
+      h: ctrlH,
+      label: '4×',
+      onTap: () => this.handleSpeed(4),
     });
 
     // 출시 패널 — 좌: 1주 더 다듬기 (보조), 우: 지금 출시 (주요)
@@ -368,6 +462,80 @@ export class DevelopmentScene extends Phaser.Scene {
 
     // 출시 패널은 처음에 숨김
     this.setReleasePanelVisible(false);
+
+    // 씬 종료 시 타이머 해제
+    this.events.once('shutdown', () => {
+      this.weekTimer?.remove();
+      this.weekTimer = null;
+    });
+  }
+
+  private makeControlButton(opts: {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+    label: string;
+    fontSize?: number;
+    onTap: () => void;
+  }): ControlButton {
+    const rect = new Phaser.Geom.Rectangle(opts.x, opts.y, opts.w, opts.h);
+    const bg = this.add.graphics();
+    const text = this.add
+      .text(opts.x + opts.w / 2, opts.y + opts.h / 2, opts.label, {
+        fontFamily: FONT_STACK,
+        fontSize: `${opts.fontSize ?? 18}px`,
+        fontStyle: 'bold',
+        color: TEXT_COLOR.primary,
+      })
+      .setOrigin(0.5);
+    let active = false;
+    let pressed = false;
+    const draw = (): void => {
+      const color = pressed
+        ? active
+          ? COLOR.btnDown
+          : COLOR.btnSecondaryDown
+        : active
+          ? COLOR.btn
+          : COLOR.btnSecondary;
+      bg.clear();
+      bg.fillStyle(color, 1);
+      bg.fillRoundedRect(rect.x, rect.y, rect.width, rect.height, 12);
+      text.setColor(active ? TEXT_COLOR.primary : TEXT_COLOR.dim);
+    };
+    const hit = this.add
+      .zone(opts.x + opts.w / 2, opts.y + opts.h / 2, opts.w, opts.h)
+      .setInteractive({ useHandCursor: true });
+    hit.on('pointerdown', () => {
+      pressed = true;
+      draw();
+    });
+    hit.on('pointerout', () => {
+      pressed = false;
+      draw();
+    });
+    hit.on('pointerup', () => {
+      pressed = false;
+      draw();
+      opts.onTap();
+    });
+    draw();
+    return {
+      bg,
+      text,
+      rect,
+      hit,
+      setActive: (a: boolean) => {
+        active = a;
+        draw();
+      },
+      setVisible: (v: boolean) => {
+        bg.setVisible(v);
+        text.setVisible(v);
+        if (hit.input) hit.input.enabled = v;
+      },
+    };
   }
 
   private buildPromoSelector(): void {
@@ -502,16 +670,62 @@ export class DevelopmentScene extends Phaser.Scene {
   }
 
   private setReleasePanelVisible(visible: boolean): void {
-    setButtonShown(this.weekBtn, !visible);
+    const showControls = !visible;
+    this.controlPause.setVisible(showControls);
+    this.controlSpeed1.setVisible(showControls);
+    this.controlSpeed2.setVisible(showControls);
+    this.controlSpeed4.setVisible(showControls);
     setButtonShown(this.releaseBtn, visible);
     setButtonShown(this.polishBtn, visible);
     this.setPromoVisible(visible);
   }
 
-  // ────────────────────────── interactions ──────────────────────────
-  private handleAdvanceWeek(): void {
+  // ────────────────────────── playback controls ──────────────────────────
+  private handlePause(): void {
+    this.paused = true;
+    this.refreshPlaybackHighlight();
+    this.refreshTimer();
+  }
+
+  private handleSpeed(s: 1 | 2 | 4): void {
+    this.paused = false;
+    this.speed = s;
+    this.refreshPlaybackHighlight();
+    this.refreshTimer();
+  }
+
+  private refreshPlaybackHighlight(): void {
+    this.controlPause.setActive(this.paused);
+    this.controlSpeed1.setActive(!this.paused && this.speed === 1);
+    this.controlSpeed2.setActive(!this.paused && this.speed === 2);
+    this.controlSpeed4.setActive(!this.paused && this.speed === 4);
+  }
+
+  private refreshTimer(): void {
+    this.weekTimer?.remove();
+    this.weekTimer = null;
+    if (this.paused || canRelease(this.state)) return;
+    // 1× = 1주 / 1.5초, 2× = 0.75초, 4× = 0.375초
+    const delay = 1500 / this.speed;
+    this.weekTimer = this.time.addEvent({
+      delay,
+      loop: true,
+      callback: () => this.tickWeek(),
+    });
+  }
+
+  private tickWeek(): void {
+    if (this.paused) return;
+    if (canRelease(this.state)) {
+      this.handlePause();
+      return;
+    }
     this.state = advanceWeek(this.state);
     this.redraw();
+    if (canRelease(this.state)) {
+      // 출시 가능 도달 — 자동 일시정지하고 출시 패널 노출(redraw가 처리).
+      this.handlePause();
+    }
   }
 
   private handlePolish(): void {
@@ -557,22 +771,25 @@ export class DevelopmentScene extends Phaser.Scene {
   private redrawAssignmentRecap(): void {
     const empById = new Map(this.state.employees.map((e) => [e.id, e] as const));
     for (const slot of SLOT_ORDER) {
-      const t = this.slotSummaryTexts.get(slot);
-      if (!t) continue;
+      const view = this.slotSummaryViews.get(slot);
+      if (!view) continue;
       const empId = this.state.assignment[slot];
-      if (!empId) {
-        t.setText('비어 있음').setColor(TEXT_COLOR.disabled);
-        continue;
-      }
-      const emp = empById.get(empId);
+      const emp = empId ? empById.get(empId) : undefined;
+
       if (!emp) {
-        t.setText('—').setColor(TEXT_COLOR.disabled);
+        view.text.setText('비어 있음').setColor(TEXT_COLOR.disabled);
+        // 비어 있으면 컨디션 바 비움
+        view.moraleFill.clear();
+        view.staminaFill.clear();
         continue;
       }
+
       const matched = isMatched(slot, emp.job);
-      t.setText(`${emp.name} · ${JOB_LABEL[emp.job]} ${matched ? '✓' : '✗'}`).setColor(
-        matched ? TEXT_COLOR.ok : TEXT_COLOR.bad,
-      );
+      view.text
+        .setText(`${emp.name} · ${JOB_LABEL[emp.job]} ${matched ? '✓' : '✗'}`)
+        .setColor(matched ? TEXT_COLOR.ok : TEXT_COLOR.bad);
+      drawConditionFill(view.moraleFill, view.barX, view.moraleBarY, view.barW, view.barH, emp.morale);
+      drawConditionFill(view.staminaFill, view.barX, view.staminaBarY, view.barW, view.barH, emp.stamina);
     }
   }
 
@@ -623,7 +840,7 @@ export class DevelopmentScene extends Phaser.Scene {
       this.polishBtn.redraw(false);
       if (this.state.productIndex >= 1) this.drawPromoSelector();
     } else {
-      this.weekBtn.redraw(false);
+      this.refreshPlaybackHighlight();
     }
   }
 }
