@@ -3,6 +3,7 @@ import { newTutorialGame, TUTORIAL_EMPLOYEES } from '@/domain/seed';
 import type { Employee } from '@/domain/types';
 import { ICON_DIR, ICONS } from '@/icons';
 import { loadData, type SavedResult } from '@/save';
+import { preloadUITextures } from '@/util/ui';
 import { SCENE_KEYS } from './keys';
 
 /**
@@ -20,6 +21,8 @@ export class BootScene extends Phaser.Scene {
     for (const { key, file } of Object.values(ICONS)) {
       this.load.svg(key, `${ICON_DIR}/${file}`, { width: 32, height: 32 });
     }
+    // Kenney 9-slice UI 텍스처 (패널·버튼 베이스).
+    preloadUITextures(this);
   }
 
   create(): void {

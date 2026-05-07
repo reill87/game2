@@ -10,6 +10,7 @@ import { ICONS } from '@/icons';
 import { loadData, saveData } from '@/save';
 import { COLOR, FONT_STACK, TEXT_COLOR, TINT } from '@/theme';
 import { applyHiDPI } from '@/util/hidpi';
+import { makePanel } from '@/util/ui';
 
 import { SCENE_KEYS } from './keys';
 
@@ -133,11 +134,7 @@ export class ResultScene extends Phaser.Scene {
     const panelW = 660;
     const panelH = 220;
 
-    const g = this.add.graphics();
-    g.fillStyle(COLOR.panel, 1);
-    g.lineStyle(2, COLOR.panelStroke, 1);
-    g.fillRoundedRect(panelX, panelY, panelW, panelH, 16);
-    g.strokeRoundedRect(panelX, panelY, panelW, panelH, 16);
+    makePanel(this, panelX, panelY, panelW, panelH, COLOR.panel);
 
     const stars = this.outcome.stars;
     this.add
@@ -222,11 +219,7 @@ export class ResultScene extends Phaser.Scene {
     const rowH = 46;
     const panelH = rows.length * rowH + 28;
 
-    const g = this.add.graphics();
-    g.fillStyle(COLOR.panel, 1);
-    g.lineStyle(2, COLOR.panelStroke, 1);
-    g.fillRoundedRect(panelX, panelY, panelW, panelH, 14);
-    g.strokeRoundedRect(panelX, panelY, panelW, panelH, 14);
+    makePanel(this, panelX, panelY, panelW, panelH, COLOR.panel);
 
     const labelStyle: Types.GameObjects.Text.TextStyle = {
       fontFamily: FONT_STACK,
@@ -254,11 +247,7 @@ export class ResultScene extends Phaser.Scene {
     const panelW = 660;
     const panelH = 170;
 
-    const g = this.add.graphics();
-    g.fillStyle(COLOR.panel, 1);
-    g.lineStyle(2, COLOR.panelStroke, 1);
-    g.fillRoundedRect(panelX, panelY, panelW, panelH, 14);
-    g.strokeRoundedRect(panelX, panelY, panelW, panelH, 14);
+    makePanel(this, panelX, panelY, panelW, panelH, COLOR.panel);
 
     this.add.text(panelX + 20, panelY + 14, '사무실', {
       fontFamily: FONT_STACK,

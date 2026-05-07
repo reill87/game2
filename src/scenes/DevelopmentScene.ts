@@ -11,6 +11,7 @@ import type { GameState, PromoTier, SlotKind } from '@/domain/types';
 import { ICONS } from '@/icons';
 import { COLOR, FONT_STACK, TEXT_COLOR, TINT } from '@/theme';
 import { applyHiDPI } from '@/util/hidpi';
+import { makePanel } from '@/util/ui';
 
 import { SCENE_KEYS } from './keys';
 
@@ -183,11 +184,7 @@ export class DevelopmentScene extends Phaser.Scene {
     const panelW = 690;
     const panelH = appealEnabled ? 320 : 260;
 
-    const g = this.add.graphics();
-    g.fillStyle(COLOR.panel, 1);
-    g.lineStyle(2, COLOR.panelStroke, 1);
-    g.fillRoundedRect(panelX, panelY, panelW, panelH, 14);
-    g.strokeRoundedRect(panelX, panelY, panelW, panelH, 14);
+    makePanel(this, panelX, panelY, panelW, panelH, COLOR.panel);
 
     const labelStyle: Types.GameObjects.Text.TextStyle = {
       fontFamily: FONT_STACK,
@@ -298,11 +295,7 @@ export class DevelopmentScene extends Phaser.Scene {
       const x = startX + col * (tileW + gapX);
       const y = startY + 24 + row * (tileH + gapY);
 
-      const g = this.add.graphics();
-      g.fillStyle(COLOR.panelEmpty, 1);
-      g.lineStyle(1, COLOR.panelStroke, 1);
-      g.fillRoundedRect(x, y, tileW, tileH, 10);
-      g.strokeRoundedRect(x, y, tileW, tileH, 10);
+      makePanel(this, x, y, tileW, tileH, COLOR.panelEmpty);
 
       this.add.text(x + 14, y + 12, SLOT_LABEL[slot], {
         fontFamily: FONT_STACK,
