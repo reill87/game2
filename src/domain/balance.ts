@@ -23,6 +23,21 @@ export const BALANCE = {
   overrunGoldPenalty: -8,
   /** G1 튜토리얼 목표 주 수. */
   tutorialWeeksTarget: 10,
+  /** Appeal — 정배치 슬롯별 주당 기여(점). 오배치는 mismatchContribFactor=0.5 곱. */
+  appealBySlot: {
+    planning: 0.6,
+    graphics: 1.5,
+    sound: 1.2,
+    programming: 0.2,
+  },
+  /** 사운드 슬롯이 비어 있을 때 매 주 Appeal 페널티. */
+  appealSoundEmpty: -0.3,
+  /** 야근 ON 시 Appeal 보너스(폴리싱 분위기). */
+  appealCrunchBonus: 0.4,
+  /** 리뷰 점수에서 Appeal 가중. score += round(appeal * factor). */
+  appealReviewFactor: 0.3,
+  /** Appeal 활성 시 리뷰 base score (튜토리얼은 80, 2작부터 70 + appeal). */
+  appealEnabledBaseScore: 70,
 } as const;
 
 /**

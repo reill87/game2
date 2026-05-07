@@ -52,6 +52,8 @@ export class DevelopmentScene extends Phaser.Scene {
   private progressText!: Phaser.GameObjects.Text;
   private bugBar!: Phaser.GameObjects.Graphics;
   private bugText!: Phaser.GameObjects.Text;
+  private appealBar: Phaser.GameObjects.Graphics | null = null;
+  private appealText: Phaser.GameObjects.Text | null = null;
   private goldText!: Phaser.GameObjects.Text;
   private slotSummaryTexts = new Map<SlotKind, Phaser.GameObjects.Text>();
   private statusText!: Phaser.GameObjects.Text;
@@ -146,10 +148,11 @@ export class DevelopmentScene extends Phaser.Scene {
 
   // ────────────────────────── stats panel ──────────────────────────
   private buildStats(): void {
+    const appealEnabled = this.state.project.appealEnabled;
     const panelX = (GAME_WIDTH - 690) / 2;
     const panelY = 120;
     const panelW = 690;
-    const panelH = 260;
+    const panelH = appealEnabled ? 320 : 260;
 
     const g = this.add.graphics();
     g.fillStyle(COLOR.panel, 1);
@@ -185,16 +188,28 @@ export class DevelopmentScene extends Phaser.Scene {
     this.bugBar = this.add.graphics();
     this.drawGauge(this.bugBar, panelX + 24, panelY + 132, 0, COLOR.gaugeFillBug);
 
+    // Appeal (해금 시에만)
+    if (appealEnabled) {
+      this.add.text(panelX + 24, panelY + 180, 'Appeal', labelStyle);
+      this.appealText = this.add
+        .text(panelX + panelW - 24, panelY + 180, '0 / 100', valueStyle)
+        .setOrigin(1, 0);
+      this.appealBar = this.add.graphics();
+      this.drawGauge(this.appealBar, panelX + 24, panelY + 212, 0, COLOR.gaugeFillProgress);
+    }
+
     // Gold
-    this.add.text(panelX + 24, panelY + 180, 'Gold', labelStyle);
+    const goldY = appealEnabled ? panelY + 260 : panelY + 180;
+    this.add.text(panelX + 24, goldY, 'Gold', labelStyle);
     this.goldText = this.add
-      .text(panelX + panelW - 24, panelY + 180, '0', valueStyle)
+      .text(panelX + panelW - 24, goldY, '0', valueStyle)
       .setOrigin(1, 0);
 
     // Hint
+    const hintY = appealEnabled ? panelY + 298 : panelY + 218;
     this.add.text(
       panelX + 24,
-      panelY + 218,
+      hintY,
       '폴리싱은 출시 화면에서 가능 — BugDebt를 1주에 12씩 감소.',
       {
         fontFamily: FONT_STACK,
@@ -217,7 +232,7 @@ export class DevelopmentScene extends Phaser.Scene {
 
   // ────────────────────────── assignment recap ──────────────────────────
   private buildAssignmentRecap(): void {
-    const startY = 410;
+    const startY = this.state.project.appealEnabled ? 470 : 410;
     this.add
       .text(CX, startY, '배치 요약', {
         fontFamily: FONT_STACK,
@@ -405,6 +420,10 @@ export class DevelopmentScene extends Phaser.Scene {
     const panelX = (GAME_WIDTH - 690) / 2 + 24;
     this.drawGauge(this.progressBar, panelX, 172, project.progress / 100, COLOR.gaugeFillProgress);
     this.drawGauge(this.bugBar, panelX, 252, project.bugDebt / 100, COLOR.gaugeFillBug);
+    if (this.appealBar && this.appealText) {
+      this.drawGauge(this.appealBar, panelX, 332, project.appeal / 100, COLOR.gaugeFillProgress);
+      this.appealText.setText(`${Math.round(project.appeal)} / 100`);
+    }
 
     if (this.state.productIndex >= 1) this.drawCrunchToggle();
     this.redrawAssignmentRecap();

@@ -2,6 +2,7 @@
  * 출시 결과 산정 — 순수 함수.
  * 모든 수치는 docs/BALANCE.md v0.1 대역에 맞춤. 추후 문서 갱신과 함께 조정.
  */
+import { BALANCE } from './balance';
 import { release } from './tick';
 import type { GameState } from './types';
 
@@ -22,6 +23,8 @@ export interface ReleaseOutcome {
     readonly bugPenalty: number;
     readonly overrunPenalty: number;
     readonly polishBonus: number;
+    /** Appeal이 활성화된 작품에서만 0보다 큼. */
+    readonly appealBonus: number;
   };
   /** released=true, gold += revenue. */
   readonly state: GameState;
@@ -49,15 +52,23 @@ function computeReview(state: GameState, polishCount: number): {
   bugPenalty: number;
   overrunPenalty: number;
   polishBonus: number;
+  appealBonus: number;
 } {
   const { project } = state;
-  const base = 80;
+  const base = project.appealEnabled ? BALANCE.appealEnabledBaseScore : 80;
   const bugPenalty = Math.round(project.bugDebt * 0.5);
   const overrun = Math.max(0, project.weeksElapsed - project.weeksTarget);
   const overrunPenalty = overrun * 3;
   const polishBonus = Math.min(polishCount * 2, 6);
-  const score = clamp(base - bugPenalty - overrunPenalty + polishBonus, 0, 100);
-  return { score, base, bugPenalty, overrunPenalty, polishBonus };
+  const appealBonus = project.appealEnabled
+    ? Math.round(project.appeal * BALANCE.appealReviewFactor)
+    : 0;
+  const score = clamp(
+    base - bugPenalty - overrunPenalty + polishBonus + appealBonus,
+    0,
+    100,
+  );
+  return { score, base, bugPenalty, overrunPenalty, polishBonus, appealBonus };
 }
 
 /** BALANCE.md 첫 매출 대역 약 150~400 골드. */
@@ -81,6 +92,7 @@ export function shipProject(prev: GameState, polishCount: number): ReleaseOutcom
       bugPenalty: r.bugPenalty,
       overrunPenalty: r.overrunPenalty,
       polishBonus: r.polishBonus,
+      appealBonus: r.appealBonus,
     },
     state,
   };

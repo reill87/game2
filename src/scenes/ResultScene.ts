@@ -143,13 +143,22 @@ export class ResultScene extends Phaser.Scene {
     const project = o.state.project;
     const overrun = Math.max(0, project.weeksElapsed - project.weeksTarget);
 
-    const rows: ReadonlyArray<readonly [string, string, string]> = [
+    const baseRows: ReadonlyArray<readonly [string, string, string]> = [
       ['매출', `+${o.revenue} 골드`, TEXT_COLOR.ok],
       ['보유 골드', `${o.state.gold}`, TEXT_COLOR.primary],
       ['BugDebt', `${Math.round(project.bugDebt)} / 100`, project.bugDebt >= 70 ? TEXT_COLOR.bad : TEXT_COLOR.primary],
+      ...(project.appealEnabled
+        ? ([['Appeal', `${Math.round(project.appeal)} / 100`, TEXT_COLOR.primary]] as const)
+        : []),
       ['폴리싱', `${this.polishCount}주`, TEXT_COLOR.primary],
       ['연체', overrun > 0 ? `${overrun}주` : '없음', overrun > 0 ? TEXT_COLOR.warn : TEXT_COLOR.dim],
-      ['점수 분해', `기본 ${b.base}  −버그 ${b.bugPenalty}  −연체 ${b.overrunPenalty}  +폴리싱 ${b.polishBonus}`, TEXT_COLOR.dim],
+    ];
+    const breakdownDetail = project.appealEnabled
+      ? `기본 ${b.base}  −버그 ${b.bugPenalty}  −연체 ${b.overrunPenalty}  +폴리싱 ${b.polishBonus}  +매력 ${b.appealBonus}`
+      : `기본 ${b.base}  −버그 ${b.bugPenalty}  −연체 ${b.overrunPenalty}  +폴리싱 ${b.polishBonus}`;
+    const rows: ReadonlyArray<readonly [string, string, string]> = [
+      ...baseRows,
+      ['점수 분해', breakdownDetail, TEXT_COLOR.dim],
     ];
 
     const panelX = (GAME_WIDTH - 660) / 2;

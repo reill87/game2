@@ -17,7 +17,9 @@ export function advanceWeek(prev: GameState): GameState {
   const employeesById = new Map(prev.employees.map((e) => [e.id, e] as const));
 
   let progressDelta = 0;
+  let appealDelta = 0;
   let mismatchedCount = 0;
+  const appealEnabled = prev.project.appealEnabled;
 
   for (const slot of SLOT_ORDER) {
     const empId = prev.assignment[slot];
@@ -27,6 +29,9 @@ export function advanceWeek(prev: GameState): GameState {
     const matched = isMatched(slot, emp.job);
     const factor = matched ? 1 : BALANCE.mismatchContribFactor;
     progressDelta += BALANCE.matchedProgressPerWeek * emp.skill * factor;
+    if (appealEnabled) {
+      appealDelta += BALANCE.appealBySlot[slot] * emp.skill * factor;
+    }
     if (!matched) mismatchedCount += 1;
   }
 
@@ -42,6 +47,10 @@ export function advanceWeek(prev: GameState): GameState {
   if (prev.crunch) {
     progressDelta *= BALANCE.crunchProgressMul;
     bugDebtDelta += BALANCE.crunchBugDebtBonus;
+    if (appealEnabled) appealDelta += BALANCE.appealCrunchBonus;
+  }
+  if (appealEnabled && !prev.assignment.sound) {
+    appealDelta += BALANCE.appealSoundEmpty;
   }
 
   const weeksElapsed = prev.project.weeksElapsed + 1;
@@ -56,6 +65,7 @@ export function advanceWeek(prev: GameState): GameState {
       weeksElapsed,
       progress: clamp(prev.project.progress + progressDelta, 0, 100),
       bugDebt: clamp(prev.project.bugDebt + bugDebtDelta, 0, 100),
+      appeal: appealEnabled ? clamp(prev.project.appeal + appealDelta, 0, 100) : prev.project.appeal,
     },
   };
 }
