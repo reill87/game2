@@ -2,12 +2,54 @@
  * 순수 도메인 리듀서. Phaser·DOM 비의존.
  * 모든 함수는 입력 state를 변경하지 않고 새 객체를 반환한다.
  */
-import { BALANCE, GENRE_MOD, THEME_MOD } from './balance';
+import { BALANCE, CONDITION, GENRE_MOD, THEME_MOD } from './balance';
 import { isMatched, SLOT_ORDER } from './match';
-import type { Assignment, GameState, SlotKind } from './types';
+import type { Assignment, Employee, GameState, SlotKind } from './types';
 
 function clamp(n: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, n));
+}
+
+/** 효과 스킬 = base × moraleFactor × staminaFactor. */
+export function effectiveSkill(emp: Employee): number {
+  const m = CONDITION.moraleFactorMin + (emp.morale / 100) * CONDITION.moraleFactorRange;
+  const s = CONDITION.staminaFactorMin + (emp.stamina / 100) * CONDITION.staminaFactorRange;
+  return emp.skill * m * s;
+}
+
+function findAssignedSlot(state: GameState, empId: string): SlotKind | null {
+  for (const s of SLOT_ORDER) if (state.assignment[s] === empId) return s;
+  return null;
+}
+
+/** 한 직원의 한 주 컨디션 변화. 작업 모드(advanceWeek)와 휴식 모드(polishWeek)를 구분. */
+function tickCondition(emp: Employee, state: GameState, mode: 'work' | 'rest'): Employee {
+  const assigned = findAssignedSlot(state, emp.id);
+
+  let dStamina = 0;
+  let dMorale = 0;
+
+  if (mode === 'rest') {
+    // 폴리싱·휴식 주: 모두가 회복.
+    dStamina = CONDITION.staminaRest;
+  } else if (!assigned) {
+    // 미배치는 휴식.
+    dStamina = CONDITION.staminaRest;
+  } else {
+    const matched = isMatched(assigned, emp.job);
+    dStamina = matched ? CONDITION.staminaMatched : CONDITION.staminaMismatch;
+    if (state.crunch) dStamina += CONDITION.staminaCrunchExtra;
+    if (state.crunch) dMorale += CONDITION.moraleCrunch;
+    if (state.project.bugDebt > CONDITION.moraleBugDebtThreshold) {
+      dMorale += CONDITION.moraleBugDebtPenalty;
+    }
+  }
+
+  return {
+    ...emp,
+    morale: clamp(emp.morale + dMorale, 0, 100),
+    stamina: clamp(emp.stamina + dStamina, 0, 100),
+  };
 }
 
 /** 1주 개발 틱. 출시된 작품에는 변화 없음. */
@@ -21,6 +63,7 @@ export function advanceWeek(prev: GameState): GameState {
   let mismatchedCount = 0;
   const appealEnabled = prev.project.appealEnabled;
 
+  // 1) 이번 주 작업 기여 — 현재 morale/stamina 기반 effective skill로 산출.
   for (const slot of SLOT_ORDER) {
     const empId = prev.assignment[slot];
     if (!empId) continue;
@@ -28,9 +71,10 @@ export function advanceWeek(prev: GameState): GameState {
     if (!emp) continue;
     const matched = isMatched(slot, emp.job);
     const factor = matched ? 1 : BALANCE.mismatchContribFactor;
-    progressDelta += BALANCE.matchedProgressPerWeek * emp.skill * factor;
+    const eff = effectiveSkill(emp);
+    progressDelta += BALANCE.matchedProgressPerWeek * eff * factor;
     if (appealEnabled) {
-      appealDelta += BALANCE.appealBySlot[slot] * emp.skill * factor;
+      appealDelta += BALANCE.appealBySlot[slot] * eff * factor;
     }
     if (!matched) mismatchedCount += 1;
   }
@@ -53,12 +97,16 @@ export function advanceWeek(prev: GameState): GameState {
     appealDelta += BALANCE.appealSoundEmpty;
   }
 
+  // 2) 직원 컨디션 업데이트(다음 주를 위해)
+  const nextEmployees = prev.employees.map((e) => tickCondition(e, prev, 'work'));
+
   const weeksElapsed = prev.project.weeksElapsed + 1;
   const overdue = weeksElapsed > prev.project.weeksTarget;
   const goldDelta = overdue ? BALANCE.overrunGoldPenalty : 0;
 
   return {
     ...prev,
+    employees: nextEmployees,
     gold: clamp(prev.gold + goldDelta, 0, Number.MAX_SAFE_INTEGER),
     project: {
       ...prev.project,
@@ -70,14 +118,16 @@ export function advanceWeek(prev: GameState): GameState {
   };
 }
 
-/** 1주 폴리싱: 1주 경과 + BugDebt 감소. 목표 주 초과 시 골드 페널티는 advanceWeek와 동일하게 적용. */
+/** 1주 폴리싱: 1주 경과 + BugDebt 감소. 모두가 휴식 모드로 컨디션 회복. */
 export function polishWeek(prev: GameState): GameState {
   if (prev.project.released) return prev;
   const weeksElapsed = prev.project.weeksElapsed + 1;
   const overdue = weeksElapsed > prev.project.weeksTarget;
   const goldDelta = overdue ? BALANCE.overrunGoldPenalty : 0;
+  const nextEmployees = prev.employees.map((e) => tickCondition(e, prev, 'rest'));
   return {
     ...prev,
+    employees: nextEmployees,
     gold: clamp(prev.gold + goldDelta, 0, Number.MAX_SAFE_INTEGER),
     project: {
       ...prev.project,

@@ -45,6 +45,44 @@ export const BALANCE = {
 } as const;
 
 /**
+ * 직원 컨디션(사기·체력) 모델 — Slice 6.
+ *
+ * 매 주(advanceWeek) 끝에 직원별로 상태를 업데이트하고, 다음 주 작업 기여는
+ * effective skill = skill × moraleFactor × staminaFactor로 계산.
+ *
+ * 튜닝 의도:
+ *  - 야근 OFF 정배치 10주: stamina 100 → 70 (피곤하지만 견딜 만)
+ *  - 야근 ON 정배치 10주: stamina 100 → 40 (확연히 떨어짐), morale 70 → 60
+ *  - 폴리싱·미배치 1주: stamina +12 (1주 휴식이면 거의 회복)
+ */
+export const CONDITION = {
+  /** 정배치 시 매주 stamina 변화. */
+  staminaMatched: -3,
+  /** 오배치 시 매주 stamina 변화 (더 빠른 소모). */
+  staminaMismatch: -5,
+  /** 미배치/폴리싱 시 매주 stamina 변화 (회복). */
+  staminaRest: 12,
+  /** 야근 ON 시 stamina 추가 가산(음수). */
+  staminaCrunchExtra: -3,
+
+  /** 야근 ON 시 매주 morale 변화. */
+  moraleCrunch: -1,
+  /** BugDebt가 임계 초과면 morale 추가 감소. */
+  moraleBugDebtThreshold: 70,
+  moraleBugDebtPenalty: -1,
+
+  /** Effective skill 곱연산 인자. morale/stamina 0~100을 [min, min+range]로 매핑. */
+  moraleFactorMin: 0.6,
+  moraleFactorRange: 0.4, // morale 100 → 1.0
+  staminaFactorMin: 0.5,
+  staminaFactorRange: 0.5, // stamina 100 → 1.0
+
+  /** 새 직원 기본값. */
+  defaultMorale: 70,
+  defaultStamina: 100,
+} as const;
+
+/**
  * 장르/테마 보정. 튜토리얼 G1+T1은 baseline(1.0).
  * 곱연산으로 advanceWeek에 적용 — progressMul, bugMul 모두 (genreMul × themeMul) 형태.
  * 야근(crunch) 보너스/페널티는 별도 가산.

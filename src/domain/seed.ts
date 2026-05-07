@@ -1,11 +1,14 @@
-import { BALANCE } from './balance';
+import { BALANCE, CONDITION } from './balance';
 import type { Employee, GameState, GenreId, Job, SlotKind, ThemeId } from './types';
+
+const M0 = CONDITION.defaultMorale;
+const S0 = CONDITION.defaultStamina;
 
 /** 튜토리얼 첫 작품 — 직원 3명 (사운드 직군 없음). */
 export const TUTORIAL_EMPLOYEES: ReadonlyArray<Employee> = [
-  { id: 'emp-planner', name: '기획자 김PM', job: 'planner', skill: 1 },
-  { id: 'emp-designer', name: '디자이너 이D', job: 'designer', skill: 1 },
-  { id: 'emp-programmer', name: '개발자 박코더', job: 'programmer', skill: 1 },
+  { id: 'emp-planner', name: '기획자 김PM', job: 'planner', skill: 1, morale: M0, stamina: S0 },
+  { id: 'emp-designer', name: '디자이너 이D', job: 'designer', skill: 1, morale: M0, stamina: S0 },
+  { id: 'emp-programmer', name: '개발자 박코더', job: 'programmer', skill: 1, morale: M0, stamina: S0 },
 ] as const;
 
 /** 사무실 2단계 해금 시 채용 가능한 사운드 후보 (단일 v1). */
@@ -14,6 +17,8 @@ export const SOUND_HIRE_CANDIDATE: Employee = {
   name: '사운드 정비트',
   job: 'sound',
   skill: 1,
+  morale: M0,
+  stamina: S0,
 };
 
 export const SLOT_LABEL: Readonly<Record<SlotKind, string>> = {

@@ -21,6 +21,10 @@ export interface Employee {
   readonly job: Job;
   /** 1.0 = baseline. 추후 성장 시 변동. */
   readonly skill: number;
+  /** 사기 — 0~100. 효율(effective skill)에 곱연산. 야근·고BugDebt에 감소, 휴식에 회복. */
+  readonly morale: number;
+  /** 체력 — 0~100. 효율에 곱연산. 작업 시 감소, 미배치/폴리싱에 회복. */
+  readonly stamina: number;
 }
 
 /** 슬롯 → 직원 id. 빈 슬롯은 키 부재. */

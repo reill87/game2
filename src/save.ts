@@ -12,7 +12,8 @@
  *  - v1 데이터를 그대로 받아 productCount=0, officeLevel=1, hiredEmployees=[]로 보강한다.
  *  - 미인식 버전은 'game2.save.unknown'에 백업한 뒤 null 반환 (사용자에게는 "저장 없음"으로 보임).
  */
-import type { Employee } from './domain/types';
+import { CONDITION } from './domain/balance';
+import type { Employee, Job } from './domain/types';
 
 const KEY = 'game2.save';
 const LEGACY_KEY_V1 = 'game2.save.v1';
@@ -116,18 +117,43 @@ function readAndParse(storage: Storage, key: string): unknown {
   }
 }
 
+function sanitizeEmployee(raw: unknown): Employee | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const e = raw as Partial<Employee> & { job?: string };
+  if (typeof e.id !== 'string' || typeof e.name !== 'string' || typeof e.job !== 'string') {
+    return null;
+  }
+  return {
+    id: e.id,
+    name: e.name,
+    job: e.job as Job,
+    skill: typeof e.skill === 'number' ? e.skill : 1,
+    morale: typeof e.morale === 'number' ? e.morale : CONDITION.defaultMorale,
+    stamina: typeof e.stamina === 'number' ? e.stamina : CONDITION.defaultStamina,
+  };
+}
+
+function sanitizeHired(raw: unknown): ReadonlyArray<Employee> {
+  if (!Array.isArray(raw)) return [];
+  return raw.map(sanitizeEmployee).filter((e): e is Employee => e !== null);
+}
+
 function interpret(storage: Storage, parsed: unknown, fromLegacy: boolean): SaveData | null {
   if (!parsed || typeof parsed !== 'object') return backupAndNull(storage, parsed);
   const obj = parsed as Partial<SaveData> & Partial<SaveDataV1>;
 
   if (obj.version === 2) {
     if (typeof obj.gold !== 'number') return backupAndNull(storage, parsed);
+    // hiredEmployees에 morale/stamina가 누락된 옛 v2 데이터를 보강.
+    const sanitized: SaveData = {
+      ...(obj as SaveData),
+      hiredEmployees: sanitizeHired(obj.hiredEmployees),
+    };
     if (fromLegacy) {
-      // v2 데이터가 어쩌다 LEGACY_KEY에 있는 경우 — 정상 키로 옮기고 legacy 정리
-      saveDataDirect(storage, obj as SaveData);
+      saveDataDirect(storage, sanitized);
       removeKey(storage, LEGACY_KEY_V1);
     }
-    return obj as SaveData;
+    return sanitized;
   }
 
   if (obj.version === 1) {

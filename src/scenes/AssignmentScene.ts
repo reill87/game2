@@ -17,6 +17,7 @@ import type { Employee, GameState, SlotKind } from '@/domain/types';
 import { ICONS } from '@/icons';
 import type { SavedResult } from '@/save';
 import { COLOR, FONT_STACK, TEXT_COLOR, TINT } from '@/theme';
+import { drawConditionFill } from '@/util/condition';
 import { applyHiDPI } from '@/util/hidpi';
 import { addIconLabel } from '@/util/iconLabel';
 
@@ -38,6 +39,16 @@ interface EmployeeView {
   nameText: Phaser.GameObjects.Text;
   jobText: Phaser.GameObjects.Text;
   placedText: Phaser.GameObjects.Text;
+  /** 사기 게이지 채움 (배경은 정적, 채움만 redraw). */
+  moraleFill: Phaser.GameObjects.Graphics;
+  /** 체력 게이지 채움. */
+  staminaFill: Phaser.GameObjects.Graphics;
+  /** 게이지 위치·크기 (redraw 시 사용). */
+  barX: number;
+  barW: number;
+  moraleBarY: number;
+  staminaBarY: number;
+  barH: number;
   rect: Phaser.Geom.Rectangle;
   hit: Phaser.GameObjects.Zone;
 }
@@ -252,6 +263,21 @@ export class AssignmentScene extends Phaser.Scene {
       },
     );
 
+    // 컨디션 미니바 — 가로 50, 두께 3, 카드 하단 가운데 두 줄.
+    const barW = 56;
+    const barH = 3;
+    const barX = x + w / 2 - barW / 2;
+    const moraleBarY = y + h - 50;
+    const staminaBarY = y + h - 42;
+    const moraleBg = this.add.graphics();
+    moraleBg.fillStyle(COLOR.gaugeBg, 1);
+    moraleBg.fillRect(barX, moraleBarY, barW, barH);
+    const moraleFill = this.add.graphics();
+    const staminaBg = this.add.graphics();
+    staminaBg.fillStyle(COLOR.gaugeBg, 1);
+    staminaBg.fillRect(barX, staminaBarY, barW, barH);
+    const staminaFill = this.add.graphics();
+
     const placedText = this.add
       .text(x + w / 2, y + h - 26, '', {
         fontFamily: FONT_STACK,
@@ -263,7 +289,21 @@ export class AssignmentScene extends Phaser.Scene {
     const hit = this.add.zone(x + w / 2, y + h / 2, w, h).setInteractive({ useHandCursor: true });
     hit.on('pointerup', () => this.onEmployeeTap(emp.id));
 
-    return { bg, nameText, jobText, placedText, rect, hit };
+    return {
+      bg,
+      nameText,
+      jobText,
+      placedText,
+      moraleFill,
+      staminaFill,
+      barX,
+      barW,
+      moraleBarY,
+      staminaBarY,
+      barH,
+      rect,
+      hit,
+    };
   }
 
   // ────────────────────────── start button ──────────────────────────
@@ -404,6 +444,9 @@ export class AssignmentScene extends Phaser.Scene {
         view.nameText.setColor(TEXT_COLOR.primary);
         view.jobText.setColor(TEXT_COLOR.dim);
       }
+
+      drawConditionFill(view.moraleFill, view.barX, view.moraleBarY, view.barW, view.barH, emp.morale);
+      drawConditionFill(view.staminaFill, view.barX, view.staminaBarY, view.barW, view.barH, emp.stamina);
     }
   }
 
