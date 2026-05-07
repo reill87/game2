@@ -137,14 +137,7 @@ export class ResultScene extends Phaser.Scene {
     makePanel(this, panelX, panelY, panelW, panelH, COLOR.panel);
 
     const stars = this.outcome.stars;
-    this.add
-      .text(CX, panelY + 50, this.starString(stars), {
-        fontFamily: FONT_STACK,
-        fontSize: '34px',
-        fontStyle: 'bold',
-        color: this.starColor(stars),
-      })
-      .setOrigin(0.5);
+    this.drawStarRow(CX, panelY + 56, stars);
 
     this.add
       .text(CX, panelY + 110, this.outcome.headline, {
@@ -165,14 +158,29 @@ export class ResultScene extends Phaser.Scene {
       .setOrigin(0.5);
   }
 
-  private starString(stars: ReviewStars): string {
-    return '★'.repeat(stars) + '☆'.repeat(5 - stars);
+  /** filled 별의 tier별 tint (number form). */
+  private starTierTint(stars: ReviewStars): number {
+    if (stars >= 4) return TINT.ok;
+    if (stars === 3) return TINT.warn;
+    return TINT.bad;
   }
 
-  private starColor(stars: ReviewStars): string {
-    if (stars >= 4) return TEXT_COLOR.ok;
-    if (stars === 3) return TEXT_COLOR.warn;
-    return TEXT_COLOR.bad;
+  /** 5 별 가로 행 — index < stars 면 filled, 아니면 outline. centerY는 별 중심선. */
+  private drawStarRow(centerX: number, centerY: number, stars: ReviewStars): void {
+    const size = 36;
+    const gap = 6;
+    const totalW = size * 5 + gap * 4;
+    const startX = centerX - totalW / 2;
+    const filledTint = this.starTierTint(stars);
+    for (let i = 0; i < 5; i++) {
+      const filled = i < stars;
+      const key = filled ? ICONS.star.key : ICONS.starOutline.key;
+      this.add
+        .image(startX + i * (size + gap) + size / 2, centerY, key)
+        .setDisplaySize(size, size)
+        .setOrigin(0.5)
+        .setTint(filled ? filledTint : TINT.dim);
+    }
   }
 
   // ────────────────────────── breakdown panel ──────────────────────────

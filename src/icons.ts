@@ -39,6 +39,10 @@ export const ICONS = {
   users: { key: 'icon-users', file: 'users.svg' },
   /** T3 버그한테 잡아먹힘 — 경고 (BugDebt 일반 아이콘과 차별) */
   alert: { key: 'icon-alert', file: 'alert.svg' },
+  /** 채워진 별 (리뷰 5단계 시각화). */
+  star: { key: 'icon-star', file: 'star.svg' },
+  /** 빈 별 (테두리만). */
+  starOutline: { key: 'icon-star-outline', file: 'star-outline.svg' },
 } as const;
 
 export type IconName = keyof typeof ICONS;
