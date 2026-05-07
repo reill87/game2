@@ -8,7 +8,8 @@ import { GENRE_LABEL, JOB_LABEL, SLOT_LABEL, THEME_LABEL } from '@/domain/seed';
 import { shipProject } from '@/domain/result';
 import { advanceWeek, canRelease, polishWeek } from '@/domain/tick';
 import type { GameState, PromoTier, SlotKind } from '@/domain/types';
-import { COLOR, FONT_STACK, TEXT_COLOR } from '@/theme';
+import { ICONS } from '@/icons';
+import { COLOR, FONT_STACK, TEXT_COLOR, TINT } from '@/theme';
 import { applyHiDPI } from '@/util/hidpi';
 
 import { SCENE_KEYS } from './keys';
@@ -194,8 +195,13 @@ export class DevelopmentScene extends Phaser.Scene {
       color: TEXT_COLOR.primary,
     };
 
+    const ICON_SIZE = 16;
+    const ICON_GAP = 8;
+    const labelX = panelX + 24 + ICON_SIZE + ICON_GAP;
+
     // Progress
-    this.add.text(panelX + 24, panelY + 20, 'Progress', labelStyle);
+    this.addLabelIcon(panelX + 24, panelY + 28, ICONS.progress.key, TINT.dim);
+    this.add.text(labelX, panelY + 20, 'Progress', labelStyle);
     this.progressText = this.add
       .text(panelX + panelW - 24, panelY + 20, '0.0%', valueStyle)
       .setOrigin(1, 0);
@@ -203,7 +209,8 @@ export class DevelopmentScene extends Phaser.Scene {
     this.drawGauge(this.progressBar, panelX + 24, panelY + 52, 0, COLOR.gaugeFillProgress);
 
     // BugDebt
-    this.add.text(panelX + 24, panelY + 100, 'BugDebt', labelStyle);
+    this.addLabelIcon(panelX + 24, panelY + 108, ICONS.bug.key, TINT.bad);
+    this.add.text(labelX, panelY + 100, 'BugDebt', labelStyle);
     this.bugText = this.add
       .text(panelX + panelW - 24, panelY + 100, '0 / 100', valueStyle)
       .setOrigin(1, 0);
@@ -212,7 +219,8 @@ export class DevelopmentScene extends Phaser.Scene {
 
     // Appeal (해금 시에만)
     if (appealEnabled) {
-      this.add.text(panelX + 24, panelY + 180, 'Appeal', labelStyle);
+      this.addLabelIcon(panelX + 24, panelY + 188, ICONS.sparkle.key, TINT.dim);
+      this.add.text(labelX, panelY + 180, 'Appeal', labelStyle);
       this.appealText = this.add
         .text(panelX + panelW - 24, panelY + 180, '0 / 100', valueStyle)
         .setOrigin(1, 0);
@@ -222,7 +230,8 @@ export class DevelopmentScene extends Phaser.Scene {
 
     // Gold
     const goldY = appealEnabled ? panelY + 260 : panelY + 180;
-    this.add.text(panelX + 24, goldY, 'Gold', labelStyle);
+    this.addLabelIcon(panelX + 24, goldY + 8, ICONS.coins.key, TINT.warn);
+    this.add.text(labelX, goldY, 'Gold', labelStyle);
     this.goldText = this.add
       .text(panelX + panelW - 24, goldY, '0', valueStyle)
       .setOrigin(1, 0);
@@ -239,6 +248,14 @@ export class DevelopmentScene extends Phaser.Scene {
         color: TEXT_COLOR.dim,
       },
     );
+  }
+
+  private addLabelIcon(x: number, centerY: number, key: string, tint: number): void {
+    this.add
+      .image(x, centerY, key)
+      .setDisplaySize(16, 16)
+      .setOrigin(0, 0.5)
+      .setTint(tint);
   }
 
   private drawGauge(g: Phaser.GameObjects.Graphics, x: number, y: number, ratio: number, fill: number): void {

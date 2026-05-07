@@ -81,3 +81,15 @@ export const TEXT_COLOR = {
   /** 연체·주의. */
   warn: '#f2c94c',
 } as const;
+
+/**
+ * Phaser.GameObjects.Image.setTint() 등에 쓰는 number 형태.
+ * TEXT_COLOR와 같은 값을 가진 숫자 버전으로, 단색 SVG 아이콘에 의미 색을 입힐 때 사용.
+ */
+export const TINT = {
+  primary: 0xf2f2f7,
+  dim: 0x9b9bb0,
+  ok: 0x3ec07b,
+  bad: 0xe55f5f,
+  warn: 0xf2c94c,
+} as const;

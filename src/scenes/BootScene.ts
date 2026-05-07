@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { newTutorialGame, TUTORIAL_EMPLOYEES } from '@/domain/seed';
 import type { Employee } from '@/domain/types';
+import { ICON_DIR, ICONS } from '@/icons';
 import { loadData, type SavedResult } from '@/save';
 import { SCENE_KEYS } from './keys';
 
@@ -12,6 +13,13 @@ import { SCENE_KEYS } from './keys';
 export class BootScene extends Phaser.Scene {
   constructor() {
     super({ key: SCENE_KEYS.Boot });
+  }
+
+  preload(): void {
+    // Lucide 아이콘 SVG들을 32×32 텍스처로 일괄 로드. 모든 씬이 등록 후 공유.
+    for (const { key, file } of Object.values(ICONS)) {
+      this.load.svg(key, `${ICON_DIR}/${file}`, { width: 32, height: 32 });
+    }
   }
 
   create(): void {
