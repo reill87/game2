@@ -8,15 +8,14 @@ export const DPR =
   typeof window !== 'undefined' ? Math.max(window.devicePixelRatio || 1, 1) : 1;
 
 /**
- * 매 씬 create() 마지막에 호출해 두 가지를 동시에 처리:
- *  1) 카메라 zoom = DPR — 캔버스 드로잉 버퍼는 (GAME_WIDTH × DPR, GAME_HEIGHT × DPR)이고
- *     카메라 zoom이 좌표계를 DPR배 늘려, 우리 코드의 (720×1280) 좌표는 그대로 유지된다.
- *     결과적으로 동일 게임 픽셀이 DPR² 디바이스 픽셀에 칠해져 선명해진다.
- *  2) Phaser.Text의 setResolution(DPR) — 폰트 텍스처 자체도 고해상도로 래스터링.
+ * 매 씬 create() 마지막에 호출해 Phaser.Text의 setResolution(DPR)을 일괄 적용한다.
+ *
+ * 카메라 zoom + 캔버스 드로잉 버퍼 확대 트릭은 좌표계·뷰포트 정렬과 충돌이 잦아
+ * 일단 빼두고, 폰트 래스터라이즈 해상도만 DPR로 맞춘다. 도형(Graphics)은
+ * 벡터라 일부 환경에서 부드러워 보일 수 있지만 위치 어긋남·잘림은 없다.
  */
 export function applyHiDPI(scene: Phaser.Scene): void {
   if (DPR <= 1) return;
-  scene.cameras.main.setZoom(DPR);
   scene.children.each((child) => {
     if (child instanceof Phaser.GameObjects.Text) {
       child.setResolution(DPR);
