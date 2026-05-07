@@ -4,7 +4,7 @@ import type { Types } from 'phaser';
 import { GAME_WIDTH } from '@/constants';
 import { isMatched, SLOT_ORDER } from '@/domain/match';
 import { PROMO } from '@/domain/balance';
-import { GENRE_LABEL, JOB_LABEL, SLOT_LABEL, THEME_LABEL } from '@/domain/seed';
+import { GENRE_LABEL, JOB_LABEL, SLOT_ICON, SLOT_LABEL, THEME_LABEL } from '@/domain/seed';
 import { shipProject } from '@/domain/result';
 import { advanceWeek, canRelease, polishWeek } from '@/domain/tick';
 import type { GameState, PromoTier, SlotKind } from '@/domain/types';
@@ -297,7 +297,13 @@ export class DevelopmentScene extends Phaser.Scene {
 
       makePanel(this, x, y, tileW, tileH, COLOR.panelEmpty);
 
-      this.add.text(x + 14, y + 12, SLOT_LABEL[slot], {
+      // 슬롯 아이콘 (좌상단) + 라벨
+      this.add
+        .image(x + 14, y + 18, ICONS[SLOT_ICON[slot]].key)
+        .setDisplaySize(12, 12)
+        .setOrigin(0, 0.5)
+        .setTint(TINT.dim);
+      this.add.text(x + 14 + 16, y + 12, SLOT_LABEL[slot], {
         fontFamily: FONT_STACK,
         fontSize: '12px',
         fontStyle: 'bold',

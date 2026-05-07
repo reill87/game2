@@ -3,13 +3,22 @@ import type { Types } from 'phaser';
 
 import { GAME_WIDTH } from '@/constants';
 import { isMatched, SLOT_ORDER } from '@/domain/match';
-import { GENRE_LABEL, JOB_LABEL, newTutorialGame, SLOT_LABEL, THEME_LABEL } from '@/domain/seed';
+import {
+  GENRE_LABEL,
+  JOB_ICON,
+  JOB_LABEL,
+  newTutorialGame,
+  SLOT_ICON,
+  SLOT_LABEL,
+  THEME_LABEL,
+} from '@/domain/seed';
 import { isTutorialAssignmentReady, place } from '@/domain/tick';
 import type { Employee, GameState, SlotKind } from '@/domain/types';
 import { ICONS } from '@/icons';
 import type { SavedResult } from '@/save';
 import { COLOR, FONT_STACK, TEXT_COLOR, TINT } from '@/theme';
 import { applyHiDPI } from '@/util/hidpi';
+import { addIconLabel } from '@/util/iconLabel';
 
 import { SCENE_KEYS } from './keys';
 
@@ -148,14 +157,21 @@ export class AssignmentScene extends Phaser.Scene {
     const rect = new Phaser.Geom.Rectangle(x, y, w, h);
     const bg = this.add.graphics();
 
-    const slotLabel = this.add
-      .text(x + w / 2, y + 28, SLOT_LABEL[slot], {
-        fontFamily: FONT_STACK,
-        fontSize: '16px',
-        fontStyle: 'bold',
-        color: TEXT_COLOR.dim,
-      })
-      .setOrigin(0.5);
+    const { label: slotLabel } = addIconLabel(
+      this,
+      x + w / 2,
+      y + 28,
+      ICONS[SLOT_ICON[slot]].key,
+      SLOT_LABEL[slot],
+      {
+        iconSize: 16,
+        iconTint: TINT.dim,
+        textColor: TEXT_COLOR.dim,
+        fontSize: 16,
+        bold: true,
+        gap: 6,
+      },
+    );
 
     const empNameText = this.add
       .text(x + w / 2, y + h / 2 + 6, '비어 있음', {
@@ -221,13 +237,20 @@ export class AssignmentScene extends Phaser.Scene {
       })
       .setOrigin(0.5, 0);
 
-    const jobText = this.add
-      .text(x + w / 2, y + h / 2 + 4, JOB_LABEL[emp.job], {
-        fontFamily: FONT_STACK,
-        fontSize: '13px',
-        color: TEXT_COLOR.dim,
-      })
-      .setOrigin(0.5);
+    const { label: jobText } = addIconLabel(
+      this,
+      x + w / 2,
+      y + h / 2 + 4,
+      ICONS[JOB_ICON[emp.job]].key,
+      JOB_LABEL[emp.job],
+      {
+        iconSize: 14,
+        iconTint: TINT.dim,
+        textColor: TEXT_COLOR.dim,
+        fontSize: 13,
+        gap: 4,
+      },
+    );
 
     const placedText = this.add
       .text(x + w / 2, y + h - 26, '', {

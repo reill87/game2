@@ -19,6 +19,14 @@ export const ICONS = {
   sparkle: { key: 'icon-sparkle', file: 'sparkle.svg' },
   /** 주차 (캘린더). */
   calendar: { key: 'icon-calendar', file: 'calendar.svg' },
+  /** 기획자/기획 슬롯 (전구). */
+  lightbulb: { key: 'icon-lightbulb', file: 'lightbulb.svg' },
+  /** 디자이너/그래픽 슬롯 (붓). */
+  brush: { key: 'icon-brush', file: 'brush.svg' },
+  /** 사운드 직군/슬롯 (음표). */
+  music: { key: 'icon-music', file: 'music.svg' },
+  /** 개발자/프로그래밍 슬롯 (꺽쇠). */
+  code: { key: 'icon-code', file: 'code.svg' },
 } as const;
 
 export type IconName = keyof typeof ICONS;

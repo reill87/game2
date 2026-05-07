@@ -30,6 +30,21 @@ export const JOB_LABEL: Readonly<Record<Job, string>> = {
   sound: '사운드',
 };
 
+/** 슬롯/직군 아이콘 매핑 — src/icons.ts ICONS의 키. */
+export const SLOT_ICON: Readonly<Record<SlotKind, 'lightbulb' | 'brush' | 'music' | 'code'>> = {
+  planning: 'lightbulb',
+  graphics: 'brush',
+  sound: 'music',
+  programming: 'code',
+};
+
+export const JOB_ICON: Readonly<Record<Job, 'lightbulb' | 'brush' | 'music' | 'code'>> = {
+  planner: 'lightbulb',
+  designer: 'brush',
+  programmer: 'code',
+  sound: 'music',
+};
+
 export const GENRE_LABEL: Readonly<Record<GenreId, { name: string; desc: string }>> = {
   G1: { name: '초단타 터치', desc: '기간 짧음, 매출 변동 大' },
   G2: { name: '한 판마다 새로', desc: '디버깅 부담↑ 명성 롤러코스터' },
