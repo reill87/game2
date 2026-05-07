@@ -4,8 +4,9 @@ import type { Types } from 'phaser';
 import { GAME_WIDTH } from '@/constants';
 import { GENRE_LABEL, newProject, THEME_LABEL } from '@/domain/seed';
 import type { Employee, GenreId, ThemeId } from '@/domain/types';
+import { ICONS } from '@/icons';
 import type { SavedResult } from '@/save';
-import { COLOR, FONT_STACK, TEXT_COLOR } from '@/theme';
+import { COLOR, FONT_STACK, TEXT_COLOR, TINT } from '@/theme';
 import { applyHiDPI } from '@/util/hidpi';
 
 import { SCENE_KEYS } from './keys';
@@ -83,20 +84,25 @@ export class GenreSelectScene extends Phaser.Scene {
     };
     this.add.text(CX, 56, `${this.productIndex + 1}번째 작품 — 장르·테마 선택`, titleStyle).setOrigin(0.5);
 
-    const subParts: string[] = [];
+    // 코인 아이콘이 가장 왼쪽에 붙도록 골드를 첫 segment에 두고, 그 뒤에 지난 작품.
+    const subParts: string[] = [`보유 ${this.gold}g`];
     if (this.lastResult) {
       const stars = '★'.repeat(this.lastResult.stars) + '☆'.repeat(5 - this.lastResult.stars);
       subParts.push(`지난 작품 ${stars} (${this.lastResult.reviewScore}점)`);
     }
-    subParts.push(`보유 골드 ${this.gold}`);
 
-    this.add
+    const text = this.add
       .text(CX, 92, subParts.join('  ·  '), {
         fontFamily: FONT_STACK,
         fontSize: '13px',
         color: TEXT_COLOR.dim,
       })
       .setOrigin(0.5);
+    this.add
+      .image(text.x - text.width / 2 - 8, 92, ICONS.coins.key)
+      .setDisplaySize(13, 13)
+      .setOrigin(1, 0.5)
+      .setTint(TINT.warn);
   }
 
   // ────────────────────────── genre row ──────────────────────────

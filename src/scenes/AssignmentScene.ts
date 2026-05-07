@@ -6,8 +6,9 @@ import { isMatched, SLOT_ORDER } from '@/domain/match';
 import { GENRE_LABEL, JOB_LABEL, newTutorialGame, SLOT_LABEL, THEME_LABEL } from '@/domain/seed';
 import { isTutorialAssignmentReady, place } from '@/domain/tick';
 import type { Employee, GameState, SlotKind } from '@/domain/types';
+import { ICONS } from '@/icons';
 import type { SavedResult } from '@/save';
-import { COLOR, FONT_STACK, TEXT_COLOR } from '@/theme';
+import { COLOR, FONT_STACK, TEXT_COLOR, TINT } from '@/theme';
 import { applyHiDPI } from '@/util/hidpi';
 
 import { SCENE_KEYS } from './keys';
@@ -104,18 +105,25 @@ export class AssignmentScene extends Phaser.Scene {
   private buildCarryoverHint(): void {
     if (!this.lastResult && this.state.gold === 0) return;
     const parts: string[] = [];
-    if (this.state.gold > 0) parts.push(`이월 골드 ${this.state.gold}`);
+    if (this.state.gold > 0) parts.push(`이월 ${this.state.gold}g`);
     if (this.lastResult) {
       const stars = '★'.repeat(this.lastResult.stars) + '☆'.repeat(5 - this.lastResult.stars);
       parts.push(`지난 작품 ${stars} (${this.lastResult.reviewScore}점)`);
     }
-    this.add
+    const text = this.add
       .text(CX, 126, parts.join('  ·  '), {
         fontFamily: FONT_STACK,
         fontSize: '12px',
         color: TEXT_COLOR.warn,
       })
       .setOrigin(0.5);
+    if (this.state.gold > 0) {
+      this.add
+        .image(text.x - text.width / 2 - 8, 126, ICONS.coins.key)
+        .setDisplaySize(12, 12)
+        .setOrigin(1, 0.5)
+        .setTint(TINT.warn);
+    }
   }
 
   // ────────────────────────── slots ──────────────────────────
