@@ -38,7 +38,7 @@ interface ButtonView {
  * - [다음 주 →] 탭 = advanceWeek()
  * - Progress 100% 도달 시 출시 패널로 전환 (액션 영역만 교체)
  * - 출시 패널: [지금 출시] / [1주 더 다듬기]
- * - 야근 토글은 v1 튜토리얼에서 비노출 (docs/PRODUCT_LOOP.md 정책)
+ * - 야근 토글은 우상단에 작은 버튼. 노출 정책은 추후 productCount 기반으로 좁힘.
  */
 export class DevelopmentScene extends Phaser.Scene {
   static readonly KEY = SCENE_KEYS.Development;
@@ -60,6 +60,11 @@ export class DevelopmentScene extends Phaser.Scene {
   private releaseBtn!: ButtonView;
   private polishBtn!: ButtonView;
 
+  // crunch (야근) toggle
+  private crunchBtnBg!: Phaser.GameObjects.Graphics;
+  private crunchBtnText!: Phaser.GameObjects.Text;
+  private crunchBtnRect!: Phaser.Geom.Rectangle;
+
   constructor() {
     super({ key: SCENE_KEYS.Development });
   }
@@ -71,6 +76,7 @@ export class DevelopmentScene extends Phaser.Scene {
 
   create(): void {
     this.buildHeader();
+    this.buildCrunchToggle();
     this.buildStats();
     this.buildAssignmentRecap();
     this.buildStatus();
@@ -97,6 +103,45 @@ export class DevelopmentScene extends Phaser.Scene {
         color: TEXT_COLOR.dim,
       })
       .setOrigin(0.5);
+  }
+
+  // ────────────────────────── crunch toggle ──────────────────────────
+  private buildCrunchToggle(): void {
+    const w = 124;
+    const h = 40;
+    const x = GAME_WIDTH - 14 - w;
+    const y = 18;
+    this.crunchBtnRect = new Phaser.Geom.Rectangle(x, y, w, h);
+    this.crunchBtnBg = this.add.graphics();
+    this.crunchBtnText = this.add
+      .text(x + w / 2, y + h / 2, '', {
+        fontFamily: FONT_STACK,
+        fontSize: '14px',
+        fontStyle: 'bold',
+        color: TEXT_COLOR.primary,
+      })
+      .setOrigin(0.5);
+
+    const hit = this.add
+      .zone(x + w / 2, y + h / 2, w, h)
+      .setInteractive({ useHandCursor: true });
+    hit.on('pointerup', () => this.handleToggleCrunch());
+  }
+
+  private drawCrunchToggle(): void {
+    const on = this.state.crunch;
+    const fill = on ? COLOR.matchBad : COLOR.btnSecondary;
+    const r = this.crunchBtnRect;
+    this.crunchBtnBg.clear();
+    this.crunchBtnBg.fillStyle(fill, 1);
+    this.crunchBtnBg.fillRoundedRect(r.x, r.y, r.width, r.height, 12);
+    this.crunchBtnText.setText(on ? '야근 ON' : '야근 OFF');
+  }
+
+  private handleToggleCrunch(): void {
+    this.state = { ...this.state, crunch: !this.state.crunch };
+    this.drawCrunchToggle();
+    this.updateStatus();
   }
 
   // ────────────────────────── stats panel ──────────────────────────
@@ -361,6 +406,7 @@ export class DevelopmentScene extends Phaser.Scene {
     this.drawGauge(this.progressBar, panelX, 172, project.progress / 100, COLOR.gaugeFillProgress);
     this.drawGauge(this.bugBar, panelX, 252, project.bugDebt / 100, COLOR.gaugeFillBug);
 
+    this.drawCrunchToggle();
     this.redrawAssignmentRecap();
     this.updateStatus();
     this.updateActionPanel();
@@ -391,6 +437,9 @@ export class DevelopmentScene extends Phaser.Scene {
   private updateStatus(): void {
     const { project } = this.state;
     const overdue = project.weeksElapsed > project.weeksTarget;
+    const crunchHint = this.state.crunch
+      ? '야근 ON — 이번 주 Progress ×1.18, BugDebt +4. '
+      : '';
 
     if (canRelease(this.state)) {
       const headline =
@@ -405,8 +454,15 @@ export class DevelopmentScene extends Phaser.Scene {
 
     if (overdue) {
       this.statusText
-        .setText(`연체 ${project.weeksElapsed - project.weeksTarget}주 — 매주 골드 -8 페널티 누적.`)
+        .setText(
+          `${crunchHint}연체 ${project.weeksElapsed - project.weeksTarget}주 — 매주 골드 -8 페널티 누적.`,
+        )
         .setColor(TEXT_COLOR.warn);
+      return;
+    }
+
+    if (this.state.crunch) {
+      this.statusText.setText(crunchHint.trimEnd()).setColor(TEXT_COLOR.bad);
       return;
     }
 
