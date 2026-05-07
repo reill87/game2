@@ -8,7 +8,7 @@ import { SOUND_HIRE_CANDIDATE } from '@/domain/seed';
 import type { Employee } from '@/domain/types';
 import { loadData, saveData } from '@/save';
 import { COLOR, FONT_STACK, TEXT_COLOR } from '@/theme';
-import { applyHiDPIText } from '@/util/hidpi';
+import { applyHiDPI } from '@/util/hidpi';
 
 import { SCENE_KEYS } from './keys';
 
@@ -74,7 +74,7 @@ export class ResultScene extends Phaser.Scene {
     this.buildOfficePanel();
     this.buildResetButton();
     this.buildSaveFooter();
-    applyHiDPIText(this);
+    applyHiDPI(this);
   }
 
   // ────────────────────────── persistence ──────────────────────────
