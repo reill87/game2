@@ -9,6 +9,7 @@ import { shipProject } from '@/domain/result';
 import { advanceWeek, canRelease, polishWeek } from '@/domain/tick';
 import type { GameState, PromoTier, SlotKind } from '@/domain/types';
 import { COLOR, FONT_STACK, TEXT_COLOR } from '@/theme';
+import { applyHiDPIText } from '@/util/hidpi';
 
 import { SCENE_KEYS } from './keys';
 
@@ -104,6 +105,7 @@ export class DevelopmentScene extends Phaser.Scene {
     this.buildActions();
     if (this.state.productIndex >= 1) this.buildPromoSelector();
     this.redraw();
+    applyHiDPIText(this);
   }
 
   // ────────────────────────── header ──────────────────────────

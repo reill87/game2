@@ -8,6 +8,7 @@ import { isTutorialAssignmentReady, place } from '@/domain/tick';
 import type { Employee, GameState, SlotKind } from '@/domain/types';
 import type { SavedResult } from '@/save';
 import { COLOR, FONT_STACK, TEXT_COLOR } from '@/theme';
+import { applyHiDPIText } from '@/util/hidpi';
 
 import { SCENE_KEYS } from './keys';
 
@@ -65,6 +66,7 @@ export class AssignmentScene extends Phaser.Scene {
     this.buildStartButton();
     this.buildStatus();
     this.redraw();
+    applyHiDPIText(this);
   }
 
   // ────────────────────────── header ──────────────────────────

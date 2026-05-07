@@ -6,6 +6,7 @@ import { GENRE_LABEL, newProject, THEME_LABEL } from '@/domain/seed';
 import type { Employee, GenreId, ThemeId } from '@/domain/types';
 import type { SavedResult } from '@/save';
 import { COLOR, FONT_STACK, TEXT_COLOR } from '@/theme';
+import { applyHiDPIText } from '@/util/hidpi';
 
 import { SCENE_KEYS } from './keys';
 
@@ -69,6 +70,7 @@ export class GenreSelectScene extends Phaser.Scene {
     this.buildStatus();
     this.buildNextButton();
     this.redrawAll();
+    applyHiDPIText(this);
   }
 
   // ────────────────────────── header ──────────────────────────
