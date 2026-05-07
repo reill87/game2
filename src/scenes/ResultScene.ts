@@ -6,8 +6,9 @@ import { BALANCE } from '@/domain/balance';
 import type { ReleaseOutcome, ReviewStars } from '@/domain/result';
 import { SOUND_HIRE_CANDIDATE } from '@/domain/seed';
 import type { Employee } from '@/domain/types';
+import { ICONS } from '@/icons';
 import { loadData, saveData } from '@/save';
-import { COLOR, FONT_STACK, TEXT_COLOR } from '@/theme';
+import { COLOR, FONT_STACK, TEXT_COLOR, TINT } from '@/theme';
 import { applyHiDPI } from '@/util/hidpi';
 
 import { SCENE_KEYS } from './keys';
@@ -31,6 +32,7 @@ export class ResultScene extends Phaser.Scene {
   // office panel widgets
   private officeStatusText: Phaser.GameObjects.Text | null = null;
   private officeGoldText: Phaser.GameObjects.Text | null = null;
+  private officeGoldIcon: Phaser.GameObjects.Image | null = null;
   private upgradeBtnBg: Phaser.GameObjects.Graphics | null = null;
   private upgradeBtnText: Phaser.GameObjects.Text | null = null;
   private upgradeBtnRect: Phaser.Geom.Rectangle | null = null;
@@ -56,6 +58,7 @@ export class ResultScene extends Phaser.Scene {
     // 업그레이드/채용 위젯은 매 init마다 다시 만들기 위해 null로 비움.
     this.officeStatusText = null;
     this.officeGoldText = null;
+    this.officeGoldIcon = null;
     this.upgradeBtnBg = null;
     this.upgradeBtnText = null;
     this.upgradeBtnRect = null;
@@ -270,13 +273,19 @@ export class ResultScene extends Phaser.Scene {
       color: TEXT_COLOR.primary,
     });
 
+    const goldRowY = panelY + 48;
     this.officeGoldText = this.add
-      .text(panelX + panelW - 20, panelY + 48, '', {
+      .text(panelX + panelW - 20, goldRowY, '', {
         fontFamily: FONT_STACK,
         fontSize: '15px',
         color: TEXT_COLOR.primary,
       })
       .setOrigin(1, 0);
+    this.officeGoldIcon = this.add
+      .image(0, goldRowY + 9, ICONS.coins.key)
+      .setDisplaySize(16, 16)
+      .setOrigin(1, 0.5)
+      .setTint(TINT.warn);
 
     // 두 액션 버튼: 좌(업그레이드), 우(채용). 절반 너비씩.
     const btnY = panelY + 90;
@@ -323,7 +332,12 @@ export class ResultScene extends Phaser.Scene {
     const cap = BALANCE.officeHireCap[this.officeLevel];
     const totalEmps = 3 + this.hiredEmployees.length;
     this.officeStatusText.setText(`${this.officeLevel}단계 — 고용 ${totalEmps}/${cap}명`);
-    this.officeGoldText.setText(`보유 ${this.liveGold}g`);
+    this.officeGoldText.setText(`${this.liveGold}g`);
+    // 코인 아이콘은 골드 텍스트 좌측, 텍스트 폭이 변하므로 동적으로 위치 보정.
+    if (this.officeGoldIcon) {
+      const textLeft = this.officeGoldText.x - this.officeGoldText.width;
+      this.officeGoldIcon.setX(textLeft - 6);
+    }
 
     const canUpgrade = this.officeLevel === 1 && this.liveGold >= BALANCE.officeUpgradeCost;
     const canHire = this.officeLevel === 2 && totalEmps < BALANCE.officeHireCap[2];

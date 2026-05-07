@@ -51,6 +51,7 @@ export class DevelopmentScene extends Phaser.Scene {
   private polishCount = 0;
 
   private weekText!: Phaser.GameObjects.Text;
+  private weekIcon!: Phaser.GameObjects.Image;
   private progressBar!: Phaser.GameObjects.Graphics;
   private progressText!: Phaser.GameObjects.Text;
   private bugBar!: Phaser.GameObjects.Graphics;
@@ -128,6 +129,11 @@ export class DevelopmentScene extends Phaser.Scene {
         color: TEXT_COLOR.dim,
       })
       .setOrigin(0.5);
+    this.weekIcon = this.add
+      .image(0, 88, ICONS.calendar.key)
+      .setDisplaySize(14, 14)
+      .setOrigin(1, 0.5)
+      .setTint(TINT.dim);
   }
 
   // ────────────────────────── crunch toggle ──────────────────────────
@@ -527,6 +533,8 @@ export class DevelopmentScene extends Phaser.Scene {
   private redraw(): void {
     const { project } = this.state;
     this.weekText.setText(`Week ${project.weeksElapsed} / ${project.weeksTarget}`);
+    // calendar 아이콘은 weekText 좌측에 — 텍스트 폭에 따라 위치 보정.
+    this.weekIcon.setX(this.weekText.x - this.weekText.width / 2 - 6);
     this.progressText.setText(`${project.progress.toFixed(1)}%`);
     this.bugText
       .setText(`${Math.round(project.bugDebt)} / 100`)
