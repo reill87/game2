@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import type { Types } from 'phaser';
 
 import { GAME_WIDTH } from '@/constants';
-import { GENRE_LABEL, newProject, THEME_LABEL } from '@/domain/seed';
+import { GENRE_ICON, GENRE_LABEL, newProject, THEME_ICON, THEME_LABEL } from '@/domain/seed';
 import type { Employee, GenreId, ThemeId } from '@/domain/types';
 import { ICONS } from '@/icons';
 import type { SavedResult } from '@/save';
@@ -116,8 +116,13 @@ export class GenreSelectScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
-    this.layoutCards<GenreId>(GENRES, this.genreCards, 170, (id) => GENRE_LABEL[id], (id) =>
-      this.handleGenreTap(id),
+    this.layoutCards<GenreId>(
+      GENRES,
+      this.genreCards,
+      170,
+      (id) => GENRE_LABEL[id],
+      (id) => ICONS[GENRE_ICON[id]].key,
+      (id) => this.handleGenreTap(id),
     );
   }
 
@@ -131,8 +136,13 @@ export class GenreSelectScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
-    this.layoutCards<ThemeId>(THEMES, this.themeCards, 500, (id) => THEME_LABEL[id], (id) =>
-      this.handleThemeTap(id),
+    this.layoutCards<ThemeId>(
+      THEMES,
+      this.themeCards,
+      500,
+      (id) => THEME_LABEL[id],
+      (id) => ICONS[THEME_ICON[id]].key,
+      (id) => this.handleThemeTap(id),
     );
   }
 
@@ -141,6 +151,7 @@ export class GenreSelectScene extends Phaser.Scene {
     out: Map<K, CardView<K>>,
     topY: number,
     label: (k: K) => { name: string; desc: string },
+    iconKey: (k: K) => string,
     onTap: (k: K) => void,
   ): void {
     const cardW = 200;
@@ -156,18 +167,26 @@ export class GenreSelectScene extends Phaser.Scene {
       const bg = this.add.graphics();
       const data = label(k);
 
+      // 코드 (G1 등) — 좌상단 작게
       this.add
-        .text(x + cardW / 2, y + 36, k, {
+        .text(x + 14, y + 14, k, {
           fontFamily: FONT_STACK,
-          fontSize: '12px',
+          fontSize: '11px',
           color: TEXT_COLOR.dim,
         })
-        .setOrigin(0.5);
+        .setOrigin(0, 0);
+
+      // 메인 아이콘 — 카드 상단 가운데
+      this.add
+        .image(x + cardW / 2, y + 70, iconKey(k))
+        .setDisplaySize(40, 40)
+        .setOrigin(0.5)
+        .setTint(TINT.dim);
 
       this.add
-        .text(x + cardW / 2, y + 90, data.name, {
+        .text(x + cardW / 2, y + 130, data.name, {
           fontFamily: FONT_STACK,
-          fontSize: '17px',
+          fontSize: '16px',
           fontStyle: 'bold',
           color: TEXT_COLOR.primary,
           align: 'center',
@@ -176,9 +195,9 @@ export class GenreSelectScene extends Phaser.Scene {
         .setOrigin(0.5);
 
       this.add
-        .text(x + cardW / 2, y + 170, data.desc, {
+        .text(x + cardW / 2, y + 195, data.desc, {
           fontFamily: FONT_STACK,
-          fontSize: '12px',
+          fontSize: '11px',
           color: TEXT_COLOR.dim,
           align: 'center',
           wordWrap: { width: cardW - 20, useAdvancedWrap: true },

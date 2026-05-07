@@ -45,6 +45,18 @@ export const JOB_ICON: Readonly<Record<Job, 'lightbulb' | 'brush' | 'music' | 'c
   sound: 'music',
 };
 
+export const GENRE_ICON: Readonly<Record<GenreId, 'pointer' | 'dice' | 'chat'>> = {
+  G1: 'pointer',
+  G2: 'dice',
+  G3: 'chat',
+};
+
+export const THEME_ICON: Readonly<Record<ThemeId, 'moon' | 'users' | 'alert'>> = {
+  T1: 'moon',
+  T2: 'users',
+  T3: 'alert',
+};
+
 export const GENRE_LABEL: Readonly<Record<GenreId, { name: string; desc: string }>> = {
   G1: { name: '초단타 터치', desc: '기간 짧음, 매출 변동 大' },
   G2: { name: '한 판마다 새로', desc: '디버깅 부담↑ 명성 롤러코스터' },

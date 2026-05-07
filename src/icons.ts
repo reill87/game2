@@ -27,6 +27,18 @@ export const ICONS = {
   music: { key: 'icon-music', file: 'music.svg' },
   /** 개발자/프로그래밍 슬롯 (꺽쇠). */
   code: { key: 'icon-code', file: 'code.svg' },
+  /** G1 초단타 터치 — 손가락 탭 */
+  pointer: { key: 'icon-pointer', file: 'pointer.svg' },
+  /** G2 한 판마다 새로 — 주사위 */
+  dice: { key: 'icon-dice', file: 'dice.svg' },
+  /** G3 말이 주인공 — 말풍선 */
+  chat: { key: 'icon-chat', file: 'chat.svg' },
+  /** T1 야근과 치킨 — 달 */
+  moon: { key: 'icon-moon', file: 'moon.svg' },
+  /** T2 회의가 레벨이다 — 사람들 */
+  users: { key: 'icon-users', file: 'users.svg' },
+  /** T3 버그한테 잡아먹힘 — 경고 (BugDebt 일반 아이콘과 차별) */
+  alert: { key: 'icon-alert', file: 'alert.svg' },
 } as const;
 
 export type IconName = keyof typeof ICONS;
