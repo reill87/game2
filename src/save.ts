@@ -39,6 +39,8 @@ export interface SaveData {
   readonly officeLevel: 1 | 2;
   readonly hiredEmployees: ReadonlyArray<Employee>;
   readonly lastResult: SavedResult | null;
+  /** 회사 누적 명성 — PIVOT-4. 옛 v2 데이터엔 없을 수 있어 옵셔널 취급. */
+  readonly reputation?: number;
 }
 
 interface SaveDataV1 {
@@ -63,6 +65,7 @@ export function saveData(input: {
   officeLevel: 1 | 2;
   hiredEmployees: ReadonlyArray<Employee>;
   lastResult: SavedResult | null;
+  reputation: number;
 }): SaveData | null {
   const storage = getStorage();
   if (!storage) return null;
@@ -74,6 +77,7 @@ export function saveData(input: {
     officeLevel: input.officeLevel,
     hiredEmployees: input.hiredEmployees,
     lastResult: input.lastResult,
+    reputation: input.reputation,
   };
   try {
     storage.setItem(KEY, JSON.stringify(full));

@@ -2,7 +2,7 @@
  * 출시 결과 산정 — 순수 함수.
  * 모든 수치는 docs/BALANCE.md v0.1 대역에 맞춤. 추후 문서 갱신과 함께 조정.
  */
-import { BALANCE, PROMO, RANK_NEXT, RANK_PROMOTION, SKILL_GROWTH } from './balance';
+import { BALANCE, PROMO, RANK_NEXT, RANK_PROMOTION, REPUTATION, SKILL_GROWTH } from './balance';
 import { isMatched, SLOT_ORDER } from './match';
 import { release } from './tick';
 import type { Employee, GameState, PromoTier, Rank } from './types';
@@ -57,7 +57,16 @@ export interface ReleaseOutcome {
     readonly cost: number;
     readonly revenueMul: number;
   };
-  /** released=true, gold = (prev.gold − promo.cost) + revenue. */
+  /** 명성 — 출시 시 누적. UI 표시용. */
+  readonly reputation: {
+    /** 이번 출시로 +N. */
+    readonly gain: number;
+    /** 매출에 적용된 명성 보너스 배수. */
+    readonly multiplier: number;
+    /** 누적 명성 (이번 출시 후). */
+    readonly total: number;
+  };
+  /** released=true, gold = (prev.gold − promo.cost) + revenue. reputation도 누적. */
   readonly state: GameState;
 }
 
@@ -118,7 +127,11 @@ export function shipProject(
   const finalScore = clamp(r.rawScore + eff.reviewBonus, 0, 100);
   const stars = computeStars(finalScore);
   const baseRevenue = computeRevenue(finalScore);
-  const revenue = Math.round(baseRevenue * eff.revenueMul);
+  // 명성 보너스 — 누적 명성에 비례한 매출 곱연산. 명성 300 = 매출 2배.
+  const reputationMul = 1 + prev.reputation / REPUTATION.revenueBonusDivisor;
+  const revenue = Math.round(baseRevenue * eff.revenueMul * reputationMul);
+  const reputationGain = stars * REPUTATION.perStarOnRelease;
+  const newReputation = prev.reputation + reputationGain;
 
   const goldAfterPromo = Math.max(0, prev.gold - eff.cost);
 
@@ -138,7 +151,12 @@ export function shipProject(
     return { ...e, skill: newSkill, shippedProjects: newShipped, rank: newRank };
   });
 
-  const released = release({ ...prev, gold: goldAfterPromo, employees: boostedEmployees });
+  const released = release({
+    ...prev,
+    gold: goldAfterPromo,
+    employees: boostedEmployees,
+    reputation: newReputation,
+  });
   const state: GameState = { ...released, gold: released.gold + revenue };
 
   return {
@@ -158,6 +176,11 @@ export function shipProject(
       tier: effectiveTier,
       cost: eff.cost,
       revenueMul: eff.revenueMul,
+    },
+    reputation: {
+      gain: reputationGain,
+      multiplier: reputationMul,
+      total: newReputation,
     },
     state,
   };

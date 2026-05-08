@@ -90,6 +90,7 @@ export class ResultScene extends Phaser.Scene {
       productCount: o.state.productIndex + 1,
       officeLevel: this.officeLevel,
       hiredEmployees: this.hiredEmployees,
+      reputation: o.reputation.total,
       lastResult: {
         genre: project.genre,
         theme: project.theme,
@@ -208,8 +209,15 @@ export class ResultScene extends Phaser.Scene {
         ? '없음'
         : `${promo.tier === 'small' ? '소' : '중'} (-${promo.cost}g · ×${promo.revenueMul.toFixed(2)})`;
 
+    const repMul = o.reputation.multiplier;
+    const repValue =
+      repMul > 1.001
+        ? `+${o.reputation.gain} (총 ${o.reputation.total} · 매출 ×${repMul.toFixed(2)})`
+        : `+${o.reputation.gain} (총 ${o.reputation.total})`;
+
     const baseRows: ReadonlyArray<readonly [string, string, string]> = [
       ['매출', `+${o.revenue} 골드`, TEXT_COLOR.ok],
+      ['명성', repValue, TEXT_COLOR.warn],
       ['BugDebt', `${Math.round(project.bugDebt)} / 100`, project.bugDebt >= 70 ? TEXT_COLOR.bad : TEXT_COLOR.primary],
       ...(project.appealEnabled
         ? ([['Appeal', `${Math.round(project.appeal)} / 100`, TEXT_COLOR.primary]] as const)

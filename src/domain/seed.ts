@@ -168,6 +168,8 @@ export function newProject(opts: {
   theme: ThemeId;
   gold: number;
   employees: ReadonlyArray<Employee>;
+  officeLevel?: 1 | 2;
+  reputation?: number;
   appealEnabled?: boolean;
 }): GameState {
   return {
@@ -187,6 +189,8 @@ export function newProject(opts: {
     gold: opts.gold,
     crunch: false,
     productIndex: opts.productIndex,
+    officeLevel: opts.officeLevel ?? 1,
+    reputation: opts.reputation ?? 0,
   };
 }
 
@@ -199,5 +203,7 @@ export function newTutorialGame(): GameState {
     gold: 0,
     employees: TUTORIAL_EMPLOYEES,
     appealEnabled: false,
+    officeLevel: 1,
+    reputation: 0,
   });
 }

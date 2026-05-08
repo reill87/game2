@@ -31,6 +31,8 @@ export class GenreSelectScene extends Phaser.Scene {
 
   private productIndex = 1;
   private gold = 0;
+  private officeLevel: 1 | 2 = 1;
+  private reputation = 0;
   private employees: ReadonlyArray<Employee> = [];
   private lastResult: SavedResult | null = null;
 
@@ -53,11 +55,15 @@ export class GenreSelectScene extends Phaser.Scene {
   init(data: {
     productIndex: number;
     gold: number;
+    officeLevel?: 1 | 2;
+    reputation?: number;
     employees: ReadonlyArray<Employee>;
     lastResult: SavedResult | null;
   }): void {
     this.productIndex = data.productIndex;
     this.gold = data.gold;
+    this.officeLevel = data.officeLevel ?? 1;
+    this.reputation = data.reputation ?? 0;
     this.employees = data.employees;
     this.lastResult = data.lastResult;
     this.selectedGenre = null;
@@ -266,6 +272,8 @@ export class GenreSelectScene extends Phaser.Scene {
       gold: this.gold,
       employees: this.employees,
       appealEnabled: this.productIndex >= 1,
+      officeLevel: this.officeLevel,
+      reputation: this.reputation,
     });
     this.scene.start(SCENE_KEYS.Assignment, { state, lastResult: this.lastResult });
   }

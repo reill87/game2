@@ -7,7 +7,13 @@ import { PROMO } from '@/domain/balance';
 import { pickRandomEvent, type GameEvent } from '@/domain/events';
 import { GENRE_LABEL, JOB_LABEL, SLOT_ICON, SLOT_LABEL, THEME_LABEL } from '@/domain/seed';
 import { shipProject } from '@/domain/result';
-import { advanceWeek, canRelease, polishWeek } from '@/domain/tick';
+import {
+  advanceWeek,
+  canRelease,
+  computeBurnRate,
+  computeSlotContributions,
+  polishWeek,
+} from '@/domain/tick';
 import type { GameState, PromoTier, SlotKind } from '@/domain/types';
 import { ICONS } from '@/icons';
 import { COLOR, FONT_STACK, TEXT_COLOR, TINT } from '@/theme';
@@ -79,6 +85,7 @@ export class DevelopmentScene extends Phaser.Scene {
     SlotKind,
     {
       text: Phaser.GameObjects.Text;
+      contribText: Phaser.GameObjects.Text;
       moraleFill: Phaser.GameObjects.Graphics;
       staminaFill: Phaser.GameObjects.Graphics;
       barX: number;
@@ -86,8 +93,13 @@ export class DevelopmentScene extends Phaser.Scene {
       moraleBarY: number;
       staminaBarY: number;
       barH: number;
+      tileX: number;
+      tileY: number;
+      tileW: number;
+      tileH: number;
     }
   >();
+  private burnText: Phaser.GameObjects.Text | null = null;
   private statusText!: Phaser.GameObjects.Text;
 
   // Playback controls (Slice 5)
@@ -300,6 +312,15 @@ export class DevelopmentScene extends Phaser.Scene {
       .text(panelX + panelW - 24, goldY, '0', valueStyle)
       .setOrigin(1, 0);
 
+    // Burn rate (Gold 옆 매주 −Ng/주 표시)
+    this.burnText = this.add
+      .text(panelX + panelW - 24, goldY + 22, '', {
+        fontFamily: FONT_STACK,
+        fontSize: '12px',
+        color: TEXT_COLOR.bad,
+      })
+      .setOrigin(1, 0);
+
     // Hint
     const hintY = appealEnabled ? panelY + 298 : panelY + 218;
     this.add.text(
@@ -371,10 +392,18 @@ export class DevelopmentScene extends Phaser.Scene {
         color: TEXT_COLOR.dim,
       });
 
-      const t = this.add.text(x + 14, y + 36, '', {
+      const t = this.add.text(x + 14, y + 32, '', {
         fontFamily: FONT_STACK,
         fontSize: '14px',
         color: TEXT_COLOR.primary,
+      });
+
+      // 이번 주 기여 — 직원 이름 아래 (왼쪽 정렬, 작은 노란 텍스트)
+      const contribText = this.add.text(x + 14, y + 52, '', {
+        fontFamily: FONT_STACK,
+        fontSize: '11px',
+        fontStyle: 'bold',
+        color: TEXT_COLOR.warn,
       });
 
       // 컨디션 미니바 — 우측에 두 줄 (사기 위, 체력 아래)
@@ -394,6 +423,7 @@ export class DevelopmentScene extends Phaser.Scene {
 
       this.slotSummaryViews.set(slot, {
         text: t,
+        contribText,
         moraleFill,
         staminaFill,
         barX,
@@ -401,6 +431,10 @@ export class DevelopmentScene extends Phaser.Scene {
         moraleBarY,
         staminaBarY,
         barH,
+        tileX: x,
+        tileY: y,
+        tileW,
+        tileH,
       });
     });
   }
@@ -742,9 +776,24 @@ export class DevelopmentScene extends Phaser.Scene {
       this.handlePause();
       return;
     }
+    // tick 직전 기여도를 캡쳐해 floating 팝업으로 띄움.
+    const contributions = computeSlotContributions(this.state);
     this.state = advanceWeek(this.state);
     this.weeksSinceEvent += 1;
     this.redraw();
+
+    // 각 정배치 직원의 +X.X% 텍스트가 타일 위로 떠오르며 사라짐.
+    for (const c of contributions) {
+      if (c.progressDelta <= 0) continue;
+      const view = this.slotSummaryViews.get(c.slot);
+      if (!view) continue;
+      this.spawnContribPopup(
+        view.tileX + view.tileW / 2,
+        view.tileY + 8,
+        `+${c.progressDelta.toFixed(1)}%`,
+        c.matched ? TEXT_COLOR.ok : TEXT_COLOR.bad,
+      );
+    }
 
     if (canRelease(this.state)) {
       // 출시 가능 도달 — 자동 일시정지하고 출시 패널 노출(redraw가 처리).
@@ -761,6 +810,27 @@ export class DevelopmentScene extends Phaser.Scene {
         this.showEventModal(ev);
       }
     }
+  }
+
+  /** 한 줄 텍스트가 위로 30px 떠오르며 페이드아웃되는 popup. */
+  private spawnContribPopup(x: number, y: number, text: string, color: string): void {
+    const t = this.add
+      .text(x, y, text, {
+        fontFamily: FONT_STACK,
+        fontSize: '14px',
+        fontStyle: 'bold',
+        color,
+      })
+      .setOrigin(0.5)
+      .setDepth(50);
+    this.tweens.add({
+      targets: t,
+      y: y - 28,
+      alpha: 0,
+      duration: 900,
+      ease: 'Cubic.easeOut',
+      onComplete: () => t.destroy(),
+    });
   }
 
   // ────────────────────────── event modal ──────────────────────────
@@ -947,10 +1017,19 @@ export class DevelopmentScene extends Phaser.Scene {
       this.drawGauge(this.appealBar, panelX, 332, a / 100, COLOR.gaugeFillProgress);
       this.appealText.setText(`${Math.round(a)} / 100`);
     }
+
+    // Burn rate — 매주 자동 차감되는 운영비.
+    if (this.burnText) {
+      const burn = computeBurnRate(this.state);
+      this.burnText.setText(`운영비 −${burn}g/주`);
+    }
   }
 
   private redrawAssignmentRecap(): void {
     const empById = new Map(this.state.employees.map((e) => [e.id, e] as const));
+    const contributions = computeSlotContributions(this.state);
+    const contribBySlot = new Map(contributions.map((c) => [c.slot, c] as const));
+
     for (const slot of SLOT_ORDER) {
       const view = this.slotSummaryViews.get(slot);
       if (!view) continue;
@@ -959,7 +1038,7 @@ export class DevelopmentScene extends Phaser.Scene {
 
       if (!emp) {
         view.text.setText('비어 있음').setColor(TEXT_COLOR.disabled);
-        // 비어 있으면 컨디션 바 비움
+        view.contribText.setText('');
         view.moraleFill.clear();
         view.staminaFill.clear();
         continue;
@@ -969,6 +1048,17 @@ export class DevelopmentScene extends Phaser.Scene {
       view.text
         .setText(`${emp.name} · ${JOB_LABEL[emp.job]} ${matched ? '✓' : '✗'}`)
         .setColor(matched ? TEXT_COLOR.ok : TEXT_COLOR.bad);
+
+      // 이번 주 기여도 — Progress %/주
+      const c = contribBySlot.get(slot);
+      if (c) {
+        view.contribText
+          .setText(`+${c.progressDelta.toFixed(1)}%/주`)
+          .setColor(matched ? TEXT_COLOR.warn : TEXT_COLOR.dim);
+      } else {
+        view.contribText.setText('');
+      }
+
       drawConditionFill(view.moraleFill, view.barX, view.moraleBarY, view.barW, view.barH, emp.morale);
       drawConditionFill(view.staminaFill, view.barX, view.staminaBarY, view.barW, view.barH, emp.stamina);
     }

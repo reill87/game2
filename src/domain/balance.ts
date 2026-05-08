@@ -45,6 +45,41 @@ export const BALANCE = {
 } as const;
 
 /**
+ * Burn Rate (PIVOT-4) — 매주 자동 차감.
+ *
+ * 직원 인건비(직급별) + 사무실 임대료. advanceWeek/polishWeek 시 합산해 골드에서 빼고,
+ * 골드 0 이하로는 가지 않도록 clamp.
+ *
+ * 튜토리얼 가정 (junior 3명 + 1단계): 3×10 + 0 = 30g/주. 10주 = 300g 압박.
+ *  → 첫 매출 ~275g와 비등 → 흑자 내려면 폴리싱·홍보·진급 신경 써야 함.
+ */
+export const BURN = {
+  /** 직급별 매주 인건비. */
+  payrollByRank: {
+    newbie: 8,
+    junior: 10,
+    senior: 15,
+    lead: 20,
+  },
+  /** 사무실 단계별 매주 임대료. */
+  officeRentByStage: {
+    1: 0,
+    2: 10,
+  },
+} as const;
+
+/**
+ * 명성 (Reputation) — 영구 누적, 출시 시 별점에 비례해 증가.
+ * 매출에 곱연산 보너스로 작용해 후반 작품일수록 더 큰 매출.
+ */
+export const REPUTATION = {
+  /** 출시 시 명성 증가량 = stars × this. */
+  perStarOnRelease: 5,
+  /** 매출 배수 = 1 + reputation / divisor. */
+  revenueBonusDivisor: 300,
+} as const;
+
+/**
  * 직원 컨디션(사기·체력) 모델 — Slice 6.
  *
  * 매 주(advanceWeek) 끝에 직원별로 상태를 업데이트하고, 다음 주 작업 기여는

@@ -17,11 +17,9 @@ export class BootScene extends Phaser.Scene {
   }
 
   preload(): void {
-    // Lucide 아이콘 SVG들을 32×32 텍스처로 일괄 로드. 모든 씬이 등록 후 공유.
     for (const { key, file } of Object.values(ICONS)) {
       this.load.svg(key, `${ICON_DIR}/${file}`, { width: 32, height: 32 });
     }
-    // Kenney 9-slice UI 텍스처 (패널·버튼 베이스).
     preloadUITextures(this);
   }
 
@@ -29,6 +27,8 @@ export class BootScene extends Phaser.Scene {
     const saved = loadData();
     const productIndex = saved?.productCount ?? 0;
     const gold = saved?.gold ?? 0;
+    const officeLevel: 1 | 2 = saved?.officeLevel ?? 1;
+    const reputation = saved?.reputation ?? 0;
     const employees: ReadonlyArray<Employee> = saved?.hiredEmployees?.length
       ? [...TUTORIAL_EMPLOYEES, ...saved.hiredEmployees]
       : TUTORIAL_EMPLOYEES;
@@ -36,7 +36,7 @@ export class BootScene extends Phaser.Scene {
 
     if (productIndex === 0) {
       const fresh = newTutorialGame();
-      const state = { ...fresh, employees, gold };
+      const state = { ...fresh, employees, gold, officeLevel, reputation };
       const carry: { lastResult?: SavedResult } = {};
       if (lastResult) carry.lastResult = lastResult;
       this.scene.start(SCENE_KEYS.Assignment, { state, ...carry });
@@ -46,6 +46,8 @@ export class BootScene extends Phaser.Scene {
     this.scene.start(SCENE_KEYS.GenreSelect, {
       productIndex,
       gold,
+      officeLevel,
+      reputation,
       employees,
       lastResult,
     });

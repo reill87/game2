@@ -4,6 +4,7 @@
  */
 import {
   BALANCE,
+  BURN,
   CONDITION,
   GENRE_MOD,
   LEAD_TEAM_BONUS,
@@ -14,6 +15,58 @@ import {
 } from './balance';
 import { isMatched, SLOT_ORDER } from './match';
 import type { Assignment, Employee, GameState, SlotKind } from './types';
+
+/** 매주 자동 차감되는 회사 운영비(인건비 + 사옥 임대료). */
+export function computeBurnRate(state: GameState): number {
+  const payroll = state.employees.reduce(
+    (acc, e) => acc + BURN.payrollByRank[e.rank],
+    0,
+  );
+  const rent = BURN.officeRentByStage[state.officeLevel];
+  return payroll + rent;
+}
+
+/** 직원 한 명의 한 주 기여 — UI 표시용. advanceWeek와 같은 식. */
+export interface SlotContribution {
+  slot: SlotKind;
+  empId: string;
+  matched: boolean;
+  /** 이번 주 progress(%) 기여. */
+  progressDelta: number;
+  /** 이번 주 appeal 기여. appealEnabled가 false면 0. */
+  appealDelta: number;
+}
+
+/** 현재 state에서 다음 주 advanceWeek가 발생시킬 직원별 기여를 미리 계산. */
+export function computeSlotContributions(state: GameState): SlotContribution[] {
+  const employeesById = new Map(state.employees.map((e) => [e.id, e] as const));
+  const totalLeads = state.employees.filter((e) => e.rank === 'lead').length;
+  const gMod = GENRE_MOD[state.project.genre];
+  const tMod = THEME_MOD[state.project.theme];
+  const result: SlotContribution[] = [];
+
+  for (const slot of SLOT_ORDER) {
+    const empId = state.assignment[slot];
+    if (!empId) continue;
+    const emp = employeesById.get(empId);
+    if (!emp) continue;
+    const matched = isMatched(slot, emp.job);
+    const factor = matched ? 1 : BALANCE.mismatchContribFactor;
+    const leadCountForOthers = totalLeads - (emp.rank === 'lead' ? 1 : 0);
+    const eff = effectiveSkill(emp, leadCountForOthers);
+
+    let progressDelta = BALANCE.matchedProgressPerWeek * eff * factor;
+    progressDelta *= gMod.progressMul * tMod.progressMul;
+    if (state.crunch) progressDelta *= BALANCE.crunchProgressMul;
+
+    const appealDelta = state.project.appealEnabled
+      ? BALANCE.appealBySlot[slot] * eff * factor
+      : 0;
+
+    result.push({ slot, empId, matched, progressDelta, appealDelta });
+  }
+  return result;
+}
 
 function clamp(n: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, n));
@@ -127,7 +180,9 @@ export function advanceWeek(prev: GameState): GameState {
 
   const weeksElapsed = prev.project.weeksElapsed + 1;
   const overdue = weeksElapsed > prev.project.weeksTarget;
-  const goldDelta = overdue ? BALANCE.overrunGoldPenalty : 0;
+  const overdueDelta = overdue ? BALANCE.overrunGoldPenalty : 0;
+  const burn = computeBurnRate(prev);
+  const goldDelta = overdueDelta - burn;
 
   return {
     ...prev,
@@ -143,12 +198,14 @@ export function advanceWeek(prev: GameState): GameState {
   };
 }
 
-/** 1주 폴리싱: 1주 경과 + BugDebt 감소. 모두가 휴식 모드로 컨디션 회복. */
+/** 1주 폴리싱: 1주 경과 + BugDebt 감소. 모두가 휴식 모드로 컨디션 회복. burn은 그대로 차감. */
 export function polishWeek(prev: GameState): GameState {
   if (prev.project.released) return prev;
   const weeksElapsed = prev.project.weeksElapsed + 1;
   const overdue = weeksElapsed > prev.project.weeksTarget;
-  const goldDelta = overdue ? BALANCE.overrunGoldPenalty : 0;
+  const overdueDelta = overdue ? BALANCE.overrunGoldPenalty : 0;
+  const burn = computeBurnRate(prev);
+  const goldDelta = overdueDelta - burn;
   const nextEmployees = prev.employees.map((e) => tickCondition(e, prev, 'rest'));
   return {
     ...prev,
