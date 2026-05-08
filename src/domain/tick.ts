@@ -2,7 +2,7 @@
  * 순수 도메인 리듀서. Phaser·DOM 비의존.
  * 모든 함수는 입력 state를 변경하지 않고 새 객체를 반환한다.
  */
-import { BALANCE, CONDITION, GENRE_MOD, THEME_MOD } from './balance';
+import { BALANCE, CONDITION, GENRE_MOD, SKILL_GROWTH, THEME_MOD } from './balance';
 import { isMatched, SLOT_ORDER } from './match';
 import type { Assignment, Employee, GameState, SlotKind } from './types';
 
@@ -28,6 +28,7 @@ function tickCondition(emp: Employee, state: GameState, mode: 'work' | 'rest'): 
 
   let dStamina = 0;
   let dMorale = 0;
+  let dSkill = 0;
 
   if (mode === 'rest') {
     // 폴리싱·휴식 주: 모두가 회복.
@@ -43,10 +44,13 @@ function tickCondition(emp: Employee, state: GameState, mode: 'work' | 'rest'): 
     if (state.project.bugDebt > CONDITION.moraleBugDebtThreshold) {
       dMorale += CONDITION.moraleBugDebtPenalty;
     }
+    // 정배치 작업이 누적되면 자연 성장.
+    if (matched) dSkill = SKILL_GROWTH.perWeekMatched;
   }
 
   return {
     ...emp,
+    skill: clamp(emp.skill + dSkill, 0, SKILL_GROWTH.maxSkill),
     morale: clamp(emp.morale + dMorale, 0, 100),
     stamina: clamp(emp.stamina + dStamina, 0, 100),
   };

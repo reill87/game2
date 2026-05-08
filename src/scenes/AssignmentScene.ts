@@ -248,6 +248,19 @@ export class AssignmentScene extends Phaser.Scene {
       })
       .setOrigin(0.5, 0);
 
+    // 스킬 배지 — 1.0 초과분만 우상단에 작게 (예: skill 1.10 → "+10%")
+    const skillPct = Math.round((emp.skill - 1) * 100);
+    if (skillPct > 0) {
+      this.add
+        .text(x + w - 12, y + 12, `+${skillPct}%`, {
+          fontFamily: FONT_STACK,
+          fontSize: '11px',
+          fontStyle: 'bold',
+          color: TEXT_COLOR.warn,
+        })
+        .setOrigin(1, 0);
+    }
+
     const { label: jobText } = addIconLabel(
       this,
       x + w / 2,

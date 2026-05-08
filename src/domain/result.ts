@@ -2,7 +2,8 @@
  * 출시 결과 산정 — 순수 함수.
  * 모든 수치는 docs/BALANCE.md v0.1 대역에 맞춤. 추후 문서 갱신과 함께 조정.
  */
-import { BALANCE, PROMO } from './balance';
+import { BALANCE, PROMO, SKILL_GROWTH } from './balance';
+import { isMatched, SLOT_ORDER } from './match';
 import { release } from './tick';
 import type { GameState, PromoTier } from './types';
 
@@ -97,7 +98,22 @@ export function shipProject(
   const revenue = Math.round(baseRevenue * eff.revenueMul);
 
   const goldAfterPromo = Math.max(0, prev.gold - eff.cost);
-  const released = release({ ...prev, gold: goldAfterPromo });
+
+  // 정배치 직원에게 출시 보너스 스킬 가산. 같은 작품에서 일한 사람이 다음에도 더 잘함.
+  const placedAndMatched = new Set<string>();
+  for (const slot of SLOT_ORDER) {
+    const id = prev.assignment[slot];
+    if (!id) continue;
+    const emp = prev.employees.find((e) => e.id === id);
+    if (emp && isMatched(slot, emp.job)) placedAndMatched.add(id);
+  }
+  const boostedEmployees = prev.employees.map((e) =>
+    placedAndMatched.has(e.id)
+      ? { ...e, skill: clamp(e.skill + SKILL_GROWTH.perReleaseBonus, 0, SKILL_GROWTH.maxSkill) }
+      : e,
+  );
+
+  const released = release({ ...prev, gold: goldAfterPromo, employees: boostedEmployees });
   const state: GameState = { ...released, gold: released.gold + revenue };
 
   return {

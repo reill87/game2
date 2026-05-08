@@ -83,6 +83,28 @@ export const CONDITION = {
 } as const;
 
 /**
+ * 직원 스킬 성장 — Slice 8.
+ *
+ * 정배치 작업이 누적될수록 effective skill이 자연스럽게 올라가, 같은 사람도 작품
+ * 수가 쌓일수록 더 많은 기여를 한다. 출시 시 추가 보너스로 한 작품을 마칠 때마다
+ * 작은 보상이 가시화된다.
+ *
+ * 진행 모델:
+ *  - 정배치 매주: skill +0.005 (10주 → +0.05, +5%)
+ *  - 출시 시 정배치 직원: skill +0.05 (한 작품 +5%)
+ *  → 한 작품(10주) 정배치 직원 누적 +0.10 = +10%
+ *  → 약 10작품에 cap 도달
+ */
+export const SKILL_GROWTH = {
+  /** 정배치 직원 매주 누적. */
+  perWeekMatched: 0.005,
+  /** 출시 시점 정배치 직원 일회성 보너스. */
+  perReleaseBonus: 0.05,
+  /** v1 스킬 상한. */
+  maxSkill: 2.0,
+} as const;
+
+/**
  * 장르/테마 보정. 튜토리얼 G1+T1은 baseline(1.0).
  * 곱연산으로 advanceWeek에 적용 — progressMul, bugMul 모두 (genreMul × themeMul) 형태.
  * 야근(crunch) 보너스/페널티는 별도 가산.
