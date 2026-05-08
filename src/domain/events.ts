@@ -191,6 +191,179 @@ export const EVENTS: ReadonlyArray<GameEvent> = [
       },
     ],
   },
+
+  // ─── 조건부 이벤트 (Slice 10 추가) ───────────────────────────────
+
+  {
+    id: 'overdue-panic',
+    title: '연체 패닉',
+    description: '예정보다 늦어졌다. 외부에서 압박이 들어온다. 자원을 더 부을지, 팀을 갈아 넣을지.',
+    canTrigger: (s) => s.project.weeksElapsed > s.project.weeksTarget,
+    choices: [
+      {
+        label: '외주 인력 (-50g)',
+        summary: 'BugDebt -8, Progress +3%',
+        apply: (s) => {
+          if (s.gold < 50) return s;
+          return {
+            ...s,
+            gold: clamp(s.gold - 50, 0, Number.MAX_SAFE_INTEGER),
+            project: {
+              ...s.project,
+              bugDebt: clamp(s.project.bugDebt - 8, 0, 100),
+              progress: clamp(s.project.progress + 3, 0, 100),
+            },
+          };
+        },
+      },
+      {
+        label: '다 같이 야근',
+        summary: '모두 체력 -10, Progress +5%',
+        apply: (s) =>
+          applyToAll(
+            { ...s, project: { ...s.project, progress: clamp(s.project.progress + 5, 0, 100) } },
+            (e) => ({ ...e, stamina: clamp(e.stamina - 10, 0, 100) }),
+          ),
+      },
+    ],
+  },
+
+  {
+    id: 'morale-crisis',
+    title: '사기 저하 위기',
+    description: '팀 분위기가 가라앉았다. 손 안 쓰면 더 떨어진다.',
+    canTrigger: (s) => {
+      if (s.employees.length === 0) return false;
+      const avg = s.employees.reduce((acc, e) => acc + e.morale, 0) / s.employees.length;
+      return avg < 40;
+    },
+    choices: [
+      {
+        label: '회식 강제 (-30g)',
+        summary: '모두 사기 +12',
+        apply: (s) => {
+          if (s.gold < 30) return s;
+          return applyToAll(
+            { ...s, gold: clamp(s.gold - 30, 0, Number.MAX_SAFE_INTEGER) },
+            (e) => ({ ...e, morale: clamp(e.morale + 12, 0, 100) }),
+          );
+        },
+      },
+      {
+        label: '시간이 약',
+        summary: '모두 사기 -3',
+        apply: (s) =>
+          applyToAll(s, (e) => ({ ...e, morale: clamp(e.morale - 3, 0, 100) })),
+      },
+    ],
+  },
+
+  {
+    id: 'indie-festival',
+    title: '인디 페스티벌 부스',
+    description: '인근 페스티벌에서 부스 자리 제안. 노출이 크지만 비용도 큼.',
+    canTrigger: (s) => s.project.appealEnabled && s.gold >= 80,
+    choices: [
+      {
+        label: '부스 참가 (-80g)',
+        summary: 'Appeal +12',
+        apply: (s) => ({
+          ...s,
+          gold: clamp(s.gold - 80, 0, Number.MAX_SAFE_INTEGER),
+          project: { ...s.project, appeal: clamp(s.project.appeal + 12, 0, 100) },
+        }),
+      },
+      {
+        label: '패스',
+        summary: '아무 변화 없음',
+        apply: (s) => s,
+      },
+    ],
+  },
+
+  {
+    id: 'friend-release',
+    title: '친구 팀 작품 출시',
+    description: '친한 팀이 오늘 출시했다. 자극으로 받아들일지, 흘려 보낼지.',
+    choices: [
+      {
+        label: '자축 회식 (-25g)',
+        summary: '모두 사기 +10',
+        apply: (s) => {
+          if (s.gold < 25) return s;
+          return applyToAll(
+            { ...s, gold: clamp(s.gold - 25, 0, Number.MAX_SAFE_INTEGER) },
+            (e) => ({ ...e, morale: clamp(e.morale + 10, 0, 100) }),
+          );
+        },
+      },
+      {
+        label: '신경 안 씀',
+        summary: '모두 사기 -5',
+        apply: (s) =>
+          applyToAll(s, (e) => ({ ...e, morale: clamp(e.morale - 5, 0, 100) })),
+      },
+    ],
+  },
+
+  {
+    id: 'bgm-license',
+    title: '잘 만든 BGM 라이선스 제안',
+    description: '한 작곡가가 매력적인 BGM 라이선스를 제안해 왔다.',
+    canTrigger: (s) => s.project.appealEnabled,
+    choices: [
+      {
+        label: '라이선스 구입 (-40g)',
+        summary: 'Appeal +6',
+        apply: (s) => {
+          if (s.gold < 40) return s;
+          return {
+            ...s,
+            gold: clamp(s.gold - 40, 0, Number.MAX_SAFE_INTEGER),
+            project: { ...s.project, appeal: clamp(s.project.appeal + 6, 0, 100) },
+          };
+        },
+      },
+      {
+        label: '직접 만들기',
+        summary: 'BugDebt +5',
+        apply: (s) => ({
+          ...s,
+          project: { ...s.project, bugDebt: clamp(s.project.bugDebt + 5, 0, 100) },
+        }),
+      },
+    ],
+  },
+
+  {
+    id: 'writer-pitch',
+    title: '작가 영입 제안',
+    description: '시나리오 작가가 짧게 합류해 줄 수 있다고 한다. 말 중심 작품일수록 효과가 클 것.',
+    canTrigger: (s) => s.project.genre === 'G3' && s.gold >= 60,
+    choices: [
+      {
+        label: '영입 (-60g)',
+        summary: 'Progress +4%, Appeal +6',
+        apply: (s) => ({
+          ...s,
+          gold: clamp(s.gold - 60, 0, Number.MAX_SAFE_INTEGER),
+          project: {
+            ...s.project,
+            progress: clamp(s.project.progress + 4, 0, 100),
+            appeal: s.project.appealEnabled
+              ? clamp(s.project.appeal + 6, 0, 100)
+              : s.project.appeal,
+          },
+        }),
+      },
+      {
+        label: '거절',
+        summary: '모두 사기 -2',
+        apply: (s) =>
+          applyToAll(s, (e) => ({ ...e, morale: clamp(e.morale - 2, 0, 100) })),
+      },
+    ],
+  },
 ];
 
 /** 발동 가능한 후보를 추려 하나를 무작위로 반환. 후보 없으면 null. */
