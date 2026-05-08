@@ -27,10 +27,10 @@ export const BALANCE = {
   appealBySlot: {
     planning: 0.6,
     graphics: 1.5,
-    sound: 1.2,
+    qa: 1.2,
     programming: 0.2,
   },
-  /** 사운드 슬롯이 비어 있을 때 매 주 Appeal 페널티. */
+  /** QA 슬롯이 비어 있을 때 매 주 Appeal 페널티 (테스트 부족 → 마감 디테일 ↓). */
   appealSoundEmpty: -0.3,
   /** 야근 ON 시 Appeal 보너스(폴리싱 분위기). */
   appealCrunchBonus: 0.4,

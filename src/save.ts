@@ -123,10 +123,14 @@ function sanitizeEmployee(raw: unknown): Employee | null {
   if (typeof e.id !== 'string' || typeof e.name !== 'string' || typeof e.job !== 'string') {
     return null;
   }
+  // PIVOT-1 마이그레이션: 옛 'sound' 직군은 'qa'로 매핑.
+  // e.job은 raw string으로 들어오므로 타입 비교 전에 string 비교.
+  const rawJob: string = e.job;
+  const migratedJob = (rawJob === 'sound' ? 'qa' : rawJob) as Job;
   return {
     id: e.id,
     name: e.name,
-    job: e.job as Job,
+    job: migratedJob,
     skill: typeof e.skill === 'number' ? e.skill : 1,
     morale: typeof e.morale === 'number' ? e.morale : CONDITION.defaultMorale,
     stamina: typeof e.stamina === 'number' ? e.stamina : CONDITION.defaultStamina,

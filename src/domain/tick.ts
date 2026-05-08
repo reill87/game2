@@ -97,7 +97,7 @@ export function advanceWeek(prev: GameState): GameState {
     bugDebtDelta += BALANCE.crunchBugDebtBonus;
     if (appealEnabled) appealDelta += BALANCE.appealCrunchBonus;
   }
-  if (appealEnabled && !prev.assignment.sound) {
+  if (appealEnabled && !prev.assignment.qa) {
     appealDelta += BALANCE.appealSoundEmpty;
   }
 

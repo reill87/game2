@@ -4,7 +4,7 @@ import type { Types } from 'phaser';
 import { GAME_WIDTH } from '@/constants';
 import { BALANCE } from '@/domain/balance';
 import type { ReleaseOutcome, ReviewStars } from '@/domain/result';
-import { SOUND_HIRE_CANDIDATE } from '@/domain/seed';
+import { OFFICE_STAGE_LABEL, QA_HIRE_CANDIDATE } from '@/domain/seed';
 import type { Employee } from '@/domain/types';
 import { ICONS } from '@/icons';
 import { loadData, saveData } from '@/save';
@@ -324,7 +324,7 @@ export class ResultScene extends Phaser.Scene {
     this.upgradeBtnRect = new Phaser.Geom.Rectangle(upgradeX, btnY, halfW, btnH);
     this.upgradeBtnBg = this.add.graphics();
     this.upgradeBtnText = this.add
-      .text(upgradeX + halfW / 2, btnY + btnH / 2, `사무실 업그레이드 (-${BALANCE.officeUpgradeCost}g)`, {
+      .text(upgradeX + halfW / 2, btnY + btnH / 2, `판교 임대 사무실로 (-${BALANCE.officeUpgradeCost}g)`, {
         fontFamily: FONT_STACK,
         fontSize: '14px',
         fontStyle: 'bold',
@@ -340,7 +340,7 @@ export class ResultScene extends Phaser.Scene {
     this.hireBtnRect = new Phaser.Geom.Rectangle(hireX, btnY, halfW, btnH);
     this.hireBtnBg = this.add.graphics();
     this.hireBtnText = this.add
-      .text(hireX + halfW / 2, btnY + btnH / 2, '사운드 채용', {
+      .text(hireX + halfW / 2, btnY + btnH / 2, 'QA 채용', {
         fontFamily: FONT_STACK,
         fontSize: '14px',
         fontStyle: 'bold',
@@ -359,7 +359,7 @@ export class ResultScene extends Phaser.Scene {
     if (!this.officeStatusText || !this.officeGoldText) return;
     const cap = BALANCE.officeHireCap[this.officeLevel];
     const totalEmps = 3 + this.hiredEmployees.length;
-    this.officeStatusText.setText(`${this.officeLevel}단계 — 고용 ${totalEmps}/${cap}명`);
+    this.officeStatusText.setText(`${OFFICE_STAGE_LABEL[this.officeLevel]} — 고용 ${totalEmps}/${cap}명`);
     this.officeGoldText.setText(`${this.liveGold}g`);
     // 코인 아이콘은 골드 텍스트 좌측, 텍스트 폭이 변하므로 동적으로 위치 보정.
     if (this.officeGoldIcon) {
@@ -374,10 +374,10 @@ export class ResultScene extends Phaser.Scene {
     this.drawSecondaryButton(this.hireBtnBg, this.hireBtnText, this.hireBtnRect, this.hireBtnHit, canHire);
 
     if (this.officeLevel === 2 && this.upgradeBtnText) {
-      this.upgradeBtnText.setText('사무실 2단계 (완료)');
+      this.upgradeBtnText.setText('판교 임대 사무실 (완료)');
     }
     if (canHire === false && this.officeLevel === 2 && totalEmps >= BALANCE.officeHireCap[2] && this.hireBtnText) {
-      this.hireBtnText.setText('사운드 채용 (완료)');
+      this.hireBtnText.setText('QA 채용 (완료)');
     }
   }
 
@@ -410,7 +410,7 @@ export class ResultScene extends Phaser.Scene {
     if (this.officeLevel !== 2) return;
     const cap = BALANCE.officeHireCap[2];
     if (3 + this.hiredEmployees.length >= cap) return;
-    this.hiredEmployees = [...this.hiredEmployees, SOUND_HIRE_CANDIDATE];
+    this.hiredEmployees = [...this.hiredEmployees, QA_HIRE_CANDIDATE];
     this.persistResult();
     this.refreshOfficePanel();
     this.refreshSaveFooter();
@@ -425,7 +425,7 @@ export class ResultScene extends Phaser.Scene {
     const rect = new Phaser.Geom.Rectangle(x, y, w, h);
     const bg = this.add.graphics();
     this.add
-      .text(CX, y + h / 2, '다음 작품으로', {
+      .text(CX, y + h / 2, '다음 프로젝트로', {
         fontFamily: FONT_STACK,
         fontSize: '18px',
         fontStyle: 'bold',
@@ -447,7 +447,7 @@ export class ResultScene extends Phaser.Scene {
     hit.on('pointerout', () => draw(false));
     hit.on('pointerup', () => {
       draw(false);
-      // Boot로 돌아가 저장된 골드를 이월하여 새 작품 시작.
+      // Boot로 돌아가 저장된 골드를 이월하여 새 프로젝트 시작.
       this.scene.start(SCENE_KEYS.Boot);
     });
   }

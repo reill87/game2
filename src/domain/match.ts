@@ -4,14 +4,14 @@ import type { Job, SlotKind } from './types';
 const MATCH: Readonly<Record<SlotKind, Job>> = {
   planning: 'planner',
   graphics: 'designer',
-  sound: 'sound',
+  qa: 'qa',
   programming: 'programmer',
 };
 
 export const SLOT_ORDER: ReadonlyArray<SlotKind> = [
   'planning',
   'graphics',
-  'sound',
+  'qa',
   'programming',
 ];
 

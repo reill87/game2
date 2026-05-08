@@ -3,11 +3,11 @@
  * @see docs/PRODUCT_LOOP.md, docs/BALANCE.md
  */
 
-/** 직원 직무. v1 튜토리얼은 사운드 직군 없음. */
-export type Job = 'planner' | 'designer' | 'programmer' | 'sound';
+/** 직원 직무. 1단계 사무실에서는 QA 직군 없음 (2단계 채용). */
+export type Job = 'planner' | 'designer' | 'programmer' | 'qa';
 
-/** 작품 담당 슬롯. 4종 고정. */
-export type SlotKind = 'planning' | 'graphics' | 'sound' | 'programming';
+/** 프로젝트 담당 슬롯. 4종 고정. */
+export type SlotKind = 'planning' | 'graphics' | 'qa' | 'programming';
 
 export type GenreId = 'G1' | 'G2' | 'G3';
 export type ThemeId = 'T1' | 'T2' | 'T3';

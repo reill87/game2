@@ -23,7 +23,7 @@ interface CardView<K extends string> {
 }
 
 /**
- * 두 번째 작품부터 진입. 장르 3종 × 테마 3종을 독립 선택해 newProject로 GameState를 만든 뒤
+ * 두 번째 프로젝트부터 진입. 장르 3종 × 테마 3종을 독립 선택해 newProject로 GameState를 만든 뒤
  * AssignmentScene으로 인계한다.
  */
 export class GenreSelectScene extends Phaser.Scene {
@@ -82,13 +82,13 @@ export class GenreSelectScene extends Phaser.Scene {
       fontStyle: 'bold',
       color: TEXT_COLOR.primary,
     };
-    this.add.text(CX, 56, `${this.productIndex + 1}번째 작품 — 장르·테마 선택`, titleStyle).setOrigin(0.5);
+    this.add.text(CX, 56, `${this.productIndex + 1}번째 프로젝트 — 장르·테마 선택`, titleStyle).setOrigin(0.5);
 
-    // 코인 아이콘이 가장 왼쪽에 붙도록 골드를 첫 segment에 두고, 그 뒤에 지난 작품.
+    // 코인 아이콘이 가장 왼쪽에 붙도록 골드를 첫 segment에 두고, 그 뒤에 지난 프로젝트.
     const subParts: string[] = [`보유 ${this.gold}g`];
     if (this.lastResult) {
       const stars = '★'.repeat(this.lastResult.stars) + '☆'.repeat(5 - this.lastResult.stars);
-      subParts.push(`지난 작품 ${stars} (${this.lastResult.reviewScore}점)`);
+      subParts.push(`지난 프로젝트 ${stars} (${this.lastResult.reviewScore}점)`);
     }
 
     const text = this.add

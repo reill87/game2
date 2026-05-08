@@ -8,7 +8,7 @@ import { SCENE_KEYS } from './keys';
 
 /**
  * 진입점. localStorage에서 진행 상태를 읽어 라우팅을 결정한다:
- *  - 첫 작품(productCount=0): G1+T1 고정 — Assignment 직행
+ *  - 첫 프로젝트(productCount=0): G1+T1 고정 — Assignment 직행
  *  - 두 번째 이상: GenreSelect 경유 (장르·테마 선택 후 Assignment)
  */
 export class BootScene extends Phaser.Scene {

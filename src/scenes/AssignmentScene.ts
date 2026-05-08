@@ -53,7 +53,7 @@ interface EmployeeView {
   hit: Phaser.GameObjects.Zone;
 }
 
-/** 슬롯 4×직원 3 배치 화면. v1 튜토리얼 — 사운드 슬롯은 비어 있어도 진행 가능. */
+/** 슬롯 4×직원 3 배치 화면. v1 튜토리얼 — QA 슬롯은 비어 있어도 진행 가능. */
 export class AssignmentScene extends Phaser.Scene {
   static readonly KEY = SCENE_KEYS.Assignment;
 
@@ -107,7 +107,7 @@ export class AssignmentScene extends Phaser.Scene {
     };
 
     const idx = this.state.productIndex;
-    const order = idx === 0 ? '첫 작품' : `${idx + 1}번째 작품`;
+    const order = idx === 0 ? '첫 프로젝트' : `${idx + 1}번째 프로젝트`;
     const genre = GENRE_LABEL[this.state.project.genre].name;
     const theme = THEME_LABEL[this.state.project.theme].name;
     this.add.text(CX, 56, `${order} — ${genre} × ${theme}`, titleStyle).setOrigin(0.5);
@@ -128,7 +128,7 @@ export class AssignmentScene extends Phaser.Scene {
     if (this.state.gold > 0) parts.push(`이월 ${this.state.gold}g`);
     if (this.lastResult) {
       const stars = '★'.repeat(this.lastResult.stars) + '☆'.repeat(5 - this.lastResult.stars);
-      parts.push(`지난 작품 ${stars} (${this.lastResult.reviewScore}점)`);
+      parts.push(`지난 프로젝트 ${stars} (${this.lastResult.reviewScore}점)`);
     }
     const text = this.add
       .text(CX, 126, parts.join('  ·  '), {
@@ -481,7 +481,7 @@ export class AssignmentScene extends Phaser.Scene {
   private updateStatus(): void {
     if (!isTutorialAssignmentReady(this.state)) {
       this.statusText
-        .setText('아직 배치되지 않은 직원이 있습니다. (사운드 슬롯은 비워도 됩니다)')
+        .setText('아직 배치되지 않은 직원이 있습니다. (QA 슬롯은 비워도 됩니다)')
         .setColor(TEXT_COLOR.dim);
       return;
     }

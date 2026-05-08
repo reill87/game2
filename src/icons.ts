@@ -23,8 +23,10 @@ export const ICONS = {
   lightbulb: { key: 'icon-lightbulb', file: 'lightbulb.svg' },
   /** 디자이너/그래픽 슬롯 (붓). */
   brush: { key: 'icon-brush', file: 'brush.svg' },
-  /** 사운드 직군/슬롯 (음표). */
+  /** (deprecated) 옛 사운드 슬롯 — 더 이상 사용 안 함. 자산은 보존. */
   music: { key: 'icon-music', file: 'music.svg' },
+  /** QA 직군/슬롯 (체크리스트). */
+  check: { key: 'icon-check', file: 'check.svg' },
   /** 개발자/프로그래밍 슬롯 (꺽쇠). */
   code: { key: 'icon-code', file: 'code.svg' },
   /** G1 초단타 터치 — 손가락 탭 */
