@@ -4,8 +4,9 @@ import type { Types } from 'phaser';
 import { GAME_WIDTH } from '@/constants';
 import { BALANCE } from '@/domain/balance';
 import type { ReleaseOutcome, ReviewStars } from '@/domain/result';
-import { OFFICE_STAGE_LABEL, QA_HIRE_CANDIDATE } from '@/domain/seed';
-import type { Employee } from '@/domain/types';
+import { DEFAULT_POLICY, OFFICE_STAGE_LABEL, QA_HIRE_CANDIDATE } from '@/domain/seed';
+import { PERK } from '@/domain/balance';
+import type { CompanyPolicy, Employee } from '@/domain/types';
 import { ICONS } from '@/icons';
 import { loadData, saveData } from '@/save';
 import { COLOR, FONT_STACK, TEXT_COLOR, TINT } from '@/theme';
@@ -25,10 +26,11 @@ export class ResultScene extends Phaser.Scene {
   private savedAt: number | null = null;
   private saveFooterText: Phaser.GameObjects.Text | null = null;
 
-  // mutable office-state — Result 내에서 업그레이드/채용 가능
+  // mutable office-state — Result 내에서 업그레이드/채용/정책 변경 가능
   private liveGold = 0;
   private officeLevel: 1 | 2 = 1;
   private hiredEmployees: Employee[] = [];
+  private livePolicy: CompanyPolicy = DEFAULT_POLICY;
 
   // office panel widgets
   private officeStatusText: Phaser.GameObjects.Text | null = null;
@@ -56,6 +58,7 @@ export class ResultScene extends Phaser.Scene {
     const existing = loadData();
     this.officeLevel = existing?.officeLevel ?? 1;
     this.hiredEmployees = existing?.hiredEmployees ? [...existing.hiredEmployees] : [];
+    this.livePolicy = existing?.policy ?? DEFAULT_POLICY;
     // 업그레이드/채용 위젯은 매 init마다 다시 만들기 위해 null로 비움.
     this.officeStatusText = null;
     this.officeGoldText = null;
@@ -91,6 +94,7 @@ export class ResultScene extends Phaser.Scene {
       officeLevel: this.officeLevel,
       hiredEmployees: this.hiredEmployees,
       reputation: o.reputation.total,
+      policy: this.livePolicy,
       lastResult: {
         genre: project.genre,
         theme: project.theme,
@@ -290,9 +294,9 @@ export class ResultScene extends Phaser.Scene {
   // ────────────────────────── office panel ──────────────────────────
   private buildOfficePanel(): void {
     const panelX = (GAME_WIDTH - 660) / 2;
-    const panelY = 760;
+    const panelY = 790;
     const panelW = 660;
-    const panelH = 170;
+    const panelH = 220;
 
     makePanel(this, panelX, panelY, panelW, panelH, COLOR.panel);
 
@@ -360,7 +364,74 @@ export class ResultScene extends Phaser.Scene {
       .setInteractive({ useHandCursor: true });
     this.hireBtnHit.on('pointerup', () => this.handleHire());
 
+    // 정책 토글 row — 재택 + 4개 복지 buy.
+    this.buildPolicyRow(panelX + 20, panelY + 168, panelW - 40, 36);
+
     this.refreshOfficePanel();
+  }
+
+  private policyButtons: Array<{
+    id: 'remote' | 'shuttle' | 'teamHoodie' | 'espresso' | 'cafeteria';
+    bg: Phaser.GameObjects.Graphics;
+    text: Phaser.GameObjects.Text;
+    rect: Phaser.Geom.Rectangle;
+    hit: Phaser.GameObjects.Zone;
+  }> = [];
+
+  private buildPolicyRow(x: number, y: number, totalW: number, h: number): void {
+    this.policyButtons = [];
+    const ids: Array<'remote' | 'shuttle' | 'teamHoodie' | 'espresso' | 'cafeteria'> = [
+      'remote',
+      'shuttle',
+      'teamHoodie',
+      'espresso',
+      'cafeteria',
+    ];
+    const gap = 6;
+    const btnW = (totalW - gap * (ids.length - 1)) / ids.length;
+
+    ids.forEach((id, i) => {
+      const bx = x + i * (btnW + gap);
+      const rect = new Phaser.Geom.Rectangle(bx, y, btnW, h);
+      const bg = this.add.graphics();
+      const text = this.add
+        .text(bx + btnW / 2, y + h / 2, '', {
+          fontFamily: FONT_STACK,
+          fontSize: '11px',
+          fontStyle: 'bold',
+          color: TEXT_COLOR.primary,
+          align: 'center',
+          wordWrap: { width: btnW - 8, useAdvancedWrap: true },
+        })
+        .setOrigin(0.5);
+      const hit = this.add
+        .zone(bx + btnW / 2, y + h / 2, btnW, h)
+        .setInteractive({ useHandCursor: true });
+      hit.on('pointerup', () => this.handlePolicyTap(id));
+      this.policyButtons.push({ id, bg, text, rect, hit });
+    });
+  }
+
+  private handlePolicyTap(id: 'remote' | 'shuttle' | 'teamHoodie' | 'espresso' | 'cafeteria'): void {
+    if (id === 'remote') {
+      this.livePolicy = {
+        ...this.livePolicy,
+        commute: this.livePolicy.commute === 'office' ? 'remote' : 'office',
+      };
+    } else {
+      // 이미 보유한 복지면 무시. 골드 부족하면 무시.
+      if (this.livePolicy.perks[id]) return;
+      const price = PERK[id].price;
+      if (this.liveGold < price) return;
+      this.liveGold -= price;
+      this.livePolicy = {
+        ...this.livePolicy,
+        perks: { ...this.livePolicy.perks, [id]: true },
+      };
+    }
+    this.persistResult();
+    this.refreshOfficePanel();
+    this.refreshSaveFooter();
   }
 
   private refreshOfficePanel(): void {
@@ -386,6 +457,33 @@ export class ResultScene extends Phaser.Scene {
     }
     if (canHire === false && this.officeLevel === 2 && totalEmps >= BALANCE.officeHireCap[2] && this.hireBtnText) {
       this.hireBtnText.setText('QA 채용 (완료)');
+    }
+
+    // 정책 토글 row 색·텍스트 갱신.
+    for (const btn of this.policyButtons) {
+      let active = false;
+      let label = '';
+      let affordable = true;
+      if (btn.id === 'remote') {
+        active = this.livePolicy.commute === 'remote';
+        label = active ? '재택 ON' : '출근';
+      } else {
+        active = this.livePolicy.perks[btn.id];
+        const price = PERK[btn.id].price;
+        const perkLabel = PERK[btn.id].label;
+        affordable = active || this.liveGold >= price;
+        label = active ? `${perkLabel}\n(완료)` : `${perkLabel}\n-${price}g`;
+      }
+      const fill = !affordable
+        ? COLOR.btnDisabled
+        : active
+          ? COLOR.btn
+          : COLOR.btnSecondary;
+      btn.bg.clear();
+      btn.bg.fillStyle(fill, 1);
+      btn.bg.fillRoundedRect(btn.rect.x, btn.rect.y, btn.rect.width, btn.rect.height, 10);
+      btn.text.setText(label).setColor(affordable ? TEXT_COLOR.primary : TEXT_COLOR.disabled);
+      if (btn.hit.input) btn.hit.input.enabled = affordable && !active;
     }
   }
 
@@ -427,9 +525,9 @@ export class ResultScene extends Phaser.Scene {
   // ────────────────────────── reset button ──────────────────────────
   private buildResetButton(): void {
     const w = 360;
-    const h = 72;
+    const h = 60;
     const x = CX - w / 2;
-    const y = 960;
+    const y = 1030;
     const rect = new Phaser.Geom.Rectangle(x, y, w, h);
     const bg = this.add.graphics();
     this.add
@@ -463,7 +561,7 @@ export class ResultScene extends Phaser.Scene {
   // ────────────────────────── save footer ──────────────────────────
   private buildSaveFooter(): void {
     this.saveFooterText = this.add
-      .text(CX, 1100, '', {
+      .text(CX, 1115, '', {
         fontFamily: FONT_STACK,
         fontSize: '12px',
       })

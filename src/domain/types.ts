@@ -21,6 +21,31 @@ export type Trait =
 /** 직급 4단계. */
 export type Rank = 'newbie' | 'junior' | 'senior' | 'lead';
 
+/** 출퇴근 모드 — 작품 단위로 토글. */
+export type CommuteMode = 'office' | 'remote';
+
+/** 복장 정책 — 회사 단위. */
+export type DressCode = 'casual_free' | 'casual_guide' | 'formal';
+
+/** 영구 구매형 복지 메뉴 (PIVOT-5). */
+export interface PerkSet {
+  /** 통근 셔틀버스 — 매주 stamina drain 완화. */
+  readonly shuttle: boolean;
+  /** 후드 팀복 — 매주 모든 직원 사기 +. */
+  readonly teamHoodie: boolean;
+  /** 캡슐 커피머신 — 매주 사기 +. */
+  readonly espresso: boolean;
+  /** 사내 식당 — 매주 사기 +. */
+  readonly cafeteria: boolean;
+}
+
+/** 회사 정책 — 작품 사이에 결정, 영구 적용 (재택은 작품 단위 변경 가능). */
+export interface CompanyPolicy {
+  readonly commute: CommuteMode;
+  readonly dressCode: DressCode;
+  readonly perks: PerkSet;
+}
+
 export type GenreId = 'G1' | 'G2' | 'G3';
 export type ThemeId = 'T1' | 'T2' | 'T3';
 
@@ -79,4 +104,6 @@ export interface GameState {
   readonly officeLevel: 1 | 2;
   /** 회사 누적 명성 (작품 사이 영구 누적). 매출 보너스에 사용. */
   readonly reputation: number;
+  /** 회사 정책(출퇴근/복장/복지). 작품 사이 결정, 매주 효과. */
+  readonly policy: CompanyPolicy;
 }

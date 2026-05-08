@@ -1,5 +1,6 @@
 import { BALANCE, CONDITION } from './balance';
 import type {
+  CompanyPolicy,
   Employee,
   GameState,
   GenreId,
@@ -10,6 +11,18 @@ import type {
   ThemeId,
   Trait,
 } from './types';
+
+/** 기본 회사 정책 — 새 게임 시작 시. */
+export const DEFAULT_POLICY: CompanyPolicy = {
+  commute: 'office',
+  dressCode: 'casual_guide',
+  perks: {
+    shuttle: false,
+    teamHoodie: false,
+    espresso: false,
+    cafeteria: false,
+  },
+};
 
 const M0 = CONDITION.defaultMorale;
 const S0 = CONDITION.defaultStamina;
@@ -171,6 +184,7 @@ export function newProject(opts: {
   officeLevel?: 1 | 2;
   reputation?: number;
   appealEnabled?: boolean;
+  policy?: CompanyPolicy;
 }): GameState {
   return {
     employees: opts.employees,
@@ -191,6 +205,7 @@ export function newProject(opts: {
     productIndex: opts.productIndex,
     officeLevel: opts.officeLevel ?? 1,
     reputation: opts.reputation ?? 0,
+    policy: opts.policy ?? DEFAULT_POLICY,
   };
 }
 

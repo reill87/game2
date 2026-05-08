@@ -2,7 +2,7 @@
  * 밸런스 v0.1 상수. 모든 수치는 docs/BALANCE.md의 표와 1:1 대응.
  * 변경 시 문서도 함께 갱신할 것.
  */
-import type { GenreId, PromoTier, Rank, ThemeId } from './types';
+import type { DressCode, GenreId, PromoTier, Rank, ThemeId } from './types';
 
 export const BALANCE = {
   /** 정배치 직원 1명이 1주에 내는 진행도(%) — 3명 정배치 시 약 +10.5%/주 (목표 +9~11%). */
@@ -77,6 +77,42 @@ export const REPUTATION = {
   perStarOnRelease: 5,
   /** 매출 배수 = 1 + reputation / divisor. */
   revenueBonusDivisor: 300,
+} as const;
+
+/**
+ * 정책·복지 (PIVOT-5).
+ *
+ * - 출퇴근 drain: 사무실 단계별 매주 stamina −. 셔틀 도입 시 일부 상쇄.
+ * - 재택근무: drain 0 + 사기 +/주, BugDebt +/주, remoteSlacker 트레이트 직원은 effective skill ×0.5.
+ * - 복장: skillMul과 morale 매주 가산.
+ * - 복지(perks): 영구 구매, 매주 작은 morale/stamina 보너스 누적.
+ */
+export const COMMUTE_DRAIN_BY_OFFICE: Readonly<Record<1 | 2, number>> = {
+  1: 2,
+  2: 4,
+};
+
+export const REMOTE = {
+  moralePerWeek: 1,
+  bugDebtPerWeek: 1,
+  /** remoteSlacker 트레이트 직원만 발현 (재택 ON일 때 effective skill ×). */
+  villainSkillMul: 0.5,
+} as const;
+
+export const DRESS_CODE_EFFECT: Readonly<
+  Record<DressCode, { skillMul: number; moralePerWeek: number }>
+> = {
+  casual_free: { skillMul: 1.02, moralePerWeek: 1 },
+  casual_guide: { skillMul: 1.0, moralePerWeek: 0 },
+  formal: { skillMul: 1.0, moralePerWeek: -1 },
+};
+
+/** 복지 항목별 가격(1회) + 매주 효과. */
+export const PERK = {
+  shuttle: { price: 100, label: '통근 셔틀', staminaPerWeek: 2 },
+  teamHoodie: { price: 100, label: '후드 팀복', moralePerWeek: 1 },
+  espresso: { price: 50, label: '캡슐 커피머신', moralePerWeek: 1 },
+  cafeteria: { price: 200, label: '사내 식당', moralePerWeek: 2 },
 } as const;
 
 /**

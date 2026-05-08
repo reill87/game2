@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
-import { newTutorialGame, TUTORIAL_EMPLOYEES } from '@/domain/seed';
-import type { Employee } from '@/domain/types';
+import { DEFAULT_POLICY, newTutorialGame, TUTORIAL_EMPLOYEES } from '@/domain/seed';
+import type { CompanyPolicy, Employee } from '@/domain/types';
 import { ICON_DIR, ICONS } from '@/icons';
 import { loadData, type SavedResult } from '@/save';
 import { preloadUITextures } from '@/util/ui';
@@ -29,6 +29,7 @@ export class BootScene extends Phaser.Scene {
     const gold = saved?.gold ?? 0;
     const officeLevel: 1 | 2 = saved?.officeLevel ?? 1;
     const reputation = saved?.reputation ?? 0;
+    const policy: CompanyPolicy = saved?.policy ?? DEFAULT_POLICY;
     const employees: ReadonlyArray<Employee> = saved?.hiredEmployees?.length
       ? [...TUTORIAL_EMPLOYEES, ...saved.hiredEmployees]
       : TUTORIAL_EMPLOYEES;
@@ -36,7 +37,7 @@ export class BootScene extends Phaser.Scene {
 
     if (productIndex === 0) {
       const fresh = newTutorialGame();
-      const state = { ...fresh, employees, gold, officeLevel, reputation };
+      const state = { ...fresh, employees, gold, officeLevel, reputation, policy };
       const carry: { lastResult?: SavedResult } = {};
       if (lastResult) carry.lastResult = lastResult;
       this.scene.start(SCENE_KEYS.Assignment, { state, ...carry });
@@ -48,6 +49,7 @@ export class BootScene extends Phaser.Scene {
       gold,
       officeLevel,
       reputation,
+      policy,
       employees,
       lastResult,
     });

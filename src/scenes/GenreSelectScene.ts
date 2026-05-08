@@ -2,8 +2,15 @@ import Phaser from 'phaser';
 import type { Types } from 'phaser';
 
 import { GAME_WIDTH } from '@/constants';
-import { GENRE_ICON, GENRE_LABEL, newProject, THEME_ICON, THEME_LABEL } from '@/domain/seed';
-import type { Employee, GenreId, ThemeId } from '@/domain/types';
+import {
+  DEFAULT_POLICY,
+  GENRE_ICON,
+  GENRE_LABEL,
+  newProject,
+  THEME_ICON,
+  THEME_LABEL,
+} from '@/domain/seed';
+import type { CompanyPolicy, Employee, GenreId, ThemeId } from '@/domain/types';
 import { ICONS } from '@/icons';
 import type { SavedResult } from '@/save';
 import { COLOR, FONT_STACK, TEXT_COLOR, TINT } from '@/theme';
@@ -33,6 +40,7 @@ export class GenreSelectScene extends Phaser.Scene {
   private gold = 0;
   private officeLevel: 1 | 2 = 1;
   private reputation = 0;
+  private policy: CompanyPolicy = DEFAULT_POLICY;
   private employees: ReadonlyArray<Employee> = [];
   private lastResult: SavedResult | null = null;
 
@@ -57,6 +65,7 @@ export class GenreSelectScene extends Phaser.Scene {
     gold: number;
     officeLevel?: 1 | 2;
     reputation?: number;
+    policy?: CompanyPolicy;
     employees: ReadonlyArray<Employee>;
     lastResult: SavedResult | null;
   }): void {
@@ -64,6 +73,7 @@ export class GenreSelectScene extends Phaser.Scene {
     this.gold = data.gold;
     this.officeLevel = data.officeLevel ?? 1;
     this.reputation = data.reputation ?? 0;
+    this.policy = data.policy ?? DEFAULT_POLICY;
     this.employees = data.employees;
     this.lastResult = data.lastResult;
     this.selectedGenre = null;
@@ -274,6 +284,7 @@ export class GenreSelectScene extends Phaser.Scene {
       appealEnabled: this.productIndex >= 1,
       officeLevel: this.officeLevel,
       reputation: this.reputation,
+      policy: this.policy,
     });
     this.scene.start(SCENE_KEYS.Assignment, { state, lastResult: this.lastResult });
   }

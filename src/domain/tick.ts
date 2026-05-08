@@ -5,10 +5,14 @@
 import {
   BALANCE,
   BURN,
+  COMMUTE_DRAIN_BY_OFFICE,
   CONDITION,
+  DRESS_CODE_EFFECT,
   GENRE_MOD,
   LEAD_TEAM_BONUS,
+  PERK,
   RANK_MULTIPLIER,
+  REMOTE,
   SKILL_GROWTH,
   THEME_MOD,
   TRAIT_EFFECT,
@@ -53,7 +57,7 @@ export function computeSlotContributions(state: GameState): SlotContribution[] {
     const matched = isMatched(slot, emp.job);
     const factor = matched ? 1 : BALANCE.mismatchContribFactor;
     const leadCountForOthers = totalLeads - (emp.rank === 'lead' ? 1 : 0);
-    const eff = effectiveSkill(emp, leadCountForOthers);
+    const eff = effectiveSkill(emp, state, leadCountForOthers);
 
     let progressDelta = BALANCE.matchedProgressPerWeek * eff * factor;
     progressDelta *= gMod.progressMul * tMod.progressMul;
@@ -74,18 +78,27 @@ function clamp(n: number, lo: number, hi: number): number {
 
 /**
  * Effective skill — 작업 기여 계산에 쓰이는 최종 효율.
- *  base × morale × stamina × rank × trait × leadBonus
+ *  base × morale × stamina × rank × trait × dressMul × remoteVillain × leadBonus
  *
- * leadCount는 자기 자신을 제외한 lead 직원 수.
- * 리더는 자신에겐 보너스를 주지 않고 다른 직원에게만 +5%/명.
+ * leadCountForOthers는 자기 자신을 제외한 lead 수. 리더는 자신에겐 보너스를 주지 않음.
+ * remote(재택) ON일 때 trait이 'remoteSlacker'면 effective skill ×0.5.
  */
-export function effectiveSkill(emp: Employee, leadCountForOthers: number = 0): number {
+export function effectiveSkill(
+  emp: Employee,
+  state: GameState,
+  leadCountForOthers: number = 0,
+): number {
   const m = CONDITION.moraleFactorMin + (emp.morale / 100) * CONDITION.moraleFactorRange;
   const s = CONDITION.staminaFactorMin + (emp.stamina / 100) * CONDITION.staminaFactorRange;
   const rankMul = RANK_MULTIPLIER[emp.rank];
   const traitMul = emp.trait ? TRAIT_EFFECT[emp.trait].effectiveSkillMul : 1.0;
   const leadBonus = 1 + leadCountForOthers * LEAD_TEAM_BONUS;
-  return emp.skill * m * s * rankMul * traitMul * leadBonus;
+  const dressMul = DRESS_CODE_EFFECT[state.policy.dressCode].skillMul;
+  const remoteVillainMul =
+    state.policy.commute === 'remote' && emp.trait === 'remoteSlacker'
+      ? REMOTE.villainSkillMul
+      : 1.0;
+  return emp.skill * m * s * rankMul * traitMul * dressMul * remoteVillainMul * leadBonus;
 }
 
 function findAssignedSlot(state: GameState, empId: string): SlotKind | null {
@@ -117,7 +130,24 @@ function tickCondition(emp: Employee, state: GameState, mode: 'work' | 'rest'): 
     }
     // 정배치 작업이 누적되면 자연 성장.
     if (matched) dSkill = SKILL_GROWTH.perWeekMatched;
+
+    // 출퇴근 / 재택 — 배치된 직원만 출근 또는 재택.
+    if (state.policy.commute === 'office') {
+      let commute = COMMUTE_DRAIN_BY_OFFICE[state.officeLevel];
+      if (state.policy.perks.shuttle) {
+        commute = Math.max(0, commute - PERK.shuttle.staminaPerWeek);
+      }
+      dStamina -= commute;
+    } else {
+      dMorale += REMOTE.moralePerWeek;
+    }
   }
+
+  // 복장 + 복지 — 작업/휴식 모두 적용.
+  dMorale += DRESS_CODE_EFFECT[state.policy.dressCode].moralePerWeek;
+  if (state.policy.perks.teamHoodie) dMorale += PERK.teamHoodie.moralePerWeek;
+  if (state.policy.perks.espresso) dMorale += PERK.espresso.moralePerWeek;
+  if (state.policy.perks.cafeteria) dMorale += PERK.cafeteria.moralePerWeek;
 
   return {
     ...emp,
@@ -149,7 +179,7 @@ export function advanceWeek(prev: GameState): GameState {
     const factor = matched ? 1 : BALANCE.mismatchContribFactor;
     // 자기 자신이 lead면 lead bonus 대상에서 제외.
     const leadCountForOthers = totalLeads - (emp.rank === 'lead' ? 1 : 0);
-    const eff = effectiveSkill(emp, leadCountForOthers);
+    const eff = effectiveSkill(emp, prev, leadCountForOthers);
     progressDelta += BALANCE.matchedProgressPerWeek * eff * factor;
     if (appealEnabled) {
       appealDelta += BALANCE.appealBySlot[slot] * eff * factor;
@@ -170,6 +200,10 @@ export function advanceWeek(prev: GameState): GameState {
     progressDelta *= BALANCE.crunchProgressMul;
     bugDebtDelta += BALANCE.crunchBugDebtBonus;
     if (appealEnabled) appealDelta += BALANCE.appealCrunchBonus;
+  }
+  // 재택근무 — 협업 비용 (BugDebt +1/주)
+  if (prev.policy.commute === 'remote') {
+    bugDebtDelta += REMOTE.bugDebtPerWeek;
   }
   if (appealEnabled && !prev.assignment.qa) {
     appealDelta += BALANCE.appealSoundEmpty;
