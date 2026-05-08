@@ -52,6 +52,21 @@ export type ThemeId = 'T1' | 'T2' | 'T3';
 /** 출시 직전 홍보 단계 — 2작부터 노출. BALANCE.md §7. */
 export type PromoTier = 'none' | 'small' | 'medium';
 
+/** 시장 트렌드 — N개 작품 동안 유지되며 출시 매출에 곱연산 보정. */
+export type TrendId =
+  | 'ai_spring'
+  | 'commerce_winter'
+  | 'platform_consolidation'
+  | 'remote_first'
+  | 'data_governance'
+  | 'metaverse_thaw';
+
+export interface TrendStatus {
+  readonly id: TrendId;
+  /** 남은 작품 수. 0 도달 시 새 트렌드 결정. */
+  readonly remainingProjects: number;
+}
+
 export interface Employee {
   readonly id: string;
   readonly name: string;
@@ -106,4 +121,6 @@ export interface GameState {
   readonly reputation: number;
   /** 회사 정책(출퇴근/복장/복지). 작품 사이 결정, 매주 효과. */
   readonly policy: CompanyPolicy;
+  /** 진행 중인 시장 트렌드 — 출시 매출에 보정. null이면 트렌드 없음. */
+  readonly trend: TrendStatus | null;
 }

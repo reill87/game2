@@ -95,6 +95,7 @@ export class ResultScene extends Phaser.Scene {
       hiredEmployees: this.hiredEmployees,
       reputation: o.reputation.total,
       policy: this.livePolicy,
+      trend: o.state.trend,
       lastResult: {
         genre: project.genre,
         theme: project.theme,
@@ -219,9 +220,21 @@ export class ResultScene extends Phaser.Scene {
         ? `+${o.reputation.gain} (총 ${o.reputation.total} · 매출 ×${repMul.toFixed(2)})`
         : `+${o.reputation.gain} (총 ${o.reputation.total})`;
 
+    const trendRow: ReadonlyArray<readonly [string, string, string]> =
+      o.trend && Math.abs(o.trend.multiplier - 1) > 0.001
+        ? ([
+            [
+              '트렌드',
+              `${o.trend.name} (매출 ×${o.trend.multiplier.toFixed(2)})`,
+              o.trend.multiplier > 1 ? TEXT_COLOR.ok : TEXT_COLOR.bad,
+            ],
+          ] as const)
+        : ([] as ReadonlyArray<readonly [string, string, string]>);
+
     const baseRows: ReadonlyArray<readonly [string, string, string]> = [
       ['매출', `+${o.revenue} 골드`, TEXT_COLOR.ok],
       ['명성', repValue, TEXT_COLOR.warn],
+      ...trendRow,
       ['BugDebt', `${Math.round(project.bugDebt)} / 100`, project.bugDebt >= 70 ? TEXT_COLOR.bad : TEXT_COLOR.primary],
       ...(project.appealEnabled
         ? ([['Appeal', `${Math.round(project.appeal)} / 100`, TEXT_COLOR.primary]] as const)

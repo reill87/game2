@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import type { Types } from 'phaser';
 
 import { GAME_WIDTH } from '@/constants';
+import { TRENDS } from '@/domain/balance';
 import {
   DEFAULT_POLICY,
   GENRE_ICON,
@@ -10,7 +11,13 @@ import {
   THEME_ICON,
   THEME_LABEL,
 } from '@/domain/seed';
-import type { CompanyPolicy, Employee, GenreId, ThemeId } from '@/domain/types';
+import type {
+  CompanyPolicy,
+  Employee,
+  GenreId,
+  ThemeId,
+  TrendStatus,
+} from '@/domain/types';
 import { ICONS } from '@/icons';
 import type { SavedResult } from '@/save';
 import { COLOR, FONT_STACK, TEXT_COLOR, TINT } from '@/theme';
@@ -41,6 +48,7 @@ export class GenreSelectScene extends Phaser.Scene {
   private officeLevel: 1 | 2 = 1;
   private reputation = 0;
   private policy: CompanyPolicy = DEFAULT_POLICY;
+  private trend: TrendStatus | null = null;
   private employees: ReadonlyArray<Employee> = [];
   private lastResult: SavedResult | null = null;
 
@@ -66,6 +74,7 @@ export class GenreSelectScene extends Phaser.Scene {
     officeLevel?: 1 | 2;
     reputation?: number;
     policy?: CompanyPolicy;
+    trend?: TrendStatus | null;
     employees: ReadonlyArray<Employee>;
     lastResult: SavedResult | null;
   }): void {
@@ -74,6 +83,7 @@ export class GenreSelectScene extends Phaser.Scene {
     this.officeLevel = data.officeLevel ?? 1;
     this.reputation = data.reputation ?? 0;
     this.policy = data.policy ?? DEFAULT_POLICY;
+    this.trend = data.trend ?? null;
     this.employees = data.employees;
     this.lastResult = data.lastResult;
     this.selectedGenre = null;
@@ -108,17 +118,37 @@ export class GenreSelectScene extends Phaser.Scene {
     }
 
     const text = this.add
-      .text(CX, 92, subParts.join('  ·  '), {
+      .text(CX, 88, subParts.join('  ·  '), {
         fontFamily: FONT_STACK,
         fontSize: '13px',
         color: TEXT_COLOR.dim,
       })
       .setOrigin(0.5);
     this.add
-      .image(text.x - text.width / 2 - 8, 92, ICONS.coins.key)
+      .image(text.x - text.width / 2 - 8, 88, ICONS.coins.key)
       .setDisplaySize(13, 13)
       .setOrigin(1, 0.5)
       .setTint(TINT.warn);
+
+    // 현재 트렌드 표시 — 매출 보정의 핵심 결정 정보
+    if (this.trend) {
+      const t = TRENDS[this.trend.id];
+      this.add
+        .text(CX, 112, `📈 현재 트렌드 · ${t.name} (남은 ${this.trend.remainingProjects}작)`, {
+          fontFamily: FONT_STACK,
+          fontSize: '12px',
+          fontStyle: 'bold',
+          color: TEXT_COLOR.warn,
+        })
+        .setOrigin(0.5);
+      this.add
+        .text(CX, 128, t.desc, {
+          fontFamily: FONT_STACK,
+          fontSize: '11px',
+          color: TEXT_COLOR.dim,
+        })
+        .setOrigin(0.5);
+    }
   }
 
   // ────────────────────────── genre row ──────────────────────────
@@ -139,6 +169,7 @@ export class GenreSelectScene extends Phaser.Scene {
       (id) => GENRE_LABEL[id],
       (id) => ICONS[GENRE_ICON[id]].key,
       (id) => this.handleGenreTap(id),
+      (id) => this.trendMulFor('genre', id),
     );
   }
 
@@ -159,6 +190,18 @@ export class GenreSelectScene extends Phaser.Scene {
       (id) => THEME_LABEL[id],
       (id) => ICONS[THEME_ICON[id]].key,
       (id) => this.handleThemeTap(id),
+      (id) => this.trendMulFor('theme', id),
+    );
+  }
+
+  /** 트렌드의 해당 장르/테마 매출 보정 (1.0이면 변화 없음). */
+  private trendMulFor(kind: 'genre' | 'theme', id: GenreId | ThemeId): number {
+    if (!this.trend) return 1;
+    const t = TRENDS[this.trend.id];
+    return (
+      (kind === 'genre'
+        ? t.genreMul[id as GenreId]
+        : t.themeMul[id as ThemeId]) ?? 1
     );
   }
 
@@ -169,6 +212,7 @@ export class GenreSelectScene extends Phaser.Scene {
     label: (k: K) => { name: string; desc: string },
     iconKey: (k: K) => string,
     onTap: (k: K) => void,
+    trendMul?: (k: K) => number,
   ): void {
     const cardW = 200;
     const cardH = 250;
@@ -191,6 +235,21 @@ export class GenreSelectScene extends Phaser.Scene {
           color: TEXT_COLOR.dim,
         })
         .setOrigin(0, 0);
+
+      // 트렌드 보정 배지 — 우상단, 1.0이 아닐 때만 노출
+      const mul = trendMul ? trendMul(k) : 1;
+      if (Math.abs(mul - 1) > 0.001) {
+        const pct = Math.round((mul - 1) * 100);
+        const isPositive = pct > 0;
+        this.add
+          .text(x + cardW - 12, y + 12, `${isPositive ? '+' : ''}${pct}%`, {
+            fontFamily: FONT_STACK,
+            fontSize: '12px',
+            fontStyle: 'bold',
+            color: isPositive ? TEXT_COLOR.ok : TEXT_COLOR.bad,
+          })
+          .setOrigin(1, 0);
+      }
 
       // 메인 아이콘 — 카드 상단 가운데
       this.add
@@ -285,6 +344,7 @@ export class GenreSelectScene extends Phaser.Scene {
       officeLevel: this.officeLevel,
       reputation: this.reputation,
       policy: this.policy,
+      trend: this.trend,
     });
     this.scene.start(SCENE_KEYS.Assignment, { state, lastResult: this.lastResult });
   }

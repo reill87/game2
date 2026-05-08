@@ -13,7 +13,15 @@
  *  - 미인식 버전은 'game2.save.unknown'에 백업한 뒤 null 반환 (사용자에게는 "저장 없음"으로 보임).
  */
 import { CONDITION } from './domain/balance';
-import type { CompanyPolicy, Employee, Job, Rank, Stance, Trait } from './domain/types';
+import type {
+  CompanyPolicy,
+  Employee,
+  Job,
+  Rank,
+  Stance,
+  Trait,
+  TrendStatus,
+} from './domain/types';
 
 const KEY = 'game2.save';
 const LEGACY_KEY_V1 = 'game2.save.v1';
@@ -43,6 +51,8 @@ export interface SaveData {
   readonly reputation?: number;
   /** 회사 정책 — PIVOT-5. 옛 데이터엔 없으므로 옵셔널, default로 보강. */
   readonly policy?: CompanyPolicy;
+  /** 시장 트렌드 — PIVOT-6. null/undefined면 Boot에서 새 트렌드 pick. */
+  readonly trend?: TrendStatus | null;
 }
 
 interface SaveDataV1 {
@@ -69,6 +79,7 @@ export function saveData(input: {
   lastResult: SavedResult | null;
   reputation: number;
   policy: CompanyPolicy;
+  trend: TrendStatus | null;
 }): SaveData | null {
   const storage = getStorage();
   if (!storage) return null;
@@ -82,6 +93,7 @@ export function saveData(input: {
     lastResult: input.lastResult,
     reputation: input.reputation,
     policy: input.policy,
+    trend: input.trend,
   };
   try {
     storage.setItem(KEY, JSON.stringify(full));

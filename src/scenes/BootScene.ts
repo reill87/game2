@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
-import { DEFAULT_POLICY, newTutorialGame, TUTORIAL_EMPLOYEES } from '@/domain/seed';
-import type { CompanyPolicy, Employee } from '@/domain/types';
+import { DEFAULT_POLICY, newTutorialGame, pickRandomTrend, TUTORIAL_EMPLOYEES } from '@/domain/seed';
+import type { CompanyPolicy, Employee, TrendStatus } from '@/domain/types';
 import { ICON_DIR, ICONS } from '@/icons';
 import { loadData, type SavedResult } from '@/save';
 import { preloadUITextures } from '@/util/ui';
@@ -30,6 +30,8 @@ export class BootScene extends Phaser.Scene {
     const officeLevel: 1 | 2 = saved?.officeLevel ?? 1;
     const reputation = saved?.reputation ?? 0;
     const policy: CompanyPolicy = saved?.policy ?? DEFAULT_POLICY;
+    // 트렌드 — saved 값이 없거나 만료(null)면 새로 결정.
+    const trend: TrendStatus = saved?.trend ?? pickRandomTrend();
     const employees: ReadonlyArray<Employee> = saved?.hiredEmployees?.length
       ? [...TUTORIAL_EMPLOYEES, ...saved.hiredEmployees]
       : TUTORIAL_EMPLOYEES;
@@ -37,7 +39,7 @@ export class BootScene extends Phaser.Scene {
 
     if (productIndex === 0) {
       const fresh = newTutorialGame();
-      const state = { ...fresh, employees, gold, officeLevel, reputation, policy };
+      const state = { ...fresh, employees, gold, officeLevel, reputation, policy, trend };
       const carry: { lastResult?: SavedResult } = {};
       if (lastResult) carry.lastResult = lastResult;
       this.scene.start(SCENE_KEYS.Assignment, { state, ...carry });
@@ -50,6 +52,7 @@ export class BootScene extends Phaser.Scene {
       officeLevel,
       reputation,
       policy,
+      trend,
       employees,
       lastResult,
     });

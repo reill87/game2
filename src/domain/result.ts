@@ -2,7 +2,7 @@
  * 출시 결과 산정 — 순수 함수.
  * 모든 수치는 docs/BALANCE.md v0.1 대역에 맞춤. 추후 문서 갱신과 함께 조정.
  */
-import { BALANCE, PROMO, RANK_NEXT, RANK_PROMOTION, REPUTATION, SKILL_GROWTH } from './balance';
+import { BALANCE, PROMO, RANK_NEXT, RANK_PROMOTION, REPUTATION, SKILL_GROWTH, TRENDS } from './balance';
 import { isMatched, SLOT_ORDER } from './match';
 import { release } from './tick';
 import type { Employee, GameState, PromoTier, Rank } from './types';
@@ -66,6 +66,12 @@ export interface ReleaseOutcome {
     /** 누적 명성 (이번 출시 후). */
     readonly total: number;
   };
+  /** 트렌드 매출 보정 — UI 표시용. 없으면 null. */
+  readonly trend: {
+    readonly id: string;
+    readonly name: string;
+    readonly multiplier: number;
+  } | null;
   /** released=true, gold = (prev.gold − promo.cost) + revenue. reputation도 누적. */
   readonly state: GameState;
 }
@@ -127,11 +133,22 @@ export function shipProject(
   const finalScore = clamp(r.rawScore + eff.reviewBonus, 0, 100);
   const stars = computeStars(finalScore);
   const baseRevenue = computeRevenue(finalScore);
-  // 명성 보너스 — 누적 명성에 비례한 매출 곱연산. 명성 300 = 매출 2배.
+  // 명성 보너스 — 누적 명성에 비례한 매출 곱연산.
   const reputationMul = 1 + prev.reputation / REPUTATION.revenueBonusDivisor;
-  const revenue = Math.round(baseRevenue * eff.revenueMul * reputationMul);
+  // 트렌드 보정 — 현재 트렌드의 genre/theme 매치별 곱연산.
+  const trendDef = prev.trend ? TRENDS[prev.trend.id] : null;
+  const trendGenreMul = trendDef?.genreMul[prev.project.genre] ?? 1;
+  const trendThemeMul = trendDef?.themeMul[prev.project.theme] ?? 1;
+  const trendMul = trendGenreMul * trendThemeMul;
+  const revenue = Math.round(baseRevenue * eff.revenueMul * reputationMul * trendMul);
   const reputationGain = stars * REPUTATION.perStarOnRelease;
   const newReputation = prev.reputation + reputationGain;
+  // 트렌드 카운트다운 — 출시 후 −1, 0이면 null로 만료 (Boot에서 새 트렌드 결정).
+  const nextTrend = prev.trend
+    ? prev.trend.remainingProjects > 1
+      ? { ...prev.trend, remainingProjects: prev.trend.remainingProjects - 1 }
+      : null
+    : null;
 
   const goldAfterPromo = Math.max(0, prev.gold - eff.cost);
 
@@ -156,6 +173,7 @@ export function shipProject(
     gold: goldAfterPromo,
     employees: boostedEmployees,
     reputation: newReputation,
+    trend: nextTrend,
   });
   const state: GameState = { ...released, gold: released.gold + revenue };
 
@@ -182,6 +200,9 @@ export function shipProject(
       multiplier: reputationMul,
       total: newReputation,
     },
+    trend: trendDef
+      ? { id: trendDef.id, name: trendDef.name, multiplier: trendMul }
+      : null,
     state,
   };
 }

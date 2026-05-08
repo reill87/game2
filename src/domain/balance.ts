@@ -2,7 +2,7 @@
  * 밸런스 v0.1 상수. 모든 수치는 docs/BALANCE.md의 표와 1:1 대응.
  * 변경 시 문서도 함께 갱신할 것.
  */
-import type { DressCode, GenreId, PromoTier, Rank, ThemeId } from './types';
+import type { DressCode, GenreId, PromoTier, Rank, ThemeId, TrendId } from './types';
 
 export const BALANCE = {
   /** 정배치 직원 1명이 1주에 내는 진행도(%) — 3명 정배치 시 약 +10.5%/주 (목표 +9~11%). */
@@ -114,6 +114,68 @@ export const PERK = {
   espresso: { price: 50, label: '캡슐 커피머신', moralePerWeek: 1 },
   cafeteria: { price: 200, label: '사내 식당', moralePerWeek: 2 },
 } as const;
+
+/**
+ * 시장 트렌드 (PIVOT-6). 매 N개 작품마다 새 트렌드 결정.
+ *
+ * 단순화 — 트렌드는 출시 매출에 genre/theme 매치별 곱연산만 적용.
+ * Progress/BugDebt 메커닉은 그대로 (혼란 줄임).
+ */
+export interface Trend {
+  readonly id: TrendId;
+  readonly name: string;
+  readonly desc: string;
+  readonly genreMul: Partial<Record<GenreId, number>>;
+  readonly themeMul: Partial<Record<ThemeId, number>>;
+}
+
+export const TRENDS: Readonly<Record<TrendId, Trend>> = {
+  ai_spring: {
+    id: 'ai_spring',
+    name: 'AI 봄',
+    desc: 'AI/추천 서비스 매출 ↑, 광고 ↓',
+    genreMul: { G3: 1.3, G1: 0.85 },
+    themeMul: {},
+  },
+  commerce_winter: {
+    id: 'commerce_winter',
+    name: '커머스 겨울',
+    desc: '커머스 시장 위축. 광고는 비교적 안정',
+    genreMul: { G2: 0.8, G1: 1.05 },
+    themeMul: {},
+  },
+  platform_consolidation: {
+    id: 'platform_consolidation',
+    name: '플랫폼 통합기',
+    desc: '커머스 플랫폼 매출 ↑, AI 신뢰 회의',
+    genreMul: { G2: 1.2, G3: 0.9 },
+    themeMul: {},
+  },
+  remote_first: {
+    id: 'remote_first',
+    name: '리모트 퍼스트',
+    desc: '회의 적은 조직이 빛난다',
+    genreMul: {},
+    themeMul: { T2: 0.85, T1: 1.1 },
+  },
+  data_governance: {
+    id: 'data_governance',
+    name: '데이터 거버넌스 강화',
+    desc: 'AI/추천이 위축, 안정 운영이 보상받음',
+    genreMul: { G3: 0.85 },
+    themeMul: { T2: 1.15 },
+  },
+  metaverse_thaw: {
+    id: 'metaverse_thaw',
+    name: '메타버스 해빙',
+    desc: '몰입 콘텐츠 살짝 회복. 모든 장르 약간 +',
+    genreMul: { G1: 1.05, G2: 1.05, G3: 1.05 },
+    themeMul: {},
+  },
+};
+
+/** 트렌드 1개당 유지되는 작품 수. */
+export const TREND_DURATION = 2;
 
 /**
  * 직원 컨디션(사기·체력) 모델 — Slice 6.

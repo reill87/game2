@@ -1,4 +1,4 @@
-import { BALANCE, CONDITION } from './balance';
+import { BALANCE, CONDITION, TRENDS, TREND_DURATION } from './balance';
 import type {
   CompanyPolicy,
   Employee,
@@ -10,7 +10,16 @@ import type {
   Stance,
   ThemeId,
   Trait,
+  TrendId,
+  TrendStatus,
 } from './types';
+
+/** 무작위 새 트렌드 결정. duration은 TREND_DURATION 사용. */
+export function pickRandomTrend(): TrendStatus {
+  const ids = Object.keys(TRENDS) as TrendId[];
+  const idx = Math.floor(Math.random() * ids.length);
+  return { id: ids[idx] ?? 'ai_spring', remainingProjects: TREND_DURATION };
+}
 
 /** 기본 회사 정책 — 새 게임 시작 시. */
 export const DEFAULT_POLICY: CompanyPolicy = {
@@ -185,6 +194,7 @@ export function newProject(opts: {
   reputation?: number;
   appealEnabled?: boolean;
   policy?: CompanyPolicy;
+  trend?: TrendStatus | null;
 }): GameState {
   return {
     employees: opts.employees,
@@ -206,6 +216,7 @@ export function newProject(opts: {
     officeLevel: opts.officeLevel ?? 1,
     reputation: opts.reputation ?? 0,
     policy: opts.policy ?? DEFAULT_POLICY,
+    trend: opts.trend ?? null,
   };
 }
 
