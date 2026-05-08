@@ -38,10 +38,12 @@ export const BALANCE = {
   appealReviewFactor: 0.3,
   /** Appeal 활성 시 리뷰 base score (튜토리얼은 80, 2작부터 70 + appeal). */
   appealEnabledBaseScore: 70,
-  /** 사무실 1→2 업그레이드 비용 (골드). */
+  /** 사무실 1→2 업그레이드 비용 (골드). @deprecated officeUpgradeCostBy 사용 권장. */
   officeUpgradeCost: 300,
+  /** 다음 단계 업그레이드 비용 — 키는 업그레이드 후 도달 단계. */
+  officeUpgradeCostBy: { 2: 300, 3: 900 } as Record<2 | 3, number>,
   /** 사무실 단계별 고용 상한. */
-  officeHireCap: { 1: 3, 2: 4 },
+  officeHireCap: { 1: 3, 2: 4, 3: 6 } as Record<1 | 2 | 3, number>,
 } as const;
 
 /**
@@ -65,7 +67,8 @@ export const BURN = {
   officeRentByStage: {
     1: 0,
     2: 10,
-  },
+    3: 24,
+  } as Record<1 | 2 | 3, number>,
 } as const;
 
 /**
@@ -80,6 +83,30 @@ export const REPUTATION = {
 } as const;
 
 /**
+ * 엔딩 임계 — 누적 매출 기준.
+ * 첫 작품 약 200~400g, 중반 600~1500g 가정 시:
+ *  - 인수합병: 30000g ≈ 30~50작품 정도의 장기 목표.
+ *  - IPO: 인수합병 거절 후 계속 운영해 50000g 도달 시 상장 엔딩.
+ */
+export const ENDING = {
+  acquisitionRevenueThreshold: 30000,
+  /** 2회차: 인수합병 거절 후 계속 운영. 누적 50000g 도달 시 IPO 엔딩. */
+  ipoRevenueThreshold: 50000,
+} as const;
+
+/**
+ * 사이드 프로젝트(외주) — Development 중 골드 압박 해소용 일회성 액션.
+ * 골드 +X, 주차 +1, 사기 −Y(전원). 한 작품 내 cooldown.
+ */
+export const SIDE_PROJECT = {
+  gold: 120,
+  weeksDelta: 1,
+  moralePenalty: 5,
+  /** 사용 후 다음 외주까지 쿨다운(주). */
+  cooldownWeeks: 8,
+} as const;
+
+/**
  * 정책·복지 (PIVOT-5).
  *
  * - 출퇴근 drain: 사무실 단계별 매주 stamina −. 셔틀 도입 시 일부 상쇄.
@@ -87,9 +114,10 @@ export const REPUTATION = {
  * - 복장: skillMul과 morale 매주 가산.
  * - 복지(perks): 영구 구매, 매주 작은 morale/stamina 보너스 누적.
  */
-export const COMMUTE_DRAIN_BY_OFFICE: Readonly<Record<1 | 2, number>> = {
+export const COMMUTE_DRAIN_BY_OFFICE: Readonly<Record<1 | 2 | 3, number>> = {
   1: 2,
   2: 4,
+  3: 6,
 };
 
 export const REMOTE = {
@@ -134,21 +162,21 @@ export const TRENDS: Readonly<Record<TrendId, Trend>> = {
     id: 'ai_spring',
     name: 'AI 봄',
     desc: 'AI/추천 서비스 매출 ↑, 광고 ↓',
-    genreMul: { G3: 1.3, G1: 0.85 },
+    genreMul: { G3: 1.3, G1: 0.85, G4: 1.1 },
     themeMul: {},
   },
   commerce_winter: {
     id: 'commerce_winter',
     name: '커머스 겨울',
     desc: '커머스 시장 위축. 광고는 비교적 안정',
-    genreMul: { G2: 0.8, G1: 1.05 },
+    genreMul: { G2: 0.8, G1: 1.05, G4: 0.9 },
     themeMul: {},
   },
   platform_consolidation: {
     id: 'platform_consolidation',
     name: '플랫폼 통합기',
     desc: '커머스 플랫폼 매출 ↑, AI 신뢰 회의',
-    genreMul: { G2: 1.2, G3: 0.9 },
+    genreMul: { G2: 1.2, G3: 0.9, G4: 1.1 },
     themeMul: {},
   },
   remote_first: {
@@ -156,21 +184,21 @@ export const TRENDS: Readonly<Record<TrendId, Trend>> = {
     name: '리모트 퍼스트',
     desc: '회의 적은 조직이 빛난다',
     genreMul: {},
-    themeMul: { T2: 0.85, T1: 1.1 },
+    themeMul: { T2: 0.85, T1: 1.1, T4: 1.1 },
   },
   data_governance: {
     id: 'data_governance',
     name: '데이터 거버넌스 강화',
     desc: 'AI/추천이 위축, 안정 운영이 보상받음',
-    genreMul: { G3: 0.85 },
-    themeMul: { T2: 1.15 },
+    genreMul: { G3: 0.85, G5: 0.8 },
+    themeMul: { T2: 1.15, T4: 1.05 },
   },
   metaverse_thaw: {
     id: 'metaverse_thaw',
     name: '메타버스 해빙',
-    desc: '몰입 콘텐츠 살짝 회복. 모든 장르 약간 +',
-    genreMul: { G1: 1.05, G2: 1.05, G3: 1.05 },
-    themeMul: {},
+    desc: '몰입 콘텐츠 살짝 회복. 블록체인 훈풍',
+    genreMul: { G1: 1.05, G2: 1.05, G3: 1.05, G5: 1.5 },
+    themeMul: { T5: 1.2 },
   },
 };
 
@@ -250,6 +278,17 @@ export const RANK_PROMOTION: Readonly<Record<Rank, { ships: number; skill: numbe
 export const LEAD_TEAM_BONUS = 0.05;
 
 /**
+ * 직급 트랙(슬라이스 5) — junior→senior 분기 후 적용.
+ *  - 'manager': skill 자체 보너스 작음, 팀 보너스 ↑ (lead 도달 전부터 일부 발현).
+ *  - 'ic'    : 개인 skill 보너스 큼, 팀 보너스 없음.
+ * effectiveSkill 계산에서 RANK_MULTIPLIER 다음에 곱.
+ */
+export const TRACK_EFFECT: Readonly<Record<'manager' | 'ic', { skillMul: number; teamMul: number }>> = {
+  manager: { skillMul: 0.95, teamMul: 1.0 },
+  ic: { skillMul: 1.15, teamMul: 0.0 },
+};
+
+/**
  * 트레이트별 효과. 일부는 advanceWeek에서, 일부는 이벤트 트리거에서 사용.
  * v1 PIVOT-3에서 effectiveSkill에 적용되는 것만 정의. 다른 효과는 PIVOT-3.5+에서.
  */
@@ -289,20 +328,28 @@ export const SKILL_GROWTH = {
  * 곱연산으로 advanceWeek에 적용 — progressMul, bugMul 모두 (genreMul × themeMul) 형태.
  * 야근(crunch) 보너스/페널티는 별도 가산.
  */
-export const GENRE_MOD: Readonly<Record<GenreId, { progressMul: number; bugMul: number }>> = {
+export const GENRE_MOD: Readonly<Record<GenreId, { progressMul: number; bugMul: number; baseRevenueMul?: number }>> = {
   G1: { progressMul: 1.0, bugMul: 1.0 },
   /** G2 — 디버깅 부담↑ */
   G2: { progressMul: 0.9, bugMul: 1.2 },
   /** G3 — 그래픽 부담↓, 진행 약간 빠름 */
   G3: { progressMul: 1.05, bugMul: 0.95 },
+  /** G4 — SaaS 구독: 개발 부담↑, 매출 안정 */
+  G4: { progressMul: 0.92, bugMul: 1.10, baseRevenueMul: 1.05 },
+  /** G5 — 블록체인/NFT: 트렌드 의존, 매출 변동 大 */
+  G5: { progressMul: 1.0, bugMul: 1.0, baseRevenueMul: 0.85 },
 };
 
-export const THEME_MOD: Readonly<Record<ThemeId, { progressMul: number; bugMul: number }>> = {
+export const THEME_MOD: Readonly<Record<ThemeId, { progressMul: number; bugMul: number; appealMul?: number }>> = {
   T1: { progressMul: 1.0, bugMul: 1.0 },
   /** T2 — 회의가 레벨이다: 진행 살짝 느리지만 버그 적음 */
   T2: { progressMul: 0.95, bugMul: 0.9 },
   /** T3 — 버그한테 잡아먹힘: 버그 ↑ */
   T3: { progressMul: 1.0, bugMul: 1.1 },
+  /** T4 — 글로벌 진출: BugDebt↓, Appeal↑ */
+  T4: { progressMul: 1.0, bugMul: 0.85, appealMul: 1.20 },
+  /** T5 — 인플루언서 마케팅: 진행↑, 매출 변동 */
+  T5: { progressMul: 1.10, bugMul: 1.05 },
 };
 
 /**

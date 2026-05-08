@@ -1,5 +1,5 @@
 import type { Types } from 'phaser';
-import { GAME_WIDTH } from '@/config';
+import { GAME_WIDTH } from '@/constants';
 
 /** Phaser Text: 숫자 weight는 fontStyle이 아니라 fontFamily 스택으로 (fontStyle은 bold/italic 만 안전) */
 const FONT_STACK =

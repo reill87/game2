@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 80" width="240" height="80">
+  <!-- B. 기획·스코프 — 쌓이는 문서 + 부풀어 오르는 리스트 -->
+  <defs>
+    <linearGradient id="bBg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2c2538"/>
+      <stop offset="1" stop-color="#1c1828"/>
+    </linearGradient>
+  </defs>
+  <rect width="240" height="80" fill="url(#bBg)"/>
+  <!-- 뒷장 (가장 아래) -->
+  <rect x="32" y="14" width="68" height="60" rx="4" fill="#3a3a48" transform="rotate(-6 66 44)"/>
+  <!-- 가운데 장 -->
+  <rect x="50" y="10" width="68" height="60" rx="4" fill="#4a4a62" transform="rotate(-2 84 40)"/>
+  <!-- 앞장 — 체크리스트 -->
+  <rect x="68" y="8" width="78" height="64" rx="4" fill="#f2f2f7"/>
+  <!-- 앞장 라인 -->
+  <g stroke="#9b9bb0" stroke-width="1.6" stroke-linecap="round">
+    <line x1="84" y1="20" x2="138" y2="20"/>
+    <line x1="84" y1="30" x2="132" y2="30"/>
+    <line x1="84" y1="40" x2="138" y2="40"/>
+    <line x1="84" y1="50" x2="128" y2="50"/>
+    <line x1="84" y1="60" x2="138" y2="60"/>
+  </g>
+  <!-- 체크박스 -->
+  <g stroke="#3ec07b" stroke-width="1.6" fill="none">
+    <rect x="74" y="16" width="6" height="6" rx="1"/>
+    <rect x="74" y="26" width="6" height="6" rx="1"/>
+    <rect x="74" y="36" width="6" height="6" rx="1"/>
+    <rect x="74" y="46" width="6" height="6" rx="1"/>
+    <rect x="74" y="56" width="6" height="6" rx="1" stroke="#e55f5f"/>
+  </g>
+  <!-- 체크 마크 (앞 두 개) -->
+  <path d="M75 19 L77 21 L80 17" stroke="#3ec07b" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M75 29 L77 31 L80 27" stroke="#3ec07b" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- 추가 요청 — 빨간 + 라벨 (오른쪽) -->
+  <g transform="translate(168 18)">
+    <rect width="58" height="46" rx="6" fill="#e55f5f" opacity="0.9"/>
+    <line x1="29" y1="14" x2="29" y2="32" stroke="#fff" stroke-width="3.5" stroke-linecap="round"/>
+    <line x1="20" y1="23" x2="38" y2="23" stroke="#fff" stroke-width="3.5" stroke-linecap="round"/>
+  </g>
+  <!-- 화살표(요청 → 문서) -->
+  <path d="M168 40 Q156 40 152 36" stroke="#e55f5f" stroke-width="2" fill="none" stroke-linecap="round"/>
+  <path d="M152 36 L156 32 M152 36 L156 40" stroke="#e55f5f" stroke-width="2" fill="none" stroke-linecap="round"/>
+</svg>

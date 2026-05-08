@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" width="80" height="80">
+  <!-- QA — 돋보기 + 단정한 셔츠 -->
+  <circle cx="40" cy="44" r="36" fill="#3a3a48"/>
+  <path d="M16 76 Q40 56 64 76 Z" fill="#f2c94c" opacity="0.85"/>
+  <!-- 셔츠 칼라 -->
+  <path d="M32 64 L40 56 L48 64 Z" fill="#f2f2f7"/>
+  <line x1="40" y1="56" x2="40" y2="68" stroke="#9b9bb0" stroke-width="1"/>
+  <!-- 목 -->
+  <rect x="35" y="40" width="10" height="8" fill="#e0c8a8"/>
+  <!-- 머리 -->
+  <circle cx="40" cy="32" r="18" fill="#f0d4b0"/>
+  <!-- 머리카락 (포니테일 느낌) -->
+  <path d="M22 30 Q22 12 40 12 Q58 12 58 30 L58 26 Q40 22 22 26 Z" fill="#3a2820"/>
+  <ellipse cx="58" cy="36" rx="3" ry="6" fill="#3a2820"/>
+  <!-- 눈 -->
+  <circle cx="34" cy="33" r="1.6" fill="#1a1a22"/>
+  <circle cx="46" cy="33" r="1.6" fill="#1a1a22"/>
+  <!-- 입 — 살짝 다문 -->
+  <line x1="37" y1="40" x2="43" y2="40" stroke="#1a1a22" stroke-width="1.5" stroke-linecap="round"/>
+  <!-- 돋보기(왼쪽 손에 들고 있는 듯) -->
+  <circle cx="60" cy="50" r="7" fill="none" stroke="#1a1a22" stroke-width="2.5"/>
+  <circle cx="60" cy="50" r="5" fill="#9b9bb0" opacity="0.4"/>
+  <line x1="65" y1="55" x2="72" y2="62" stroke="#1a1a22" stroke-width="3" stroke-linecap="round"/>
+</svg>

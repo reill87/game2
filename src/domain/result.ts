@@ -4,6 +4,9 @@
  */
 import { BALANCE, PROMO, RANK_NEXT, RANK_PROMOTION, REPUTATION, SKILL_GROWTH, TRENDS } from './balance';
 import { isMatched, SLOT_ORDER } from './match';
+import { isRndPurchased } from './rnd';
+import { isFacilityBuilt } from './facilities';
+import { computeMarketRevenueMul } from './markets';
 import { release } from './tick';
 import type { Employee, GameState, PromoTier, Rank } from './types';
 
@@ -76,7 +79,7 @@ export interface ReleaseOutcome {
   readonly state: GameState;
 }
 
-const HEADLINE_BY_STARS: Readonly<Record<ReviewStars, string>> = {
+export const HEADLINE_BY_STARS: Readonly<Record<ReviewStars, string>> = {
   5: '★★★★★ 완성도가 빛난다.',
   4: '★★★★ 단단한 첫 작품.',
   3: '★★★ 무난하지만 거친 부분이 있다.',
@@ -139,9 +142,29 @@ export function shipProject(
   const trendDef = prev.trend ? TRENDS[prev.trend.id] : null;
   const trendGenreMul = trendDef?.genreMul[prev.project.genre] ?? 1;
   const trendThemeMul = trendDef?.themeMul[prev.project.theme] ?? 1;
-  const trendMul = trendGenreMul * trendThemeMul;
-  const revenue = Math.round(baseRevenue * eff.revenueMul * reputationMul * trendMul);
-  const reputationGain = stars * REPUTATION.perStarOnRelease;
+  const rawTrendMul = trendGenreMul * trendThemeMul;
+  // R&D: 데이터 기반 의사결정 ×1.2 / 분석 플랫폼 ×1.3 — 둘 다 보유 시 더 강한 1.3 우선.
+  let trendMul: number;
+  if (isRndPurchased(prev.rnd, 'analytics-platform')) {
+    trendMul = 1 + (rawTrendMul - 1) * 1.3;
+  } else if (isRndPurchased(prev.rnd, 'data-driven')) {
+    trendMul = 1 + (rawTrendMul - 1) * 1.2;
+  } else {
+    trendMul = rawTrendMul;
+  }
+  // 글로벌 시장 진출 — 진출한 시장 매출 곱연산.
+  const marketMul = computeMarketRevenueMul(prev.markets);
+  const baseCalculated = Math.round(baseRevenue * eff.revenueMul * reputationMul * trendMul * marketMul);
+  // R&D: 다국어화 플랫폼 ×1.25 / 글로벌 진출 ×1.15 — 둘 다 보유 시 1.25 우선.
+  const globalRevMul = isRndPurchased(prev.rnd, 'i18n-platform')
+    ? 1.25
+    : isRndPurchased(prev.rnd, 'global-expansion')
+      ? 1.15
+      : 1.0;
+  const revenue = globalRevMul > 1.0 ? Math.round(baseCalculated * globalRevMul) : baseCalculated;
+  // 시설: 회사 e스포츠팀 — 출시 시 명성 +1.
+  const esportsBonus = isFacilityBuilt(prev.facilities, 'esports-team') ? 1 : 0;
+  const reputationGain = stars * REPUTATION.perStarOnRelease + esportsBonus;
   const newReputation = prev.reputation + reputationGain;
   // 트렌드 카운트다운 — 출시 후 −1, 0이면 null로 만료 (Boot에서 새 트렌드 결정).
   const nextTrend = prev.trend
@@ -162,7 +185,9 @@ export function shipProject(
   }
   const boostedEmployees = prev.employees.map((e) => {
     if (!placedAndMatched.has(e.id)) return e;
-    const newSkill = clamp(e.skill + SKILL_GROWTH.perReleaseBonus, 0, SKILL_GROWTH.maxSkill);
+    // 출시 보너스도 개인 성장률 반영.
+    const releaseGain = SKILL_GROWTH.perReleaseBonus * (e.growthRate ?? 1.0);
+    const newSkill = clamp(e.skill + releaseGain, 0, SKILL_GROWTH.maxSkill);
     const newShipped = e.shippedProjects + 1;
     const newRank = checkPromotion(e.rank, newShipped, newSkill);
     return { ...e, skill: newSkill, shippedProjects: newShipped, rank: newRank };
@@ -201,7 +226,7 @@ export function shipProject(
       total: newReputation,
     },
     trend: trendDef
-      ? { id: trendDef.id, name: trendDef.name, multiplier: trendMul }
+      ? { id: trendDef.id, name: trendDef.name, multiplier: rawTrendMul }
       : null,
     state,
   };

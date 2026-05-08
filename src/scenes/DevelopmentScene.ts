@@ -1,12 +1,17 @@
 import Phaser from 'phaser';
 import type { Types } from 'phaser';
 
-import { GAME_HEIGHT, GAME_WIDTH } from '@/constants';
 import { isMatched, SLOT_ORDER } from '@/domain/match';
-import { PROMO } from '@/domain/balance';
-import { pickRandomEvent, type GameEvent } from '@/domain/events';
+import { PROMO, SIDE_PROJECT } from '@/domain/balance';
+import { isRndPurchased } from '@/domain/rnd';
+import { categoryOf, EVENT_CATEGORY_LABEL, pickRandomEvent, type GameEvent } from '@/domain/events';
 import { GENRE_LABEL, JOB_LABEL, SLOT_ICON, SLOT_LABEL, THEME_LABEL } from '@/domain/seed';
-import { shipProject } from '@/domain/result';
+import { HEADLINE_BY_STARS, type ReleaseOutcome, type ReviewStars, shipProject } from '@/domain/result';
+import {
+  pickExitCandidates,
+  RETAIN_COST,
+  RETAIN_MORALE_BOOST,
+} from '@/domain/retention';
 import {
   advanceWeek,
   canRelease,
@@ -14,16 +19,36 @@ import {
   computeSlotContributions,
   polishWeek,
 } from '@/domain/tick';
-import type { GameState, PromoTier, SlotKind } from '@/domain/types';
+import type { Employee, GameState, PromoTier, SlotKind } from '@/domain/types';
+import {
+  getSprintPhase,
+  SPRINT_PHASE_LABEL,
+  SPRINT_SLOT_WEIGHT,
+  type SprintPhase,
+} from '@/domain/sprintPhase';
+import { pickOpsDecision, type OpsDecision } from '@/domain/postRelease';
+import { AP_CAP, WEEKLY_ACTIONS, type WeeklyAction } from '@/domain/weeklyActions';
+import {
+  CRISIS_COOLDOWN_WEEKS,
+  CRISIS_MIN_PRODUCT_COUNT,
+  CRISIS_TRIGGER_PROBABILITY,
+  pickCrisis,
+  type Crisis,
+} from '@/domain/crises';
+import { BGM } from '@/bgm';
+import { EVENT_CATEGORY_TEXTURE } from '@/eventCategoryAssets';
 import { ICONS } from '@/icons';
+import { playSfx, SFX } from '@/sounds';
 import { COLOR, FONT_STACK, TEXT_COLOR, TINT } from '@/theme';
+import { addMuteToggle } from '@/util/muteToggle';
 import { drawConditionFill } from '@/util/condition';
 import { applyHiDPI } from '@/util/hidpi';
 import { makePanel } from '@/util/ui';
+import { fitCamera } from '@/util/cameraFit';
+import { onResize } from '@/util/viewport';
 
 import { SCENE_KEYS } from './keys';
 
-const CX = GAME_WIDTH / 2;
 const GAUGE_W = 600;
 const GAUGE_H = 18;
 
@@ -74,6 +99,15 @@ export class DevelopmentScene extends Phaser.Scene {
 
   private weekText!: Phaser.GameObjects.Text;
   private weekIcon!: Phaser.GameObjects.Image;
+  /** 현재 sprint 단계 표시 텍스트 (헤더 우측). */
+  private sprintPhaseText!: Phaser.GameObjects.Text;
+  /** 단계 전환 알림 — 경계 넘을 때 잠깐 표시. */
+  private sprintToastText: Phaser.GameObjects.Text | null = null;
+  private lastSprintPhase: SprintPhase | null = null;
+  /** 슬롯 타일의 단계 가중치 텍스트 (단계 ×N.N 표시). */
+  private slotPhaseWeightTexts = new Map<SlotKind, Phaser.GameObjects.Text>();
+  /** 운영 결정 모달 컨테이너. */
+  private opsModalContainer: Phaser.GameObjects.Container | null = null;
   private progressBar!: Phaser.GameObjects.Graphics;
   private progressText!: Phaser.GameObjects.Text;
   private bugBar!: Phaser.GameObjects.Graphics;
@@ -114,6 +148,32 @@ export class DevelopmentScene extends Phaser.Scene {
   // Random events (Slice 7)
   private weeksSinceEvent = 0;
   private eventModalContainer: Phaser.GameObjects.Container | null = null;
+  /** 최근 발동된 이벤트 id 큐(최대 7) — 중복 방지용. */
+  private recentEventIds: string[] = [];
+
+  // 주간 액션(AP) 모달
+  private weeklyActionModalContainer: Phaser.GameObjects.Container | null = null;
+  private apBtnBg: Phaser.GameObjects.Graphics | null = null;
+  private apBtnText: Phaser.GameObjects.Text | null = null;
+  private apBtnRect: Phaser.Geom.Rectangle | null = null;
+  private apBtnHit: Phaser.GameObjects.Zone | null = null;
+
+  // 위기 모먼트 모달 + cooldown
+  private crisisModalContainer: Phaser.GameObjects.Container | null = null;
+  private crisisCooldown = 0;
+  private crisisTimerEvent: Phaser.Time.TimerEvent | null = null;
+
+  // 직원 popup (per-employee actions)
+  private empPopupContainer: Phaser.GameObjects.Container | null = null;
+  /** 각 직원 타일의 interactive zone (recap redraw 시 재생성) */
+  private empTileHits: Phaser.GameObjects.Zone[] = [];
+
+  // 사이드 프로젝트 — 한 작품 내 cooldown.
+  private sideProjectCooldown = 0;
+  private sideBtnBg: Phaser.GameObjects.Graphics | null = null;
+  private sideBtnText: Phaser.GameObjects.Text | null = null;
+  private sideBtnRect: Phaser.Geom.Rectangle | null = null;
+  private sideBtnHit: Phaser.GameObjects.Zone | null = null;
 
   // 화면 표시 값 — state로 점프 안 하고 부드럽게 따라가도록 tween 타깃 (Slice 9).
   private displayStats = { p: 0, b: 0, a: 0, g: 0 };
@@ -140,6 +200,10 @@ export class DevelopmentScene extends Phaser.Scene {
     }
   >();
 
+  /** logical 720×1280 고정 좌표. build* 메서드가 참조. */
+  private cx = 360;
+  private contentX = 0;
+
   constructor() {
     super({ key: SCENE_KEYS.Development });
   }
@@ -161,6 +225,22 @@ export class DevelopmentScene extends Phaser.Scene {
     this.weeksSinceEvent = 0;
     this.eventModalContainer?.destroy(true);
     this.eventModalContainer = null;
+    this.weeklyActionModalContainer?.destroy(true);
+    this.weeklyActionModalContainer = null;
+    this.crisisModalContainer?.destroy(true);
+    this.crisisModalContainer = null;
+    this.crisisTimerEvent?.remove();
+    this.crisisTimerEvent = null;
+    this.crisisCooldown = 0;
+    this.empPopupContainer?.destroy(true);
+    this.empPopupContainer = null;
+    this.empTileHits = [];
+    this.sideProjectCooldown = 0;
+    this.opsModalContainer?.destroy(true);
+    this.opsModalContainer = null;
+    this.lastSprintPhase = null;
+    this.sprintToastText = null;
+    this.slotPhaseWeightTexts.clear();
     // 표시 값을 현재 state로 즉시 동기화 (다음 tween 시작점).
     this.displayStats = {
       p: this.state.project.progress,
@@ -173,8 +253,17 @@ export class DevelopmentScene extends Phaser.Scene {
   }
 
   create(): void {
+    fitCamera(this);
+    // logical 720×1280 좌표 고정 — viewport 크기 무관.
+    this.cx = 360;
+    this.contentX = 0;
+    BGM.resume();
+    BGM.setMood('focus');
+    addMuteToggle(this);
     this.buildHeader();
     if (this.state.productIndex >= 1) this.buildCrunchToggle();
+    if (this.state.productIndex >= 1) this.buildSideProjectButton();
+    this.buildWeeklyActionButton();
     this.buildStats();
     this.buildAssignmentRecap();
     this.buildStatus();
@@ -182,24 +271,25 @@ export class DevelopmentScene extends Phaser.Scene {
     if (this.state.productIndex >= 1) this.buildPromoSelector();
     this.redraw();
     applyHiDPI(this);
+    onResize(this, () => { this.scene.restart(); });
   }
 
   // ────────────────────────── header ──────────────────────────
   private buildHeader(): void {
     const titleStyle: Types.GameObjects.Text.TextStyle = {
       fontFamily: FONT_STACK,
-      fontSize: '22px',
+      fontSize: '33px',
       fontStyle: 'bold',
       color: TEXT_COLOR.primary,
     };
     const genre = GENRE_LABEL[this.state.project.genre].name;
     const theme = THEME_LABEL[this.state.project.theme].name;
-    this.add.text(CX, 50, `개발 중 — ${genre} × ${theme}`, titleStyle).setOrigin(0.5);
+    this.add.text(this.cx, 50, `개발 중 — ${genre} × ${theme}`, titleStyle).setOrigin(0.5);
 
     this.weekText = this.add
-      .text(CX, 88, '', {
+      .text(this.cx, 88, '', {
         fontFamily: FONT_STACK,
-        fontSize: '14px',
+        fontSize: '24px',
         color: TEXT_COLOR.dim,
       })
       .setOrigin(0.5);
@@ -208,20 +298,31 @@ export class DevelopmentScene extends Phaser.Scene {
       .setDisplaySize(14, 14)
       .setOrigin(1, 0.5)
       .setTint(TINT.dim);
+
+    // Sprint 단계 텍스트 — 헤더 Week 텍스트 우측에 표시.
+    this.sprintPhaseText = this.add
+      .text(this.contentX + 720 - 14, 88, '', {
+        fontFamily: FONT_STACK,
+        fontSize: '23px',
+        fontStyle: 'bold',
+        color: TEXT_COLOR.warn,
+      })
+      .setOrigin(1, 0.5);
   }
 
   // ────────────────────────── crunch toggle ──────────────────────────
   private buildCrunchToggle(): void {
+    // h: 40 → 48 — zoom 0.5 모바일에서 ~24px 물리 크기 확보.
     const w = 124;
-    const h = 40;
-    const x = GAME_WIDTH - 14 - w;
-    const y = 18;
+    const h = 48;
+    const x = this.contentX + 720 - 14 - w;
+    const y = 14;
     this.crunchBtnRect = new Phaser.Geom.Rectangle(x, y, w, h);
     this.crunchBtnBg = this.add.graphics();
     this.crunchBtnText = this.add
       .text(x + w / 2, y + h / 2, '', {
         fontFamily: FONT_STACK,
-        fontSize: '14px',
+        fontSize: '24px',
         fontStyle: 'bold',
         color: TEXT_COLOR.primary,
       })
@@ -244,15 +345,82 @@ export class DevelopmentScene extends Phaser.Scene {
   }
 
   private handleToggleCrunch(): void {
+    playSfx(this, SFX.toggle);
     this.state = { ...this.state, crunch: !this.state.crunch };
     this.drawCrunchToggle();
     this.updateStatus();
   }
 
+  // ────────────────────────── side project (외주) ──────────────────────────
+  private buildSideProjectButton(): void {
+    // 야근 토글 좌측에 배치. 폭은 야근(124)보다 약간 좁게.
+    // h: 40 → 48 (야근 버튼과 높이 통일).
+    const w = 110;
+    const h = 48;
+    const x = this.contentX + 720 - 14 - 124 - 10 - w;
+    const y = 14;
+    this.sideBtnRect = new Phaser.Geom.Rectangle(x, y, w, h);
+    this.sideBtnBg = this.add.graphics();
+    this.sideBtnText = this.add
+      .text(x + w / 2, y + h / 2, '', {
+        fontFamily: FONT_STACK,
+        fontSize: '23px',
+        fontStyle: 'bold',
+        color: TEXT_COLOR.primary,
+        align: 'center',
+      })
+      .setOrigin(0.5);
+    this.sideBtnHit = this.add
+      .zone(x + w / 2, y + h / 2, w, h)
+      .setInteractive({ useHandCursor: true });
+    this.sideBtnHit.on('pointerup', () => this.handleSideProject());
+    this.drawSideProjectButton();
+  }
+
+  private drawSideProjectButton(): void {
+    if (!this.sideBtnBg || !this.sideBtnText || !this.sideBtnRect || !this.sideBtnHit) return;
+    const onCooldown = this.sideProjectCooldown > 0;
+    const fill = onCooldown ? COLOR.btnDisabled : COLOR.btnSecondary;
+    const r = this.sideBtnRect;
+    this.sideBtnBg.clear();
+    this.sideBtnBg.fillStyle(fill, 1);
+    this.sideBtnBg.fillRoundedRect(r.x, r.y, r.width, r.height, 12);
+    this.sideBtnText
+      .setText(onCooldown ? `외주\n${this.sideProjectCooldown}주 후` : `외주\n+${SIDE_PROJECT.gold}g`)
+      .setColor(onCooldown ? TEXT_COLOR.disabled : TEXT_COLOR.primary);
+    if (this.sideBtnHit.input) this.sideBtnHit.input.enabled = !onCooldown;
+  }
+
+  /**
+   * 외주 수락 — 즉시 골드 +X, weeks +1, 전 직원 morale −Y, cooldown 셋.
+   * 게임 흐름: paused 여부 무관, 즉발 적용.
+   */
+  private handleSideProject(): void {
+    if (this.sideProjectCooldown > 0) return;
+    if (canRelease(this.state)) return;
+    playSfx(this, SFX.success, 0.5);
+
+    const project = this.state.project;
+    const newProject = { ...project, weeksElapsed: project.weeksElapsed + SIDE_PROJECT.weeksDelta };
+    const drainedEmployees = this.state.employees.map((e) => ({
+      ...e,
+      morale: Math.max(0, e.morale - SIDE_PROJECT.moralePenalty),
+    }));
+    this.state = {
+      ...this.state,
+      gold: this.state.gold + SIDE_PROJECT.gold,
+      project: newProject,
+      employees: drainedEmployees,
+    };
+    this.sideProjectCooldown = SIDE_PROJECT.cooldownWeeks;
+    this.drawSideProjectButton();
+    this.redraw();
+  }
+
   // ────────────────────────── stats panel ──────────────────────────
   private buildStats(): void {
     const appealEnabled = this.state.project.appealEnabled;
-    const panelX = (GAME_WIDTH - 690) / 2;
+    const panelX = this.contentX + (720 - 690) / 2;
     const panelY = 120;
     const panelW = 690;
     const panelH = appealEnabled ? 320 : 260;
@@ -261,13 +429,13 @@ export class DevelopmentScene extends Phaser.Scene {
 
     const labelStyle: Types.GameObjects.Text.TextStyle = {
       fontFamily: FONT_STACK,
-      fontSize: '15px',
+      fontSize: '26px',
       fontStyle: 'bold',
       color: TEXT_COLOR.dim,
     };
     const valueStyle: Types.GameObjects.Text.TextStyle = {
       fontFamily: FONT_STACK,
-      fontSize: '15px',
+      fontSize: '26px',
       color: TEXT_COLOR.primary,
     };
 
@@ -316,7 +484,7 @@ export class DevelopmentScene extends Phaser.Scene {
     this.burnText = this.add
       .text(panelX + panelW - 24, goldY + 22, '', {
         fontFamily: FONT_STACK,
-        fontSize: '12px',
+        fontSize: '21px',
         color: TEXT_COLOR.bad,
       })
       .setOrigin(1, 0);
@@ -329,7 +497,7 @@ export class DevelopmentScene extends Phaser.Scene {
       '폴리싱은 출시 화면에서 가능 — BugDebt를 1주에 12씩 감소.',
       {
         fontFamily: FONT_STACK,
-        fontSize: '12px',
+        fontSize: '21px',
         color: TEXT_COLOR.dim,
       },
     );
@@ -358,9 +526,9 @@ export class DevelopmentScene extends Phaser.Scene {
   private buildAssignmentRecap(): void {
     const startY = this.state.project.appealEnabled ? 470 : 410;
     this.add
-      .text(CX, startY, '배치 요약', {
+      .text(this.cx, startY, '배치 요약', {
         fontFamily: FONT_STACK,
-        fontSize: '13px',
+        fontSize: '23px',
         color: TEXT_COLOR.dim,
       })
       .setOrigin(0.5);
@@ -369,7 +537,7 @@ export class DevelopmentScene extends Phaser.Scene {
     const tileH = 70;
     const gapX = 18;
     const gapY = 14;
-    const startX = (GAME_WIDTH - (tileW * 2 + gapX)) / 2;
+    const startX = this.contentX + (720 - (tileW * 2 + gapX)) / 2;
 
     SLOT_ORDER.forEach((slot, i) => {
       const col = i % 2;
@@ -387,21 +555,30 @@ export class DevelopmentScene extends Phaser.Scene {
         .setTint(TINT.dim);
       this.add.text(x + 14 + 16, y + 12, SLOT_LABEL[slot], {
         fontFamily: FONT_STACK,
-        fontSize: '12px',
+        fontSize: '21px',
         fontStyle: 'bold',
         color: TEXT_COLOR.dim,
       });
 
+      // 단계 가중치 인디케이터 — 우상단 (예: "단계 ×1.5")
+      const weightText = this.add.text(x + tileW - 14, y + 12, '', {
+        fontFamily: FONT_STACK,
+        fontSize: '20px',
+        fontStyle: 'bold',
+        color: TEXT_COLOR.warn,
+      }).setOrigin(1, 0);
+      this.slotPhaseWeightTexts.set(slot, weightText);
+
       const t = this.add.text(x + 14, y + 32, '', {
         fontFamily: FONT_STACK,
-        fontSize: '14px',
+        fontSize: '24px',
         color: TEXT_COLOR.primary,
       });
 
       // 이번 주 기여 — 직원 이름 아래 (왼쪽 정렬, 작은 노란 텍스트)
       const contribText = this.add.text(x + 14, y + 52, '', {
         fontFamily: FONT_STACK,
-        fontSize: '11px',
+        fontSize: '20px',
         fontStyle: 'bold',
         color: TEXT_COLOR.warn,
       });
@@ -442,24 +619,26 @@ export class DevelopmentScene extends Phaser.Scene {
   // ────────────────────────── status + actions ──────────────────────────
   private buildStatus(): void {
     this.statusText = this.add
-      .text(CX, 920, '', {
+      .text(this.cx, 920, '', {
         fontFamily: FONT_STACK,
-        fontSize: '14px',
+        fontSize: '24px',
         color: TEXT_COLOR.dim,
         align: 'center',
-        wordWrap: { width: GAME_WIDTH - 80, useAdvancedWrap: true },
+        wordWrap: { width: 640, useAdvancedWrap: true },
       })
       .setOrigin(0.5);
   }
 
   private buildActions(): void {
     // 재생 컨트롤 — ⏸ / 1× / 2× / 4×
+    // h: 56 → 64 — zoom 0.5 모바일에서 ~32px 물리 크기 확보.
     const ctrlW = 80;
-    const ctrlH = 56;
+    const ctrlH = 64;
     const ctrlGap = 8;
     const ctrlTotal = ctrlW * 4 + ctrlGap * 3;
-    const ctrlStartX = CX - ctrlTotal / 2;
-    const ctrlY = 978;
+    const ctrlStartX = this.cx - ctrlTotal / 2;
+    // logical 1280 기준 고정 좌표.
+    const ctrlY = 1170;
     this.controlPause = this.makeControlButton({
       x: ctrlStartX,
       y: ctrlY,
@@ -495,11 +674,12 @@ export class DevelopmentScene extends Phaser.Scene {
     });
 
     // 출시 패널 — 좌: 1주 더 다듬기 (보조), 우: 지금 출시 (주요)
-    const polishX = CX - 360 - 8;
-    const releaseX = CX + 8;
+    const polishX = this.cx - 360 - 8;
+    const releaseX = this.cx + 8;
+    const releaseY = 1162;
     this.polishBtn = this.makeButton({
       x: polishX,
-      y: 970,
+      y: releaseY,
       w: 360,
       h: 72,
       label: '1주 더 다듬기',
@@ -508,7 +688,7 @@ export class DevelopmentScene extends Phaser.Scene {
     });
     this.releaseBtn = this.makeButton({
       x: releaseX,
-      y: 970,
+      y: releaseY,
       w: 360,
       h: 72,
       label: '지금 출시',
@@ -523,6 +703,8 @@ export class DevelopmentScene extends Phaser.Scene {
     this.events.once('shutdown', () => {
       this.weekTimer?.remove();
       this.weekTimer = null;
+      this.crisisTimerEvent?.remove();
+      this.crisisTimerEvent = null;
     });
   }
 
@@ -598,20 +780,22 @@ export class DevelopmentScene extends Phaser.Scene {
     const tiers: ReadonlyArray<PromoTier> = ['none', 'small', 'medium'];
     const labelStyle = {
       fontFamily: FONT_STACK,
-      fontSize: '12px',
+      fontSize: '21px',
       color: TEXT_COLOR.dim,
     } satisfies Types.GameObjects.Text.TextStyle;
 
+    // 출시 패널 위로 — release btn(1162)보다 위 + 라벨은 그 위.
+    const promoY = 1080;
     this.promoLabel = this.add
-      .text(CX, 866, '홍보 (출시 시 골드 차감)', labelStyle)
+      .text(this.cx, promoY - 24, '홍보 (출시 시 골드 차감)', labelStyle)
       .setOrigin(0.5);
 
     const btnW = 184;
     const btnH = 44;
     const gap = 14;
     const totalW = btnW * 3 + gap * 2;
-    const startX = (GAME_WIDTH - totalW) / 2;
-    const y = 890;
+    const startX = this.contentX + (720 - totalW) / 2;
+    const y = promoY;
 
     tiers.forEach((tier, i) => {
       const x = startX + i * (btnW + gap);
@@ -623,7 +807,7 @@ export class DevelopmentScene extends Phaser.Scene {
       const text = this.add
         .text(x + btnW / 2, y + btnH / 2, labelText, {
           fontFamily: FONT_STACK,
-          fontSize: '13px',
+          fontSize: '23px',
           fontStyle: 'bold',
           color: TEXT_COLOR.primary,
         })
@@ -638,6 +822,7 @@ export class DevelopmentScene extends Phaser.Scene {
 
   private handlePromoTap(tier: PromoTier): void {
     if (this.state.gold < PROMO[tier].cost) return;
+    playSfx(this, SFX.tap);
     this.selectedPromo = tier;
     this.drawPromoSelector();
   }
@@ -684,7 +869,7 @@ export class DevelopmentScene extends Phaser.Scene {
     const text = this.add
       .text(opts.x + opts.w / 2, opts.y + opts.h / 2, opts.label, {
         fontFamily: FONT_STACK,
-        fontSize: '18px',
+        fontSize: '30px',
         fontStyle: 'bold',
         color: TEXT_COLOR.primary,
       })
@@ -736,16 +921,43 @@ export class DevelopmentScene extends Phaser.Scene {
     this.setPromoVisible(visible);
   }
 
-  // ────────────────────────── playback controls ──────────────────────────
-  private handlePause(): void {
+  /** 모달 열릴 때 저장해둔 직전 속도 — 모달 닫힐 때 resumeAfterModal로 복원. */
+  private speedBeforeModal: 1 | 2 | 4 | null = null;
+
+  /** 모달 등장 시 호출 — 현재 속도 기억하고 일시정지(사용자 클릭 SFX 없이). */
+  private pauseForModal(): void {
+    if (!this.paused) this.speedBeforeModal = this.speed;
     this.paused = true;
     this.refreshPlaybackHighlight();
     this.refreshTimer();
   }
 
+  /** 모달 닫힐 때 호출 — 직전 속도 복원. 직전이 없으면(이미 paused) 그대로. */
+  private resumeAfterModal(): void {
+    if (this.speedBeforeModal !== null) {
+      this.paused = false;
+      this.speed = this.speedBeforeModal;
+      this.speedBeforeModal = null;
+      this.refreshPlaybackHighlight();
+      this.refreshTimer();
+    }
+  }
+
+  // ────────────────────────── playback controls ──────────────────────────
+  private handlePause(): void {
+    if (!this.paused) playSfx(this, SFX.tap);
+    this.paused = true;
+    // 사용자 명시 일시정지 — 모달 자동 복원 큐 비움.
+    this.speedBeforeModal = null;
+    this.refreshPlaybackHighlight();
+    this.refreshTimer();
+  }
+
   private handleSpeed(s: 1 | 2 | 4): void {
+    if (this.paused || this.speed !== s) playSfx(this, SFX.tap);
     this.paused = false;
     this.speed = s;
+    this.speedBeforeModal = null;
     this.refreshPlaybackHighlight();
     this.refreshTimer();
   }
@@ -761,8 +973,9 @@ export class DevelopmentScene extends Phaser.Scene {
     this.weekTimer?.remove();
     this.weekTimer = null;
     if (this.paused || canRelease(this.state)) return;
-    // 1× = 1주 / 1.5초, 2× = 0.75초, 4× = 0.375초
-    const delay = 1500 / this.speed;
+    // 1×=2000ms, 2×=1200ms, 4×=750ms (기존 4×=375ms 대비 2배 느림)
+    const delayBySpeed: Readonly<Record<1 | 2 | 4, number>> = { 1: 2000, 2: 1200, 4: 750 };
+    const delay = delayBySpeed[this.speed];
     this.weekTimer = this.time.addEvent({
       delay,
       loop: true,
@@ -780,6 +993,15 @@ export class DevelopmentScene extends Phaser.Scene {
     const contributions = computeSlotContributions(this.state);
     this.state = advanceWeek(this.state);
     this.weeksSinceEvent += 1;
+    if (this.sideProjectCooldown > 0) {
+      this.sideProjectCooldown -= 1;
+      this.drawSideProjectButton();
+    }
+    if (this.crisisCooldown > 0) {
+      this.crisisCooldown -= 1;
+    }
+    // 매주 진행 틱 — 약하게(0.18). 4× 속도에서 거슬리지 않도록.
+    playSfx(this, SFX.tick, 0.18);
     this.redraw();
 
     // 각 정배치 직원의 +X.X% 텍스트가 타일 위로 떠오르며 사라짐.
@@ -801,13 +1023,47 @@ export class DevelopmentScene extends Phaser.Scene {
       return;
     }
 
-    // 랜덤 이벤트 발동 — 마지막 이벤트로부터 3주 이상 + 35% 확률.
-    if (this.weeksSinceEvent >= 3 && Math.random() < 0.35) {
-      const ev = pickRandomEvent(this.state);
+    // 이탈 후보 체크 — streak 임계 도달자가 있으면 퇴사 모달 우선 표시.
+    // 단 직원 2명 이하 시엔 이탈 무시(게임 진행 불가 회피).
+    if (this.state.employees.length > 2) {
+      const exits = pickExitCandidates(this.state);
+      if (exits.length > 0 && exits[0]) {
+        this.pauseForModal();
+        this.showExitModal(exits[0]);
+        return;
+      }
+    }
+
+    // 랜덤 이벤트 발동 — 2주 이상 + 35% 확률 + 최근 7개 중복 방지.
+    // 평균 발동 주기 ~ 2 + 1/0.35 ≈ 4.86주 (10주 프로젝트당 ~2 이벤트).
+    if (this.weeksSinceEvent >= 2 && Math.random() < 0.35) {
+      const ev = pickRandomEvent(this.state, this.recentEventIds);
       if (ev) {
         this.weeksSinceEvent = 0;
-        this.handlePause();
+        // 최근 큐에 추가, 7개 초과 시 가장 오래된 것 제거.
+        this.recentEventIds.push(ev.id);
+        if (this.recentEventIds.length > 7) this.recentEventIds.shift();
+        this.pauseForModal();
         this.showEventModal(ev);
+        return;
+      }
+    }
+
+    // 위기 발동 — productIndex >= CRISIS_MIN_PRODUCT_COUNT + cooldown 없을 때.
+    // R&D: 보안 프로그램 — 위기 발동 확률 ×0.5.
+    const crisisProbability = isRndPurchased(this.state.rnd, 'security-program')
+      ? CRISIS_TRIGGER_PROBABILITY * 0.5
+      : CRISIS_TRIGGER_PROBABILITY;
+    if (
+      this.state.productIndex >= CRISIS_MIN_PRODUCT_COUNT &&
+      this.crisisCooldown <= 0 &&
+      Math.random() < crisisProbability
+    ) {
+      const crisis = pickCrisis();
+      if (crisis) {
+        this.crisisCooldown = CRISIS_COOLDOWN_WEEKS;
+        this.pauseForModal();
+        this.showCrisisModal(crisis);
       }
     }
   }
@@ -817,7 +1073,7 @@ export class DevelopmentScene extends Phaser.Scene {
     const t = this.add
       .text(x, y, text, {
         fontFamily: FONT_STACK,
-        fontSize: '14px',
+        fontSize: '24px',
         fontStyle: 'bold',
         color,
       })
@@ -835,11 +1091,12 @@ export class DevelopmentScene extends Phaser.Scene {
 
   // ────────────────────────── event modal ──────────────────────────
   private showEventModal(ev: GameEvent): void {
+    playSfx(this, SFX.modal, 0.5);
     const c = this.add.container(0, 0).setDepth(100);
 
-    // 어두운 오버레이 — 뒤쪽 입력 차단.
+    // 어두운 오버레이 — logical 720×1280 풀 사이즈로 뒤쪽 입력 차단.
     const overlay = this.add
-      .rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.7)
+      .rectangle(0, 0, 720, 1280, 0x000000, 0.7)
       .setOrigin(0, 0)
       .setInteractive();
     c.add(overlay);
@@ -847,55 +1104,84 @@ export class DevelopmentScene extends Phaser.Scene {
     // 이벤트 패널
     const panelW = 640;
     const panelH = 700;
-    const panelX = (GAME_WIDTH - panelW) / 2;
-    const panelY = (GAME_HEIGHT - panelH) / 2;
+    const panelX = this.contentX + (720 - panelW) / 2;
+    const panelY = Math.max(0, (1280 - panelH) / 2);
     const panel = makePanel(this, panelX, panelY, panelW, panelH, COLOR.panel);
     c.add(panel);
 
-    // 헤더 라벨 ("이벤트")
+    // 카테고리 chip — 패널 상단 좌측. 작은 라벨로만.
+    const cat = categoryOf(ev);
     c.add(
       this.add
-        .text(panelX + 30, panelY + 28, '이벤트', {
+        .text(panelX + 24, panelY + 22, `[${cat}] ${EVENT_CATEGORY_LABEL[cat]}`, {
           fontFamily: FONT_STACK,
-          fontSize: '12px',
+          fontSize: '21px',
           fontStyle: 'bold',
           color: TEXT_COLOR.warn,
         })
         .setOrigin(0, 0),
     );
 
-    // 제목
+    // 제목 — chip 아래.
     c.add(
       this.add
-        .text(panelX + panelW / 2, panelY + 70, ev.title, {
+        .text(panelX + panelW / 2, panelY + 56, ev.title, {
           fontFamily: FONT_STACK,
-          fontSize: '24px',
+          fontSize: '36px',
           fontStyle: 'bold',
           color: TEXT_COLOR.primary,
         })
         .setOrigin(0.5, 0),
     );
 
-    // 설명
-    c.add(
-      this.add
-        .text(panelX + 30, panelY + 130, ev.description, {
-          fontFamily: FONT_STACK,
-          fontSize: '15px',
-          color: TEXT_COLOR.dim,
-          wordWrap: { width: panelW - 60, useAdvancedWrap: true },
-          lineSpacing: 4,
-        })
-        .setOrigin(0, 0),
-    );
+    // 설명 — 제목 아래. 폭 = panel-padding.
+    const descX = panelX + 30;
+    const descY = panelY + 102;
+    const descText = this.add
+      .text(descX, descY, ev.description, {
+        fontFamily: FONT_STACK,
+        fontSize: '26px',
+        color: TEXT_COLOR.dim,
+        wordWrap: { width: panelW - 60, useAdvancedWrap: true },
+        lineSpacing: 4,
+      })
+      .setOrigin(0, 0);
+    c.add(descText);
 
-    // 선택지
+    // 선택지 — 패널 하단부터 위로 쌓아 올림.
     const choiceX = panelX + 30;
     const choiceW = panelW - 60;
     const choiceH = 88;
     const choiceGap = 14;
     const choicesTotalH = ev.choices.length * choiceH + (ev.choices.length - 1) * choiceGap;
     const choicesStartY = panelY + panelH - choicesTotalH - 30;
+
+    // 카테고리 일러스트 — 설명 아래 ~ 선택지 위 빈 공간에 배치.
+    // 원본 SVG는 240×80(3:1) 배너 비율. 가용 공간 안에서 aspect 유지하며 가능한 크게.
+    const illustGapTop = 18;
+    const illustGapBottom = 20;
+    const illustTop = descY + descText.height + illustGapTop;
+    const illustBottom = choicesStartY - illustGapBottom;
+    const availH = Math.max(0, illustBottom - illustTop);
+    const availW = panelW - 60;
+    if (availH > 60) {
+      // aspect 유지: w/h = 3. h 우선 → w = h*3, 가용 폭 초과면 w 우선으로 컷.
+      const aspect = 3;
+      let illW = availW;
+      let illH = illW / aspect;
+      if (illH > availH) {
+        illH = availH;
+        illW = illH * aspect;
+      }
+      const illX = panelX + panelW / 2;
+      const illY = illustTop + availH / 2; // 가용 영역 세로 중앙
+      c.add(
+        this.add
+          .image(illX, illY, EVENT_CATEGORY_TEXTURE[cat])
+          .setDisplaySize(illW, illH)
+          .setOrigin(0.5),
+      );
+    }
 
     ev.choices.forEach((ch, i) => {
       const y = choicesStartY + i * (choiceH + choiceGap);
@@ -909,13 +1195,13 @@ export class DevelopmentScene extends Phaser.Scene {
 
       const label = this.add.text(choiceX + 22, y + 18, ch.label, {
         fontFamily: FONT_STACK,
-        fontSize: '17px',
+        fontSize: '29px',
         fontStyle: 'bold',
         color: TEXT_COLOR.primary,
       });
       const summary = this.add.text(choiceX + 22, y + 50, ch.summary, {
         fontFamily: FONT_STACK,
-        fontSize: '12px',
+        fontSize: '21px',
         color: TEXT_COLOR.dim,
       });
 
@@ -953,18 +1239,365 @@ export class DevelopmentScene extends Phaser.Scene {
     this.eventModalContainer?.destroy(true);
     this.eventModalContainer = null;
     this.redraw();
+    this.resumeAfterModal();
+  }
+
+  // ────────────────────────── exit (퇴사) modal ──────────────────────────
+  private showExitModal(emp: Employee): void {
+    playSfx(this, SFX.modal, 0.5);
+    const c = this.add.container(0, 0).setDepth(110);
+
+    const overlay = this.add
+      .rectangle(0, 0, 720, 1280, 0x000000, 0.75)
+      .setOrigin(0, 0)
+      .setInteractive();
+    c.add(overlay);
+
+    const panelW = 600;
+    const panelH = 440;
+    const panelX = this.contentX + (720 - panelW) / 2;
+    const panelY = Math.max(0, (1280 - panelH) / 2);
+    c.add(makePanel(this, panelX, panelY, panelW, panelH, COLOR.panel));
+
+    c.add(
+      this.add.text(panelX + 24, panelY + 22, '퇴사 통보', {
+        fontFamily: FONT_STACK,
+        fontSize: '21px',
+        fontStyle: 'bold',
+        color: TEXT_COLOR.bad,
+      }),
+    );
+    c.add(
+      this.add
+        .text(panelX + panelW / 2, panelY + 60, `${emp.name} 면담 요청`, {
+          fontFamily: FONT_STACK,
+          fontSize: '33px',
+          fontStyle: 'bold',
+          color: TEXT_COLOR.primary,
+        })
+        .setOrigin(0.5, 0),
+    );
+    c.add(
+      this.add.text(
+        panelX + 30,
+        panelY + 110,
+        `${emp.name}이/가 자리를 비웠다. 장기 사기 부진(${emp.lowMoraleStreak ?? 0}주 연속 ${
+          25
+        } 미만)으로 회사를 떠나려 한다.\n\n붙잡으려면 면담 + 인센티브가 필요하다.`,
+        {
+          fontFamily: FONT_STACK,
+          fontSize: '26px',
+          color: TEXT_COLOR.dim,
+          wordWrap: { width: panelW - 60, useAdvancedWrap: true },
+          lineSpacing: 4,
+        },
+      ),
+    );
+
+    // 선택지 — 보내준다 / 면담으로 붙잡는다(-150g)
+    const choiceX = panelX + 30;
+    const choiceW = panelW - 60;
+    const choiceH = 76;
+    const gap = 12;
+    const choicesStartY = panelY + panelH - (choiceH * 2 + gap) - 26;
+
+    const canRetain = this.state.gold >= RETAIN_COST;
+
+    // 보내준다
+    {
+      const y = choicesStartY;
+      const bg = this.add.graphics();
+      bg.fillStyle(COLOR.btnSecondary, 1);
+      bg.fillRoundedRect(choiceX, y, choiceW, choiceH, 12);
+      const label = this.add.text(choiceX + 18, y + 14, '보내준다', {
+        fontFamily: FONT_STACK,
+        fontSize: '27px',
+        fontStyle: 'bold',
+        color: TEXT_COLOR.primary,
+      });
+      const sum = this.add.text(choiceX + 18, y + 42, `${emp.name}이 명단에서 제거됨`, {
+        fontFamily: FONT_STACK,
+        fontSize: '21px',
+        color: TEXT_COLOR.dim,
+      });
+      const hit = this.add
+        .zone(choiceX + choiceW / 2, y + choiceH / 2, choiceW, choiceH)
+        .setInteractive({ useHandCursor: true });
+      hit.on('pointerup', () => {
+        playSfx(this, SFX.tap);
+        c.destroy(true);
+        this.applyExit(emp.id);
+      });
+      c.add([bg, label, sum, hit]);
+    }
+
+    // 면담으로 붙잡는다
+    {
+      const y = choicesStartY + choiceH + gap;
+      const bg = this.add.graphics();
+      bg.fillStyle(canRetain ? COLOR.btn : COLOR.btnDisabled, 1);
+      bg.fillRoundedRect(choiceX, y, choiceW, choiceH, 12);
+      const label = this.add.text(
+        choiceX + 18,
+        y + 14,
+        `면담으로 붙잡는다 (-${RETAIN_COST}g)`,
+        {
+          fontFamily: FONT_STACK,
+          fontSize: '27px',
+          fontStyle: 'bold',
+          color: canRetain ? TEXT_COLOR.primary : TEXT_COLOR.disabled,
+        },
+      );
+      const sum = this.add.text(
+        choiceX + 18,
+        y + 42,
+        `${emp.name} 사기 +${RETAIN_MORALE_BOOST}, 잔류`,
+        {
+          fontFamily: FONT_STACK,
+          fontSize: '21px',
+          color: canRetain ? TEXT_COLOR.dim : TEXT_COLOR.disabled,
+        },
+      );
+      c.add([bg, label, sum]);
+      if (canRetain) {
+        const hit = this.add
+          .zone(choiceX + choiceW / 2, y + choiceH / 2, choiceW, choiceH)
+          .setInteractive({ useHandCursor: true });
+        hit.on('pointerup', () => {
+          playSfx(this, SFX.success);
+          c.destroy(true);
+          this.applyRetain(emp.id);
+        });
+        c.add(hit);
+      }
+    }
+  }
+
+  /** 직원 이탈 처리 — employees + assignment에서 제거. */
+  private applyExit(empId: string): void {
+    const remainingEmployees = this.state.employees.filter((e) => e.id !== empId);
+    const newAssignment: typeof this.state.assignment = { ...this.state.assignment };
+    for (const slot of SLOT_ORDER) {
+      if (newAssignment[slot] === empId) delete newAssignment[slot];
+    }
+    this.state = {
+      ...this.state,
+      employees: remainingEmployees,
+      assignment: newAssignment,
+    };
+    this.redraw();
+    this.resumeAfterModal();
+  }
+
+  /** 면담 잔류 처리 — 골드 차감, morale +N, streak 0. */
+  private applyRetain(empId: string): void {
+    const updated = this.state.employees.map((e) =>
+      e.id === empId
+        ? { ...e, morale: Math.min(100, e.morale + RETAIN_MORALE_BOOST), lowMoraleStreak: 0 }
+        : e,
+    );
+    this.state = {
+      ...this.state,
+      gold: Math.max(0, this.state.gold - RETAIN_COST),
+      employees: updated,
+    };
+    this.redraw();
+    this.resumeAfterModal();
   }
 
   private handlePolish(): void {
+    playSfx(this, SFX.tap);
     this.state = polishWeek(this.state);
     this.polishCount += 1;
     this.redraw();
   }
 
   private handleRelease(): void {
+    playSfx(this, SFX.click, 0.55);
     const outcome = shipProject(this.state, this.polishCount, this.selectedPromo);
+    // 출시 직후 → ResultScene으로 직행하지 않고 운영 결정 모달 표시.
+    this.startPostReleasePhase(outcome);
+  }
+
+  /** 출시 후 운영 결정 모달을 표시한다. 선택 후 수정된 outcome으로 ResultScene 전환. */
+  private startPostReleasePhase(outcome: ReleaseOutcome): void {
+    const decision = pickOpsDecision();
+    this.showOpsModal(decision, outcome);
+  }
+
+  /** 운영 결정 모달 — 이벤트 모달과 동일한 톤. */
+  private showOpsModal(decision: OpsDecision, outcome: ReleaseOutcome): void {
+    playSfx(this, SFX.modal, 0.5);
+    this.opsModalContainer?.destroy(true);
+    const c = this.add.container(0, 0).setDepth(120);
+    this.opsModalContainer = c;
+
+    // 어두운 오버레이
+    const overlay = this.add
+      .rectangle(0, 0, 720, 1280, 0x000000, 0.75)
+      .setOrigin(0, 0)
+      .setInteractive();
+    c.add(overlay);
+
+    const panelW = 640;
+    const panelH = 680;
+    const panelX = this.contentX + (720 - panelW) / 2;
+    const panelY = Math.max(0, (1280 - panelH) / 2);
+    const panel = makePanel(this, panelX, panelY, panelW, panelH, COLOR.panel);
+    c.add(panel);
+
+    // 헤더 chip
+    c.add(
+      this.add
+        .text(panelX + 24, panelY + 22, '출시 후 — 운영 결정', {
+          fontFamily: FONT_STACK,
+          fontSize: '21px',
+          fontStyle: 'bold',
+          color: TEXT_COLOR.warn,
+        })
+        .setOrigin(0, 0),
+    );
+
+    // 제목
+    c.add(
+      this.add
+        .text(panelX + panelW / 2, panelY + 56, decision.title, {
+          fontFamily: FONT_STACK,
+          fontSize: '36px',
+          fontStyle: 'bold',
+          color: TEXT_COLOR.primary,
+        })
+        .setOrigin(0.5, 0),
+    );
+
+    // 설명
+    const descX = panelX + 30;
+    const descY = panelY + 110;
+    const descText = this.add.text(descX, descY, decision.description, {
+      fontFamily: FONT_STACK,
+      fontSize: '26px',
+      color: TEXT_COLOR.dim,
+      wordWrap: { width: panelW - 60, useAdvancedWrap: true },
+      lineSpacing: 4,
+    }).setOrigin(0, 0);
+    c.add(descText);
+
+    // 선택지
+    const choiceX = panelX + 30;
+    const choiceW = panelW - 60;
+    const choiceH = 88;
+    const choiceGap = 12;
+    const choicesTotalH = decision.choices.length * choiceH + (decision.choices.length - 1) * choiceGap;
+    const choicesStartY = panelY + panelH - choicesTotalH - 30;
+
+    decision.choices.forEach((ch, i) => {
+      const y = choicesStartY + i * (choiceH + choiceGap);
+      const btnBg = this.add.graphics();
+      const drawBtn = (pressed: boolean): void => {
+        btnBg.clear();
+        btnBg.fillStyle(pressed ? COLOR.btnSecondaryDown : COLOR.btnSecondary, 1);
+        btnBg.fillRoundedRect(choiceX, y, choiceW, choiceH, 14);
+      };
+      drawBtn(false);
+
+      // 매출/별점 예고 힌트 — 우측 상단 작게
+      const revenueHint = ch.revenueMul >= 1.0
+        ? `매출 +${Math.round((ch.revenueMul - 1) * 100)}%`
+        : `매출 ${Math.round((ch.revenueMul - 1) * 100)}%`;
+      const starsHint = ch.starsDelta > 0
+        ? `★ +${ch.starsDelta}`
+        : ch.starsDelta < 0
+          ? `★ ${ch.starsDelta}`
+          : '';
+      const hintParts = [revenueHint, starsHint].filter((s) => s !== '');
+      const hintStr = hintParts.join(' / ');
+
+      const label = this.add.text(choiceX + 22, y + 18, ch.label, {
+        fontFamily: FONT_STACK,
+        fontSize: '29px',
+        fontStyle: 'bold',
+        color: TEXT_COLOR.primary,
+      });
+      const hint = this.add.text(choiceX + choiceW - 22, y + 20, hintStr, {
+        fontFamily: FONT_STACK,
+        fontSize: '21px',
+        color: ch.revenueMul >= 1.0 ? TEXT_COLOR.ok : TEXT_COLOR.bad,
+      }).setOrigin(1, 0);
+      const summary = this.add.text(choiceX + 22, y + 52, ch.summary, {
+        fontFamily: FONT_STACK,
+        fontSize: '21px',
+        color: TEXT_COLOR.dim,
+      });
+
+      const hit = this.add
+        .zone(choiceX + choiceW / 2, y + choiceH / 2, choiceW, choiceH)
+        .setInteractive({ useHandCursor: true });
+      hit.on('pointerdown', () => drawBtn(true));
+      hit.on('pointerout', () => drawBtn(false));
+      hit.on('pointerup', () => {
+        drawBtn(false);
+        this.handleOpsChoice(ch.revenueMul, ch.starsDelta, ch.moraleDelta, outcome);
+      });
+
+      c.add([btnBg, label, hint, summary, hit]);
+    });
+
+    c.setAlpha(0);
+    this.tweens.add({
+      targets: c,
+      alpha: 1,
+      duration: 200,
+      ease: 'Cubic.easeOut',
+    });
+    applyHiDPI(this);
+  }
+
+  /** 운영 결정 선택 처리 — outcome에 modifier 적용 후 ResultScene으로 이동. */
+  private handleOpsChoice(
+    revenueMul: number,
+    starsDelta: number,
+    moraleDelta: number,
+    outcome: ReleaseOutcome,
+  ): void {
+    this.opsModalContainer?.destroy(true);
+    this.opsModalContainer = null;
+
+    const clamp = (n: number, lo: number, hi: number): number =>
+      Math.max(lo, Math.min(hi, n));
+
+    // R&D: 자율 배포 시스템 — 좋은 결과 강화, 나쁜 결과 완화.
+    // revenueMul >= 1이면 ×1.3, < 1이면 손실 30% 완화 (1-(1-mul)*0.7).
+    let effectiveRevenueMul = revenueMul;
+    if (isRndPurchased(this.state.rnd, 'autonomous-deploy')) {
+      if (revenueMul >= 1.0) {
+        effectiveRevenueMul = 1 + (revenueMul - 1) * 1.3;
+      } else {
+        effectiveRevenueMul = 1 - (1 - revenueMul) * 0.7;
+      }
+    }
+
+    const newRevenue = Math.round(outcome.revenue * effectiveRevenueMul);
+    const rawStars = outcome.stars + starsDelta;
+    const newStars = clamp(rawStars, 1, 5) as ReviewStars;
+    const revenueDiff = newRevenue - outcome.revenue;
+
+    const modified: ReleaseOutcome = {
+      ...outcome,
+      revenue: newRevenue,
+      stars: newStars,
+      headline: HEADLINE_BY_STARS[newStars],
+      state: {
+        ...outcome.state,
+        gold: outcome.state.gold + revenueDiff,
+        employees: outcome.state.employees.map((e) => ({
+          ...e,
+          morale: clamp(e.morale + moraleDelta, 0, 100),
+        })),
+      },
+    };
+
     this.scene.start(SCENE_KEYS.Result, {
-      outcome,
+      outcome: modified,
       polishCount: this.polishCount,
     });
   }
@@ -980,9 +1613,68 @@ export class DevelopmentScene extends Phaser.Scene {
     this.tweenStats();
 
     if (this.state.productIndex >= 1) this.drawCrunchToggle();
+    this.drawWeeklyActionButton();
     this.redrawAssignmentRecap();
     this.updateStatus();
     this.updateActionPanel();
+    this.updateSprintPhaseDisplay();
+  }
+
+  /** Sprint 단계 텍스트 + 슬롯 가중치 인디케이터 갱신. */
+  private updateSprintPhaseDisplay(): void {
+    const phase = getSprintPhase(this.state.project.progress);
+    const label = SPRINT_PHASE_LABEL[phase];
+    const weights = SPRINT_SLOT_WEIGHT[phase];
+
+    // 단계 색 — build=primary(파랑), design=ok(초록), planning/qa=warn(노랑)
+    const phaseColor = phase === 'build'
+      ? TEXT_COLOR.ok
+      : phase === 'design'
+        ? '#4f6fff'
+        : TEXT_COLOR.warn;
+
+    this.sprintPhaseText.setText(label).setColor(phaseColor);
+
+    // 슬롯 타일 가중치 표시 갱신.
+    for (const slot of SLOT_ORDER) {
+      const wt = this.slotPhaseWeightTexts.get(slot);
+      if (!wt) continue;
+      const w = weights[slot];
+      // 1.0보다 크면 강조(노란), 1.0이면 숨김, 작으면 희미한 회색.
+      if (w > 1.0) {
+        wt.setText(`×${w.toFixed(1)}`).setColor(TEXT_COLOR.warn).setVisible(true);
+      } else if (w < 1.0) {
+        wt.setText(`×${w.toFixed(2)}`).setColor(TEXT_COLOR.disabled).setVisible(true);
+      } else {
+        wt.setVisible(false);
+      }
+    }
+
+    // 단계 전환 토스트 — 이전 단계와 달라졌을 때.
+    if (this.lastSprintPhase !== null && this.lastSprintPhase !== phase) {
+      this.showSprintToast(label);
+    }
+    this.lastSprintPhase = phase;
+  }
+
+  /** 단계 전환 토스트 — 상단에 잠깐 표시 후 페이드아웃. */
+  private showSprintToast(label: string): void {
+    this.sprintToastText?.destroy();
+    const t = this.add.text(this.cx, 115, `→ ${label}`, {
+      fontFamily: FONT_STACK,
+      fontSize: '24px',
+      fontStyle: 'bold',
+      color: TEXT_COLOR.warn,
+    }).setOrigin(0.5).setAlpha(1);
+    this.sprintToastText = t;
+    this.tweens.add({
+      targets: t,
+      alpha: 0,
+      delay: 1200,
+      duration: 600,
+      ease: 'Linear',
+      onComplete: () => { t.destroy(); this.sprintToastText = null; },
+    });
   }
 
   /** displayStats가 state의 현재값으로 부드럽게 따라가게 하고, 매 프레임 패널을 다시 그린다. */
@@ -1010,7 +1702,7 @@ export class DevelopmentScene extends Phaser.Scene {
       .setColor(b >= 70 ? TEXT_COLOR.bad : TEXT_COLOR.primary);
     this.goldText.setText(String(Math.round(g)));
 
-    const panelX = (GAME_WIDTH - 690) / 2 + 24;
+    const panelX = this.contentX + (720 - 690) / 2 + 24;
     this.drawGauge(this.progressBar, panelX, 172, p / 100, COLOR.gaugeFillProgress);
     this.drawGauge(this.bugBar, panelX, 252, b / 100, COLOR.gaugeFillBug);
     if (this.appealBar && this.appealText) {
@@ -1029,6 +1721,8 @@ export class DevelopmentScene extends Phaser.Scene {
     const empById = new Map(this.state.employees.map((e) => [e.id, e] as const));
     const contributions = computeSlotContributions(this.state);
     const contribBySlot = new Map(contributions.map((c) => [c.slot, c] as const));
+    // 직원 타일 hit zones 재생성 (배치 변경 반영)
+    this.rebuildEmpTileHits();
 
     for (const slot of SLOT_ORDER) {
       const view = this.slotSummaryViews.get(slot);
@@ -1113,5 +1807,567 @@ export class DevelopmentScene extends Phaser.Scene {
     } else {
       this.refreshPlaybackHighlight();
     }
+  }
+
+  // ────────────────────────── 주간 액션(AP) 버튼 ──────────────────────────
+
+  /**
+   * AP 버튼 빌드 — 사이드 프로젝트 왼쪽에 배치.
+   * productIndex 무관하게 항상 노출(AP는 1작부터 있음).
+   */
+  private buildWeeklyActionButton(): void {
+    const w = 100;
+    const h = 40;
+    // 야근 버튼(124) + 사이드 프로젝트(110) + 간격(10+10) 왼쪽에 배치
+    const sideX = this.contentX + 720 - 14 - 124 - 10 - 110;
+    const x = sideX - 10 - w;
+    const y = 18;
+    this.apBtnRect = new Phaser.Geom.Rectangle(x, y, w, h);
+    this.apBtnBg = this.add.graphics();
+    this.apBtnText = this.add
+      .text(x + w / 2, y + h / 2, '', {
+        fontFamily: FONT_STACK,
+        fontSize: '23px',
+        fontStyle: 'bold',
+        color: TEXT_COLOR.primary,
+        align: 'center',
+      })
+      .setOrigin(0.5);
+    this.apBtnHit = this.add
+      .zone(x + w / 2, y + h / 2, w, h)
+      .setInteractive({ useHandCursor: true });
+    this.apBtnHit.on('pointerup', () => this.handleOpenWeeklyActions());
+    this.drawWeeklyActionButton();
+  }
+
+  private drawWeeklyActionButton(): void {
+    if (!this.apBtnBg || !this.apBtnText || !this.apBtnRect || !this.apBtnHit) return;
+    const ap = this.state.availableAp ?? 0;
+    const hasAp = ap > 0;
+    const fill = hasAp ? 0x2a5a2a : COLOR.btnSecondary;
+    const r = this.apBtnRect;
+    this.apBtnBg.clear();
+    this.apBtnBg.fillStyle(fill, 1);
+    this.apBtnBg.fillRoundedRect(r.x, r.y, r.width, r.height, 12);
+    this.apBtnText
+      .setText(`행동\nAP ${ap}/${AP_CAP}`)
+      .setColor(hasAp ? TEXT_COLOR.ok : TEXT_COLOR.dim);
+    if (this.apBtnHit.input) this.apBtnHit.input.enabled = true;
+  }
+
+  private handleOpenWeeklyActions(): void {
+    if (this.weeklyActionModalContainer) return;
+    playSfx(this, SFX.modal, 0.5);
+    this.showWeeklyActionModal();
+  }
+
+  /** 주간 행동 모달 — 5개 액션 카드 세로 리스트. */
+  private showWeeklyActionModal(): void {
+    const c = this.add.container(0, 0).setDepth(100);
+    const overlay = this.add
+      .rectangle(0, 0, 720, 1280, 0x000000, 0.7)
+      .setOrigin(0, 0)
+      .setInteractive();
+    c.add(overlay);
+
+    const ap = this.state.availableAp ?? 0;
+    const panelW = 640;
+    const panelH = 740;
+    const panelX = this.contentX + (720 - panelW) / 2;
+    const panelY = Math.max(0, (1280 - panelH) / 2);
+    c.add(makePanel(this, panelX, panelY, panelW, panelH, COLOR.panel));
+
+    // 헤더
+    c.add(
+      this.add
+        .text(panelX + 24, panelY + 22, '주간 행동', {
+          fontFamily: FONT_STACK,
+          fontSize: '21px',
+          fontStyle: 'bold',
+          color: TEXT_COLOR.warn,
+        })
+        .setOrigin(0, 0),
+    );
+    c.add(
+      this.add
+        .text(panelX + panelW / 2, panelY + 56, `행동 포인트 AP: ${ap} / ${AP_CAP}`, {
+          fontFamily: FONT_STACK,
+          fontSize: '30px',
+          fontStyle: 'bold',
+          color: TEXT_COLOR.primary,
+        })
+        .setOrigin(0.5, 0),
+    );
+    c.add(
+      this.add
+        .text(panelX + 30, panelY + 94, 'AP를 소비해 팀에 즉발 효과를 적용합니다. 남은 AP는 누적(최대 3)됩니다.', {
+          fontFamily: FONT_STACK,
+          fontSize: '23px',
+          color: TEXT_COLOR.dim,
+          wordWrap: { width: panelW - 60, useAdvancedWrap: true },
+        })
+        .setOrigin(0, 0),
+    );
+
+    // 액션 카드 — 세로 리스트
+    const cardX = panelX + 30;
+    const cardW = panelW - 60;
+    const cardH = 80;
+    const cardGap = 12;
+    const cardsStartY = panelY + 136;
+
+    WEEKLY_ACTIONS.forEach((action, i) => {
+      const y = cardsStartY + i * (cardH + cardGap);
+      const canUse = ap >= action.apCost;
+      const bg = this.add.graphics();
+      const drawCard = (pressed: boolean): void => {
+        bg.clear();
+        if (!canUse) {
+          bg.fillStyle(COLOR.btnDisabled, 1);
+        } else {
+          bg.fillStyle(pressed ? COLOR.btnSecondaryDown : COLOR.btnSecondary, 1);
+        }
+        bg.fillRoundedRect(cardX, y, cardW, cardH, 12);
+      };
+      drawCard(false);
+
+      const labelText = this.add.text(cardX + 18, y + 14, action.label, {
+        fontFamily: FONT_STACK,
+        fontSize: '27px',
+        fontStyle: 'bold',
+        color: canUse ? TEXT_COLOR.primary : TEXT_COLOR.disabled,
+      });
+      const descText = this.add.text(cardX + 18, y + 42, action.desc, {
+        fontFamily: FONT_STACK,
+        fontSize: '21px',
+        color: canUse ? TEXT_COLOR.dim : TEXT_COLOR.disabled,
+        wordWrap: { width: cardW - 100, useAdvancedWrap: true },
+      });
+      const costBadge = this.add
+        .text(cardX + cardW - 16, y + cardH / 2, `AP -${action.apCost}`, {
+          fontFamily: FONT_STACK,
+          fontSize: '23px',
+          fontStyle: 'bold',
+          color: canUse ? TEXT_COLOR.ok : TEXT_COLOR.disabled,
+        })
+        .setOrigin(1, 0.5);
+
+      c.add([bg, labelText, descText, costBadge]);
+
+      if (canUse) {
+        const hit = this.add
+          .zone(cardX + cardW / 2, y + cardH / 2, cardW, cardH)
+          .setInteractive({ useHandCursor: true });
+        hit.on('pointerdown', () => drawCard(true));
+        hit.on('pointerout', () => drawCard(false));
+        hit.on('pointerup', () => {
+          drawCard(false);
+          this.handleWeeklyActionChoice(action);
+        });
+        c.add(hit);
+      }
+    });
+
+    // 닫기 버튼
+    const closeBtnY = panelY + panelH - 60;
+    const closeBg = this.add.graphics();
+    closeBg.fillStyle(COLOR.btnSecondary, 1);
+    closeBg.fillRoundedRect(cardX, closeBtnY, cardW, 44, 12);
+    const closeText = this.add
+      .text(panelX + panelW / 2, closeBtnY + 22, '닫기', {
+        fontFamily: FONT_STACK,
+        fontSize: '27px',
+        fontStyle: 'bold',
+        color: TEXT_COLOR.dim,
+      })
+      .setOrigin(0.5);
+    const closeHit = this.add
+      .zone(panelX + panelW / 2, closeBtnY + 22, cardW, 44)
+      .setInteractive({ useHandCursor: true });
+    closeHit.on('pointerup', () => {
+      this.weeklyActionModalContainer?.destroy(true);
+      this.weeklyActionModalContainer = null;
+    });
+    c.add([closeBg, closeText, closeHit]);
+
+    this.weeklyActionModalContainer = c;
+    applyHiDPI(this);
+    c.setAlpha(0);
+    this.tweens.add({ targets: c, alpha: 1, duration: 180, ease: 'Cubic.easeOut' });
+  }
+
+  private handleWeeklyActionChoice(action: WeeklyAction): void {
+    const ap = this.state.availableAp ?? 0;
+    if (ap < action.apCost) return;
+    playSfx(this, SFX.success, 0.5);
+    this.state = action.apply({ ...this.state, availableAp: ap - action.apCost });
+    this.weeklyActionModalContainer?.destroy(true);
+    this.weeklyActionModalContainer = null;
+    this.redraw();
+  }
+
+  // ────────────────────────── 위기 모먼트 모달 ──────────────────────────
+
+  /** 빨간 헤더의 위기 모달 — 5초 카운트다운 후 defaultApply 자동 발동. */
+  private showCrisisModal(crisis: Crisis): void {
+    playSfx(this, SFX.modal, 0.8);
+    const c = this.add.container(0, 0).setDepth(120);
+    const overlay = this.add
+      .rectangle(0, 0, 720, 1280, 0x000000, 0.8)
+      .setOrigin(0, 0)
+      .setInteractive();
+    c.add(overlay);
+
+    const panelW = 640;
+    const panelH = 620;
+    const panelX = this.contentX + (720 - panelW) / 2;
+    const panelY = Math.max(0, (1280 - panelH) / 2);
+    // 빨간 글로우 효과 — 테두리 대용 빨간 패널
+    const glowPanel = makePanel(this, panelX - 3, panelY - 3, panelW + 6, panelH + 6, 0x5a1010);
+    c.add(glowPanel);
+    c.add(makePanel(this, panelX, panelY, panelW, panelH, COLOR.panel));
+
+    // 빨간 헤더 배너
+    const headerH = 52;
+    const headerBg = this.add.graphics();
+    headerBg.fillStyle(0xcc2222, 1);
+    headerBg.fillRoundedRect(panelX, panelY, panelW, headerH, 12);
+    c.add(headerBg);
+    c.add(
+      this.add
+        .text(panelX + panelW / 2, panelY + headerH / 2, '⚠ 위기 발생!', {
+          fontFamily: FONT_STACK,
+          fontSize: '30px',
+          fontStyle: 'bold',
+          color: '#ffffff',
+        })
+        .setOrigin(0.5),
+    );
+
+    // 카운트다운 텍스트
+    const countdownText = this.add
+      .text(panelX + panelW - 24, panelY + headerH / 2, '5초', {
+        fontFamily: FONT_STACK,
+        fontSize: '27px',
+        fontStyle: 'bold',
+        color: '#ffaaaa',
+      })
+      .setOrigin(1, 0.5);
+    c.add(countdownText);
+
+    // 제목
+    c.add(
+      this.add
+        .text(panelX + panelW / 2, panelY + 72, crisis.title, {
+          fontFamily: FONT_STACK,
+          fontSize: '33px',
+          fontStyle: 'bold',
+          color: TEXT_COLOR.primary,
+        })
+        .setOrigin(0.5, 0),
+    );
+
+    // 설명
+    c.add(
+      this.add
+        .text(panelX + 30, panelY + 116, crisis.description, {
+          fontFamily: FONT_STACK,
+          fontSize: '24px',
+          color: TEXT_COLOR.dim,
+          wordWrap: { width: panelW - 60, useAdvancedWrap: true },
+          lineSpacing: 4,
+        })
+        .setOrigin(0, 0),
+    );
+
+    // 선택지 버튼
+    const choiceX = panelX + 30;
+    const choiceW = panelW - 60;
+    const choiceH = 76;
+    const choiceGap = 12;
+    const choicesStartY = panelY + 200;
+
+    crisis.choices.forEach((ch, i) => {
+      const y = choicesStartY + i * (choiceH + choiceGap);
+      const btnBg = this.add.graphics();
+      const drawBtn = (pressed: boolean): void => {
+        btnBg.clear();
+        btnBg.fillStyle(pressed ? 0x4a1515 : 0x3a1515, 1);
+        btnBg.fillRoundedRect(choiceX, y, choiceW, choiceH, 12);
+      };
+      drawBtn(false);
+      const labelText = this.add.text(choiceX + 18, y + 14, ch.label, {
+        fontFamily: FONT_STACK,
+        fontSize: '27px',
+        fontStyle: 'bold',
+        color: TEXT_COLOR.primary,
+      });
+      const sumText = this.add.text(choiceX + 18, y + 44, ch.summary, {
+        fontFamily: FONT_STACK,
+        fontSize: '21px',
+        color: TEXT_COLOR.dim,
+      });
+      const hit = this.add
+        .zone(choiceX + choiceW / 2, y + choiceH / 2, choiceW, choiceH)
+        .setInteractive({ useHandCursor: true });
+      hit.on('pointerdown', () => drawBtn(true));
+      hit.on('pointerout', () => drawBtn(false));
+      hit.on('pointerup', () => {
+        drawBtn(false);
+        this.applyCrisisChoice(crisis, i, c);
+      });
+      c.add([btnBg, labelText, sumText, hit]);
+    });
+
+    this.crisisModalContainer = c;
+    applyHiDPI(this);
+    c.setAlpha(0);
+    this.tweens.add({ targets: c, alpha: 1, duration: 180, ease: 'Cubic.easeOut' });
+
+    // 카운트다운 타이머
+    let remaining = Math.floor(crisis.timeoutMs / 1000);
+    this.crisisTimerEvent = this.time.addEvent({
+      delay: 1000,
+      repeat: remaining - 1,
+      callback: () => {
+        remaining -= 1;
+        if (!countdownText.active) return;
+        countdownText.setText(`${remaining}초`);
+        if (remaining <= 0) {
+          // 시간 초과 — defaultApply 발동
+          this.applyCrisisDefault(crisis, c);
+        }
+      },
+    });
+  }
+
+  private applyCrisisChoice(crisis: Crisis, index: number, container: Phaser.GameObjects.Container): void {
+    const choice = crisis.choices[index];
+    if (!choice) return;
+    this.crisisTimerEvent?.remove();
+    this.crisisTimerEvent = null;
+    this.state = choice.apply(this.state);
+    container.destroy(true);
+    this.crisisModalContainer = null;
+    playSfx(this, SFX.tap);
+    this.redraw();
+    this.resumeAfterModal();
+  }
+
+  private applyCrisisDefault(crisis: Crisis, container: Phaser.GameObjects.Container): void {
+    this.crisisTimerEvent?.remove();
+    this.crisisTimerEvent = null;
+    this.state = crisis.defaultApply(this.state);
+    container.destroy(true);
+    this.crisisModalContainer = null;
+    this.redraw();
+    this.resumeAfterModal();
+  }
+
+  // ────────────────────────── 직원 per-action popup ──────────────────────────
+
+  /**
+   * 직원 recap 타일에 interactive zone을 덧씌워 클릭 시 popup 메뉴를 열도록 함.
+   * buildAssignmentRecap 이후 / redrawAssignmentRecap 마다 재생성.
+   */
+  private rebuildEmpTileHits(): void {
+    // 기존 zone 정리
+    for (const z of this.empTileHits) z.destroy();
+    this.empTileHits = [];
+
+    for (const [slot, view] of this.slotSummaryViews) {
+      const empId = this.state.assignment[slot];
+      if (!empId) continue;
+      const zone = this.add
+        .zone(
+          view.tileX + view.tileW / 2,
+          view.tileY + view.tileH / 2,
+          view.tileW,
+          view.tileH,
+        )
+        .setInteractive({ useHandCursor: true })
+        .setDepth(10);
+      // eslint-disable-next-line @typescript-eslint/no-loop-func
+      zone.on('pointerup', () => this.showEmpPopup(empId, view.tileX, view.tileY));
+      this.empTileHits.push(zone);
+    }
+  }
+
+  /** 직원 개인 액션 popup. 타일 우측 하단 기준으로 작은 메뉴 표시. */
+  private showEmpPopup(empId: string, tileX: number, tileY: number): void {
+    // 이미 떠있는 팝업 닫기 — 같은 직원 재클릭 시 토글
+    if (this.empPopupContainer) {
+      this.empPopupContainer.destroy(true);
+      this.empPopupContainer = null;
+      return;
+    }
+
+    const emp = this.state.employees.find((e) => e.id === empId);
+    if (!emp) return;
+
+    const c = this.add.container(0, 0).setDepth(90);
+    // 팝업 위치 — 타일 바로 아래 (tileY+tileH+4) 또는 화면 밖이면 위로
+    const popW = 280;
+    const popH = 186;
+    let popX = tileX;
+    let popY = tileY + 70 + 4;
+    // 화면 하단 넘침 방지
+    if (popY + popH > 1230) popY = tileY - popH - 4;
+    if (popX + popW > 720 - 10) popX = 720 - 10 - popW;
+
+    c.add(makePanel(this, popX, popY, popW, popH, COLOR.panel));
+    c.add(
+      this.add.text(popX + 14, popY + 12, `${emp.name}`, {
+        fontFamily: FONT_STACK,
+        fontSize: '23px',
+        fontStyle: 'bold',
+        color: TEXT_COLOR.primary,
+      }),
+    );
+
+    const used = emp.weeklyActionUsed ?? false;
+
+    interface EmpAction {
+      label: string;
+      summary: string;
+      apply: () => void;
+    }
+
+    const actions: EmpAction[] = [
+      {
+        label: '야근 명령',
+        summary: 'stamina −10, BugDebt −1',
+        apply: () => {
+          this.state = {
+            ...this.state,
+            employees: this.state.employees.map((e) =>
+              e.id === empId
+                ? { ...e, stamina: Math.max(0, e.stamina - 10), weeklyActionUsed: true }
+                : e,
+            ),
+            project: {
+              ...this.state.project,
+              bugDebt: Math.max(0, this.state.project.bugDebt - 1),
+            },
+          };
+        },
+      },
+      {
+        label: '1일 휴가',
+        summary: 'stamina +20, morale +5',
+        apply: () => {
+          this.state = {
+            ...this.state,
+            employees: this.state.employees.map((e) =>
+              e.id === empId
+                ? {
+                    ...e,
+                    stamina: Math.min(100, e.stamina + 20),
+                    morale: Math.min(100, e.morale + 5),
+                    weeklyActionUsed: true,
+                  }
+                : e,
+            ),
+          };
+        },
+      },
+      {
+        label: '1on1 면담',
+        summary: 'morale +15, stamina −3, gold −30',
+        apply: () => {
+          if (this.state.gold < 30) return;
+          this.state = {
+            ...this.state,
+            gold: this.state.gold - 30,
+            employees: this.state.employees.map((e) =>
+              e.id === empId
+                ? {
+                    ...e,
+                    morale: Math.min(100, e.morale + 15),
+                    stamina: Math.max(0, e.stamina - 3),
+                    weeklyActionUsed: true,
+                  }
+                : e,
+            ),
+          };
+        },
+      },
+    ];
+
+    const btnW = popW - 28;
+    const btnH = 36;
+    const btnGap = 6;
+    const btnStartY = popY + 38;
+
+    actions.forEach((action, i) => {
+      const y = btnStartY + i * (btnH + btnGap);
+      const disabled = used || (action.label === '1on1 면담' && this.state.gold < 30);
+      const bg = this.add.graphics();
+      bg.fillStyle(disabled ? COLOR.btnDisabled : COLOR.btnSecondary, 1);
+      bg.fillRoundedRect(popX + 14, y, btnW, btnH, 8);
+      const labelT = this.add.text(popX + 24, y + 8, action.label, {
+        fontFamily: FONT_STACK,
+        fontSize: '23px',
+        fontStyle: 'bold',
+        color: disabled ? TEXT_COLOR.disabled : TEXT_COLOR.primary,
+      });
+      const sumT = this.add.text(popX + popW - 14, y + 10, action.summary, {
+        fontFamily: FONT_STACK,
+        fontSize: '20px',
+        color: disabled ? TEXT_COLOR.disabled : TEXT_COLOR.dim,
+      }).setOrigin(1, 0);
+      c.add([bg, labelT, sumT]);
+      if (!disabled) {
+        const hit = this.add
+          .zone(popX + 14 + btnW / 2, y + btnH / 2, btnW, btnH)
+          .setInteractive({ useHandCursor: true });
+        hit.on('pointerup', () => {
+          action.apply();
+          this.empPopupContainer?.destroy(true);
+          this.empPopupContainer = null;
+          this.redraw();
+          playSfx(this, SFX.tap);
+        });
+        c.add(hit);
+      }
+    });
+
+    // 닫기
+    const closeY = btnStartY + actions.length * (btnH + btnGap);
+    const closeBg = this.add.graphics();
+    closeBg.fillStyle(0x1a1a22, 1);
+    closeBg.fillRoundedRect(popX + 14, closeY, btnW, btnH - 4, 8);
+    const closeT = this.add
+      .text(popX + 14 + btnW / 2, closeY + (btnH - 4) / 2, '닫기', {
+        fontFamily: FONT_STACK,
+        fontSize: '21px',
+        color: TEXT_COLOR.dim,
+      })
+      .setOrigin(0.5);
+    const closeHit = this.add
+      .zone(popX + 14 + btnW / 2, closeY + (btnH - 4) / 2, btnW, btnH - 4)
+      .setInteractive({ useHandCursor: true });
+    closeHit.on('pointerup', () => {
+      this.empPopupContainer?.destroy(true);
+      this.empPopupContainer = null;
+    });
+    c.add([closeBg, closeT, closeHit]);
+
+    if (used) {
+      c.add(
+        this.add
+          .text(popX + popW / 2, btnStartY + 1.5 * (btnH + btnGap), '이번 주 이미 사용함', {
+            fontFamily: FONT_STACK,
+            fontSize: '21px',
+            fontStyle: 'bold',
+            color: TEXT_COLOR.bad,
+          })
+          .setOrigin(0.5)
+          .setDepth(5),
+      );
+    }
+
+    this.empPopupContainer = c;
+    applyHiDPI(this);
   }
 }

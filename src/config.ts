@@ -1,24 +1,24 @@
 import Phaser from 'phaser';
 import UIPlugin from 'phaser3-rex-plugins/templates/ui/ui-plugin.js';
-import { GAME_HEIGHT, GAME_WIDTH } from './constants';
 import { AssignmentScene } from './scenes/AssignmentScene';
 import { BootScene } from './scenes/BootScene';
 import { DevelopmentScene } from './scenes/DevelopmentScene';
 import { GenreSelectScene } from './scenes/GenreSelectScene';
+import { EndingScene } from './scenes/EndingScene';
 import { ResultScene } from './scenes/ResultScene';
-
-export { GAME_HEIGHT, GAME_WIDTH };
+import { StatsScene } from './scenes/StatsScene';
 
 export const gameConfig: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
   parent: 'app',
-  backgroundColor: '#0e0e12',
+  // transparent 캔버스 — letterbox 영역은 CSS #app 그라디언트가 비춤.
+  transparent: true,
   scale: {
-    mode: Phaser.Scale.FIT,
-    // autoCenter는 #app(display:flex)와 이중 중앙 정렬이 충돌해 캔버스가 어긋나는 사례가 있음 — CSS flex만 사용.
+    // RESIZE: 캔버스가 viewport를 가득 채움. 콘텐츠 컬럼 좌표는 viewport.ts 헬퍼로 계산.
+    mode: Phaser.Scale.RESIZE,
     autoCenter: Phaser.Scale.NO_CENTER,
-    width: GAME_WIDTH,
-    height: GAME_HEIGHT,
+    width: window.innerWidth,
+    height: window.innerHeight,
     expandParent: false,
   },
   render: {
@@ -34,5 +34,5 @@ export const gameConfig: Phaser.Types.Core.GameConfig = {
       },
     ],
   },
-  scene: [BootScene, AssignmentScene, GenreSelectScene, DevelopmentScene, ResultScene],
+  scene: [BootScene, AssignmentScene, GenreSelectScene, DevelopmentScene, ResultScene, StatsScene, EndingScene],
 };

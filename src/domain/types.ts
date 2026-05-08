@@ -2,6 +2,11 @@
  * 도메인 타입 — Phaser 비의존.
  * @see docs/PRODUCT_LOOP.md, docs/BALANCE.md
  */
+import type { RndState } from './rnd';
+import type { EmployeeEquipment } from './equipment';
+import type { FacilityState } from './facilities';
+import type { MarketState } from './markets';
+import type { AcquisitionState } from './acquisitions';
 
 /** 직원 직무. 1단계 사무실에서는 QA 직군 없음 (2단계 채용). */
 export type Job = 'planner' | 'designer' | 'programmer' | 'qa';
@@ -20,6 +25,15 @@ export type Trait =
 
 /** 직급 4단계. */
 export type Rank = 'newbie' | 'junior' | 'senior' | 'lead';
+
+/**
+ * 직급 트랙(슬라이스 5) — junior→senior 진급 시점에 분기 선택.
+ *  - 'manager': 관리 트랙 — 다른 팀원 기여 가산(LEAD_TEAM_BONUS 본인이 lead 되기 전부터 일부 적용),
+ *               개인 skill 가산은 작음.
+ *  - 'ic'      : 실무 트랙 — 개인 skill 가산 큼, 팀 보너스 없음.
+ *  - undefined : 아직 분기 선택 전(주니어 이하 또는 옛 데이터).
+ */
+export type Track = 'manager' | 'ic';
 
 /** 출퇴근 모드 — 작품 단위로 토글. */
 export type CommuteMode = 'office' | 'remote';
@@ -46,8 +60,8 @@ export interface CompanyPolicy {
   readonly perks: PerkSet;
 }
 
-export type GenreId = 'G1' | 'G2' | 'G3';
-export type ThemeId = 'T1' | 'T2' | 'T3';
+export type GenreId = 'G1' | 'G2' | 'G3' | 'G4' | 'G5';
+export type ThemeId = 'T1' | 'T2' | 'T3' | 'T4' | 'T5';
 
 /** 출시 직전 홍보 단계 — 2작부터 노출. BALANCE.md §7. */
 export type PromoTier = 'none' | 'small' | 'medium';
@@ -85,6 +99,24 @@ export interface Employee {
   readonly shippedProjects: number;
   /** 특수 트레이트(선택). */
   readonly trait?: Trait;
+  /** 직급 트랙 — junior→senior 진급 시점부터 결정. 슬라이스 5. */
+  readonly track?: Track;
+  /** morale<EXIT_MORALE_THRESHOLD 연속 주차. 회복 시 0. 옛 데이터엔 없을 수 있음. */
+  readonly lowMoraleStreak?: number;
+  /**
+   * 이번 주 개인 액션 사용 여부 — scene-local Set으로 추적하지 않고 직원 레코드에 저장.
+   * advanceWeek 끝에 모두 false 로 리셋. 옛 데이터에는 없을 수 있음.
+   */
+  readonly weeklyActionUsed?: boolean;
+  /**
+   * 개인 성장률 — skill 자연성장(perWeekMatched) + 출시 보너스(perReleaseBonus) 공통 곱수.
+   *  - 1.0 = baseline (옛 데이터 호환 시 기본).
+   *  - 0.6~1.4 범위로 직원별 차등 → 진급 시점이 자연스럽게 어긋남.
+   * 옛 데이터엔 없을 수 있어 옵셔널, 사용 측에서 ?? 1.0 로 fallback.
+   */
+  readonly growthRate?: number;
+  /** 개인 장비 — 슬롯별 보유 tier. 없으면 전부 미보유. */
+  readonly equipment?: EmployeeEquipment;
 }
 
 /** 슬롯 → 직원 id. 빈 슬롯은 키 부재. */
@@ -115,12 +147,25 @@ export interface GameState {
   readonly crunch: boolean;
   /** 0 = 첫 작품 (튜토리얼). 출시 직후 +1. UI/도메인 분기에 사용. */
   readonly productIndex: number;
-  /** 사무실 단계 — 1: 분당 셰어, 2: 판교 임대. burn rate 계산에 사용. */
-  readonly officeLevel: 1 | 2;
+  /** 사무실 단계 — 1: 분당 셰어, 2: 판교 임대, 3: 강남 자가. burn rate 계산에 사용. */
+  readonly officeLevel: 1 | 2 | 3;
   /** 회사 누적 명성 (작품 사이 영구 누적). 매출 보너스에 사용. */
   readonly reputation: number;
   /** 회사 정책(출퇴근/복장/복지). 작품 사이 결정, 매주 효과. */
   readonly policy: CompanyPolicy;
   /** 진행 중인 시장 트렌드 — 출시 매출에 보정. null이면 트렌드 없음. */
   readonly trend: TrendStatus | null;
+  /** R&D 영구 업그레이드 상태. */
+  readonly rnd: RndState;
+  /**
+   * 현재 가용 액션 포인트(AP). 매주 +1 지급(cap AP_CAP).
+   * 주간 액션 사용 시 apCost만큼 차감. 옛 데이터 호환을 위해 undefined면 0으로 간주.
+   */
+  readonly availableAp: number;
+  /** 회사 시설 — 한 번 건설하면 영구 효과. 옛 데이터 호환을 위해 옵셔널. */
+  readonly facilities?: FacilityState;
+  /** 글로벌 시장 진출 상태. 옛 데이터 호환을 위해 옵셔널. */
+  readonly markets?: MarketState;
+  /** 자회사 인수 상태. 옛 데이터 호환을 위해 옵셔널. */
+  readonly acquisitions?: AcquisitionState;
 }

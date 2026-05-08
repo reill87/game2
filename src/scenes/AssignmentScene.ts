@@ -1,7 +1,6 @@
 import Phaser from 'phaser';
 import type { Types } from 'phaser';
 
-import { GAME_WIDTH } from '@/constants';
 import { isMatched, SLOT_ORDER } from '@/domain/match';
 import {
   GENRE_LABEL,
@@ -17,16 +16,41 @@ import {
 import type { Rank } from '@/domain/types';
 import { isTutorialAssignmentReady, place } from '@/domain/tick';
 import type { Employee, GameState, SlotKind } from '@/domain/types';
+import { AVATAR_KEY } from '@/avatars';
+import { BGM } from '@/bgm';
 import { ICONS } from '@/icons';
 import type { SavedResult } from '@/save';
+import { playSfx, SFX } from '@/sounds';
+import { addMuteToggle } from '@/util/muteToggle';
 import { COLOR, FONT_STACK, TEXT_COLOR, TINT } from '@/theme';
 import { drawConditionFill } from '@/util/condition';
 import { applyHiDPI } from '@/util/hidpi';
 import { addIconLabel } from '@/util/iconLabel';
+import { fitCamera } from '@/util/cameraFit';
+import { onResize } from '@/util/viewport';
 
 import { SCENE_KEYS } from './keys';
 
-const CX = GAME_WIDTH / 2;
+interface EmployeeLayout {
+  cols: number;
+  cardW: number;
+  cardH: number;
+  gap: number;
+  rowGap: number;
+}
+
+/**
+ * 직원 카드 레이아웃 선택 — 1~6명 모두 GAME_WIDTH(720)에 맞춤.
+ *  - 1~3명: 1행 (큰 카드)
+ *  - 4명  : 1행 4열 (좁은 카드)
+ *  - 5~6명: 2행 3열
+ */
+function pickEmployeeLayout(count: number): EmployeeLayout {
+  if (count <= 3) return { cols: Math.max(1, count), cardW: 200, cardH: 240, gap: 14, rowGap: 14 };
+  if (count === 4) return { cols: 4, cardW: 160, cardH: 240, gap: 12, rowGap: 14 };
+  // 5~6명 → 3열 wrap
+  return { cols: 3, cardW: 200, cardH: 200, gap: 14, rowGap: 14 };
+}
 
 /** 직급별 배지 배경색 — newbie 회색 / junior 파랑 / senior 초록 / lead 노랑. */
 function rankBadgeColor(rank: Rank): number {
@@ -84,6 +108,9 @@ export class AssignmentScene extends Phaser.Scene {
   private startBtnText!: Phaser.GameObjects.Text;
   private startBtnRect!: Phaser.Geom.Rectangle;
   private statusText!: Phaser.GameObjects.Text;
+  /** 매 create() 시작 시 갱신. build* 메서드가 참조. */
+  private cx = 360;
+  private contentX = 0;
 
   constructor() {
     super({ key: SCENE_KEYS.Assignment });
@@ -98,39 +125,47 @@ export class AssignmentScene extends Phaser.Scene {
   }
 
   create(): void {
+    fitCamera(this);
+    // logical 720×1280 좌표 사용 — viewport 무관하게 cx=360, contentX=0.
+    this.cx = 360;
+    this.contentX = 0;
+    BGM.resume();
+    BGM.setMood('calm');
     this.buildHeader();
     this.buildSlots();
     this.buildEmployees();
     this.buildStartButton();
     this.buildStatus();
+    addMuteToggle(this);
     this.redraw();
     applyHiDPI(this);
+    onResize(this, () => { this.scene.restart(); });
   }
 
   // ────────────────────────── header ──────────────────────────
   private buildHeader(): void {
     const titleStyle: Types.GameObjects.Text.TextStyle = {
       fontFamily: FONT_STACK,
-      fontSize: '24px',
+      fontSize: '36px',
       fontStyle: 'bold',
       color: TEXT_COLOR.primary,
     };
     const subStyle: Types.GameObjects.Text.TextStyle = {
       fontFamily: FONT_STACK,
-      fontSize: '14px',
+      fontSize: '24px',
       color: TEXT_COLOR.dim,
       align: 'center',
-      wordWrap: { width: GAME_WIDTH - 80, useAdvancedWrap: true },
+      wordWrap: { width: 640, useAdvancedWrap: true },
     };
 
     const idx = this.state.productIndex;
     const order = idx === 0 ? '첫 프로젝트' : `${idx + 1}번째 프로젝트`;
     const genre = GENRE_LABEL[this.state.project.genre].name;
     const theme = THEME_LABEL[this.state.project.theme].name;
-    this.add.text(CX, 56, `${order} — ${genre} × ${theme}`, titleStyle).setOrigin(0.5);
+    this.add.text(this.cx, 56, `${order} — ${genre} × ${theme}`, titleStyle).setOrigin(0.5);
     this.add
       .text(
-        CX,
+        this.cx,
         96,
         '직원을 담당에 배치하세요. 정배치 시 효율 100%, 오배치 시 50% + BugDebt +2/주.',
         subStyle,
@@ -148,9 +183,9 @@ export class AssignmentScene extends Phaser.Scene {
       parts.push(`지난 프로젝트 ${stars} (${this.lastResult.reviewScore}점)`);
     }
     const text = this.add
-      .text(CX, 126, parts.join('  ·  '), {
+      .text(this.cx, 126, parts.join('  ·  '), {
         fontFamily: FONT_STACK,
-        fontSize: '12px',
+        fontSize: '21px',
         color: TEXT_COLOR.warn,
       })
       .setOrigin(0.5);
@@ -169,7 +204,7 @@ export class AssignmentScene extends Phaser.Scene {
     const tileH = 150;
     const gapX = 20;
     const gapY = 20;
-    const startX = (GAME_WIDTH - (tileW * 2 + gapX)) / 2;
+    const startX = this.contentX + (720 - (tileW * 2 + gapX)) / 2;
     const startY = 150;
 
     SLOT_ORDER.forEach((slot, i) => {
@@ -204,7 +239,7 @@ export class AssignmentScene extends Phaser.Scene {
     const empNameText = this.add
       .text(x + w / 2, y + h / 2 + 6, '비어 있음', {
         fontFamily: FONT_STACK,
-        fontSize: '18px',
+        fontSize: '30px',
         color: TEXT_COLOR.disabled,
       })
       .setOrigin(0.5);
@@ -212,7 +247,7 @@ export class AssignmentScene extends Phaser.Scene {
     const matchHint = this.add
       .text(x + w / 2, y + h - 26, '', {
         fontFamily: FONT_STACK,
-        fontSize: '13px',
+        fontSize: '23px',
         color: TEXT_COLOR.ok,
       })
       .setOrigin(0.5);
@@ -227,27 +262,31 @@ export class AssignmentScene extends Phaser.Scene {
   }
 
   // ────────────────────────── employee cards ──────────────────────────
+  /** 직원 수에 따라 1행/2행 wrap. 가로 오버플로 방지 + 빈 공간 활용. */
   private buildEmployees(): void {
     const count = this.state.employees.length;
-    const cardW = count <= 3 ? 200 : 162;
-    const cardH = 150;
-    const gap = count <= 3 ? 14 : 12;
-    const totalW = cardW * count + gap * (count - 1);
-    const startX = (GAME_WIDTH - totalW) / 2;
+    const layout = pickEmployeeLayout(count);
+    const { cols, cardW, cardH, gap, rowGap } = layout;
+    const totalW = cardW * cols + gap * (cols - 1);
+    const startX = this.contentX + (720 - totalW) / 2;
     const startY = 540;
 
     this.add
-      .text(CX, startY - 26, `직원 (${count}명)`, {
+      .text(this.cx, startY - 26, `직원 (${count}명)`, {
         fontFamily: FONT_STACK,
-        fontSize: '14px',
+        fontSize: '24px',
         color: TEXT_COLOR.dim,
       })
       .setOrigin(0.5);
 
     this.state.employees.forEach((emp, i) => {
-      const x = startX + i * (cardW + gap);
-      this.empViews.set(emp.id, this.makeEmployeeView(emp, x, startY, cardW, cardH));
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      const x = startX + col * (cardW + gap);
+      const y = startY + row * (cardH + rowGap);
+      this.empViews.set(emp.id, this.makeEmployeeView(emp, x, y, cardW, cardH));
     });
+
   }
 
   private makeEmployeeView(emp: Employee, x: number, y: number, w: number, h: number): EmployeeView {
@@ -265,7 +304,7 @@ export class AssignmentScene extends Phaser.Scene {
     this.add
       .text(badgeX + badgeW / 2, badgeY + badgeH / 2, RANK_SHORT[emp.rank], {
         fontFamily: FONT_STACK,
-        fontSize: '11px',
+        fontSize: '20px',
         fontStyle: 'bold',
         color: TEXT_COLOR.primary,
       })
@@ -274,7 +313,7 @@ export class AssignmentScene extends Phaser.Scene {
     const nameText = this.add
       .text(x + w / 2, y + 30, emp.name, {
         fontFamily: FONT_STACK,
-        fontSize: '15px',
+        fontSize: '26px',
         fontStyle: 'bold',
         color: TEXT_COLOR.primary,
         align: 'center',
@@ -282,13 +321,31 @@ export class AssignmentScene extends Phaser.Scene {
       })
       .setOrigin(0.5, 0);
 
+    // 직원 아바타 — 이름 아래 중앙. morale 기반 ring tint으로 표정 대용.
+    const avatarSize = 60;
+    const avatar = this.add
+      .image(x + w / 2, y + 56 + avatarSize / 2, AVATAR_KEY[emp.job])
+      .setDisplaySize(avatarSize, avatarSize)
+      .setOrigin(0.5);
+    void avatar;
+    const ringColor =
+      emp.morale >= 70
+        ? TINT.ok
+        : emp.morale >= 40
+          ? TINT.warn
+          : TINT.bad;
+    const ring = this.add.graphics();
+    ring.lineStyle(2, ringColor, 0.85);
+    ring.strokeCircle(x + w / 2, y + 56 + avatarSize / 2, avatarSize / 2 + 2);
+    void ring;
+
     // 스킬 배지 — 1.0 초과분만 우상단에 작게 (예: skill 1.10 → "+10%")
     const skillPct = Math.round((emp.skill - 1) * 100);
     if (skillPct > 0) {
       this.add
         .text(x + w - 12, y + 12, `+${skillPct}%`, {
           fontFamily: FONT_STACK,
-          fontSize: '11px',
+          fontSize: '20px',
           fontStyle: 'bold',
           color: TEXT_COLOR.warn,
         })
@@ -298,7 +355,7 @@ export class AssignmentScene extends Phaser.Scene {
     const { label: jobText } = addIconLabel(
       this,
       x + w / 2,
-      y + h / 2 + 4,
+      y + 130,
       ICONS[JOB_ICON[emp.job]].key,
       JOB_LABEL[emp.job],
       {
@@ -313,9 +370,9 @@ export class AssignmentScene extends Phaser.Scene {
     // 트레이트 라벨 — 직무 라인 바로 아래 작게 (트레이트 있는 직원만)
     if (emp.trait) {
       this.add
-        .text(x + w / 2, y + h / 2 + 24, TRAIT_LABEL[emp.trait], {
+        .text(x + w / 2, y + 148, TRAIT_LABEL[emp.trait], {
           fontFamily: FONT_STACK,
-          fontSize: '10px',
+          fontSize: '18px',
           color: TEXT_COLOR.warn,
         })
         .setOrigin(0.5);
@@ -325,8 +382,8 @@ export class AssignmentScene extends Phaser.Scene {
     const barW = 56;
     const barH = 3;
     const barX = x + w / 2 - barW / 2;
-    const moraleBarY = y + h - 50;
-    const staminaBarY = y + h - 42;
+    const moraleBarY = y + h - 38;
+    const staminaBarY = y + h - 30;
     const moraleBg = this.add.graphics();
     moraleBg.fillStyle(COLOR.gaugeBg, 1);
     moraleBg.fillRect(barX, moraleBarY, barW, barH);
@@ -337,9 +394,9 @@ export class AssignmentScene extends Phaser.Scene {
     const staminaFill = this.add.graphics();
 
     const placedText = this.add
-      .text(x + w / 2, y + h - 26, '', {
+      .text(x + w / 2, y + h - 16, '', {
         fontFamily: FONT_STACK,
-        fontSize: '12px',
+        fontSize: '21px',
         color: TEXT_COLOR.ok,
       })
       .setOrigin(0.5);
@@ -368,21 +425,22 @@ export class AssignmentScene extends Phaser.Scene {
   private buildStartButton(): void {
     const w = 360;
     const h = 72;
-    const x = CX - w / 2;
-    const y = 1140;
+    const x = this.cx - w / 2;
+    // 720×1280 logical 좌표 — fitCamera가 viewport에 맞춰 줌 인.
+    const y = 1180;
     this.startBtnRect = new Phaser.Geom.Rectangle(x, y, w, h);
     this.startBtnBg = this.add.graphics();
     this.startBtnText = this.add
-      .text(CX, y + h / 2, '개발 시작', {
+      .text(this.cx, y + h / 2, '개발 시작', {
         fontFamily: FONT_STACK,
-        fontSize: '20px',
+        fontSize: '30px',
         fontStyle: 'bold',
         color: TEXT_COLOR.primary,
       })
       .setOrigin(0.5);
 
     const hit = this.add
-      .zone(CX, y + h / 2, w, h)
+      .zone(this.cx, y + h / 2, w, h)
       .setInteractive({ useHandCursor: true });
     hit.on('pointerdown', () => this.onStartButtonDown());
     hit.on('pointerup', () => this.onStartButtonUp());
@@ -390,19 +448,22 @@ export class AssignmentScene extends Phaser.Scene {
   }
 
   private buildStatus(): void {
+    // startBtn 위 ~30px — 720×1280 logical.
+    const y = 1148;
     this.statusText = this.add
-      .text(CX, 1090, '', {
+      .text(this.cx, y, '', {
         fontFamily: FONT_STACK,
-        fontSize: '13px',
+        fontSize: '23px',
         color: TEXT_COLOR.dim,
         align: 'center',
-        wordWrap: { width: GAME_WIDTH - 80, useAdvancedWrap: true },
+        wordWrap: { width: 640, useAdvancedWrap: true },
       })
       .setOrigin(0.5);
   }
 
   // ────────────────────────── interactions ──────────────────────────
   private onEmployeeTap(empId: string): void {
+    playSfx(this, SFX.tap);
     this.selectedEmpId = this.selectedEmpId === empId ? null : empId;
     this.redraw();
   }
@@ -410,9 +471,11 @@ export class AssignmentScene extends Phaser.Scene {
   private onSlotTap(slot: SlotKind): void {
     const occupant = this.state.assignment[slot];
     if (this.selectedEmpId) {
+      playSfx(this, SFX.toggle);
       this.state = place(this.state, slot, this.selectedEmpId);
       this.selectedEmpId = null;
     } else if (occupant) {
+      playSfx(this, SFX.tap);
       this.state = place(this.state, slot, null);
     }
     this.redraw();
@@ -426,6 +489,7 @@ export class AssignmentScene extends Phaser.Scene {
   private onStartButtonUp(): void {
     this.drawStartButton(false);
     if (!isTutorialAssignmentReady(this.state)) return;
+    playSfx(this, SFX.click, 0.55);
     this.scene.start(SCENE_KEYS.Development, { state: this.state });
   }
 
@@ -525,9 +589,12 @@ export class AssignmentScene extends Phaser.Scene {
 
   private updateStatus(): void {
     if (!isTutorialAssignmentReady(this.state)) {
-      this.statusText
-        .setText('아직 배치되지 않은 직원이 있습니다. (QA 슬롯은 비워도 됩니다)')
-        .setColor(TEXT_COLOR.dim);
+      const empCount = this.state.employees.length;
+      const msg =
+        empCount === 0
+          ? '직원이 없습니다. Result 화면에서 채용해 주세요.'
+          : `직원 ${empCount}명 — 최소 ${Math.min(empCount, 3)}슬롯에 배치해야 시작할 수 있습니다.`;
+      this.statusText.setText(msg).setColor(TEXT_COLOR.dim);
       return;
     }
     const mismatches = this.countMismatches();

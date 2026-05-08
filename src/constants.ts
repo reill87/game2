@@ -1,6 +1,10 @@
 /**
- * 씬 공용 상수. config.ts에서 재export 하지만 씬은 이 파일을 직접 import 하여
- * config ↔ 씬 사이의 순환 import(TDZ)를 끊는다.
+ * 씬 공용 상수. 기존 import 호환을 위해 CONTENT_W/H의 alias로 재export.
+ * 신규 코드는 src/util/viewport.ts의 CONTENT_W / CONTENT_H 직접 사용 권장.
  */
-export const GAME_WIDTH = 720;
-export const GAME_HEIGHT = 1280;
+import { CONTENT_W, CONTENT_H } from './util/viewport';
+
+/** @deprecated CONTENT_W 사용. */
+export const GAME_WIDTH = CONTENT_W;
+/** @deprecated CONTENT_H 사용. */
+export const GAME_HEIGHT = CONTENT_H;

@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 80" width="240" height="80">
+  <!-- K. 문화 — 같은 후드 3벌 (단체 정체성) + 머그·뱃지 -->
+  <defs>
+    <linearGradient id="kBg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1f2c2a"/>
+      <stop offset="1" stop-color="#15201e"/>
+    </linearGradient>
+  </defs>
+  <rect width="240" height="80" fill="url(#kBg)"/>
+  <!-- 후드 1 (왼쪽, 작음/뒤) -->
+  <g transform="translate(50 50)" opacity="0.65">
+    <path d="M-18 22 L-18 -8 Q-18 -18 -8 -22 L8 -22 Q18 -18 18 -8 L18 22 Z" fill="#3ec07b"/>
+    <path d="M-12 -16 Q0 -22 12 -16" stroke="#1a1a22" stroke-width="2" fill="none"/>
+    <line x1="-4" y1="-8" x2="-5" y2="2" stroke="#fff" stroke-width="1.2"/>
+    <line x1="4" y1="-8" x2="5" y2="2" stroke="#fff" stroke-width="1.2"/>
+    <circle cx="0" cy="-2" r="2.5" fill="#fff"/>
+    <!-- 가슴 로고 -->
+    <circle cx="0" cy="6" r="3" fill="none" stroke="#1a1a22" stroke-width="1.4"/>
+  </g>
+  <!-- 후드 2 (가운데, 크게/앞) -->
+  <g transform="translate(120 50)">
+    <path d="M-22 24 L-22 -8 Q-22 -22 -10 -26 L10 -26 Q22 -22 22 -8 L22 24 Z" fill="#3ec07b"/>
+    <!-- 후드 라인 -->
+    <path d="M-14 -18 Q0 -28 14 -18" stroke="#1a1a22" stroke-width="2" fill="none"/>
+    <line x1="-5" y1="-10" x2="-6" y2="4" stroke="#fff" stroke-width="1.5"/>
+    <line x1="5" y1="-10" x2="6" y2="4" stroke="#fff" stroke-width="1.5"/>
+    <!-- 끈 매듭 -->
+    <circle cx="0" cy="-2" r="3" fill="#fff"/>
+    <!-- 가슴 로고 -->
+    <g>
+      <circle cx="0" cy="8" r="5" fill="none" stroke="#1a1a22" stroke-width="2"/>
+      <text x="0" y="11" font-family="Arial,sans-serif" font-size="7" font-weight="bold" fill="#1a1a22" text-anchor="middle">K</text>
+    </g>
+  </g>
+  <!-- 후드 3 (오른쪽, 작음/뒤) -->
+  <g transform="translate(190 50)" opacity="0.65">
+    <path d="M-18 22 L-18 -8 Q-18 -18 -8 -22 L8 -22 Q18 -18 18 -8 L18 22 Z" fill="#3ec07b"/>
+    <path d="M-12 -16 Q0 -22 12 -16" stroke="#1a1a22" stroke-width="2" fill="none"/>
+    <line x1="-4" y1="-8" x2="-5" y2="2" stroke="#fff" stroke-width="1.2"/>
+    <line x1="4" y1="-8" x2="5" y2="2" stroke="#fff" stroke-width="1.2"/>
+    <circle cx="0" cy="-2" r="2.5" fill="#fff"/>
+    <circle cx="0" cy="6" r="3" fill="none" stroke="#1a1a22" stroke-width="1.4"/>
+  </g>
+  <!-- 사원증 (왼쪽 위 코너) -->
+  <g transform="translate(20 16) rotate(-8)">
+    <line x1="0" y1="-4" x2="0" y2="0" stroke="#9b9bb0" stroke-width="1"/>
+    <rect x="-7" y="0" width="14" height="18" rx="1.5" fill="#f2f2f7"/>
+    <circle cx="0" cy="6" r="2.5" fill="#9b9bb0"/>
+    <line x1="-4" y1="12" x2="4" y2="12" stroke="#9b9bb0" stroke-width="0.8"/>
+    <line x1="-4" y1="14" x2="3" y2="14" stroke="#9b9bb0" stroke-width="0.8"/>
+  </g>
+  <!-- 머그 (오른쪽 위) -->
+  <g transform="translate(220 16)">
+    <rect x="-6" y="-4" width="12" height="14" rx="1" fill="#f2f2f7"/>
+    <path d="M6 -1 Q12 -1 12 4 Q12 9 6 9" stroke="#f2f2f7" stroke-width="1.4" fill="none"/>
+    <rect x="-5" y="-1" width="10" height="3" fill="#3ec07b"/>
+  </g>
+</svg>

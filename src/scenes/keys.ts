@@ -8,6 +8,8 @@ export const SCENE_KEYS = {
   Development: 'DevelopmentScene',
   Result: 'ResultScene',
   GenreSelect: 'GenreSelectScene',
+  Stats: 'StatsScene',
+  Ending: 'EndingScene',
 } as const;
 
 export type SceneKey = (typeof SCENE_KEYS)[keyof typeof SCENE_KEYS];

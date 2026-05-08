@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 100" width="320" height="100">
+  <!-- 판교 임대 사무실 — 큰 창 + 듀얼 모니터 배너 -->
+  <defs>
+    <linearGradient id="wallG2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#33334a"/>
+      <stop offset="1" stop-color="#26263a"/>
+    </linearGradient>
+    <linearGradient id="skyG" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1a2244"/>
+      <stop offset="1" stop-color="#3d3a6a"/>
+    </linearGradient>
+  </defs>
+  <!-- 벽 -->
+  <rect x="0" y="0" width="320" height="78" fill="url(#wallG2)"/>
+  <!-- 바닥 -->
+  <rect x="0" y="78" width="320" height="22" fill="#22222e"/>
+  <line x1="0" y1="78" x2="320" y2="78" stroke="#4a4a62" stroke-width="1"/>
+  <!-- 큰 통창 (판교 야경) -->
+  <rect x="14" y="12" width="292" height="48" fill="url(#skyG)" stroke="#4a4a62" stroke-width="1.5"/>
+  <line x1="112" y1="12" x2="112" y2="60" stroke="#4a4a62" stroke-width="1"/>
+  <line x1="210" y1="12" x2="210" y2="60" stroke="#4a4a62" stroke-width="1"/>
+  <!-- 도시 빌딩 실루엣 -->
+  <rect x="16" y="36" width="14" height="24" fill="#0e0e18"/>
+  <rect x="32" y="26" width="18" height="34" fill="#0e0e18"/>
+  <rect x="52" y="42" width="12" height="18" fill="#0e0e18"/>
+  <rect x="66" y="22" width="22" height="38" fill="#0e0e18"/>
+  <rect x="90" y="34" width="18" height="26" fill="#0e0e18"/>
+  <rect x="114" y="32" width="16" height="28" fill="#0e0e18"/>
+  <rect x="132" y="22" width="22" height="38" fill="#0e0e18"/>
+  <rect x="156" y="38" width="14" height="22" fill="#0e0e18"/>
+  <rect x="172" y="26" width="22" height="34" fill="#0e0e18"/>
+  <rect x="196" y="34" width="12" height="26" fill="#0e0e18"/>
+  <rect x="212" y="36" width="16" height="24" fill="#0e0e18"/>
+  <rect x="230" y="24" width="22" height="36" fill="#0e0e18"/>
+  <rect x="254" y="34" width="16" height="26" fill="#0e0e18"/>
+  <rect x="272" y="28" width="20" height="32" fill="#0e0e18"/>
+  <rect x="294" y="38" width="12" height="22" fill="#0e0e18"/>
+  <!-- 빌딩 창 불빛 -->
+  <g fill="#f2c94c" opacity="0.85">
+    <rect x="36" y="32" width="2" height="2"/>
+    <rect x="42" y="40" width="2" height="2"/>
+    <rect x="44" y="48" width="2" height="2"/>
+    <rect x="70" y="28" width="2" height="2"/>
+    <rect x="78" y="36" width="2" height="2"/>
+    <rect x="82" y="46" width="2" height="2"/>
+    <rect x="94" y="40" width="2" height="2"/>
+    <rect x="118" y="38" width="2" height="2"/>
+    <rect x="124" y="46" width="2" height="2"/>
+    <rect x="138" y="30" width="2" height="2"/>
+    <rect x="146" y="40" width="2" height="2"/>
+    <rect x="148" y="50" width="2" height="2"/>
+    <rect x="178" y="32" width="2" height="2"/>
+    <rect x="184" y="42" width="2" height="2"/>
+    <rect x="188" y="50" width="2" height="2"/>
+    <rect x="216" y="42" width="2" height="2"/>
+    <rect x="222" y="50" width="2" height="2"/>
+    <rect x="236" y="32" width="2" height="2"/>
+    <rect x="244" y="40" width="2" height="2"/>
+    <rect x="248" y="50" width="2" height="2"/>
+    <rect x="278" y="36" width="2" height="2"/>
+    <rect x="284" y="46" width="2" height="2"/>
+    <rect x="298" y="44" width="2" height="2"/>
+  </g>
+  <!-- 달 -->
+  <circle cx="280" cy="20" r="4" fill="#f2f2f7" opacity="0.85"/>
+  <circle cx="278.5" cy="19" r="1.2" fill="#3d3a6a" opacity="0.5"/>
+  <!-- 책상 (넓은 라인) -->
+  <rect x="6" y="64" width="148" height="6" fill="#6a6a78"/>
+  <rect x="166" y="64" width="148" height="6" fill="#6a6a78"/>
+  <rect x="10" y="70" width="3" height="14" fill="#4a4a62"/>
+  <rect x="148" y="70" width="3" height="14" fill="#4a4a62"/>
+  <rect x="170" y="70" width="3" height="14" fill="#4a4a62"/>
+  <rect x="307" y="70" width="3" height="14" fill="#4a4a62"/>
+  <!-- 듀얼 모니터 1 -->
+  <rect x="22" y="46" width="34" height="20" fill="#3a3a48" stroke="#4a4a62" stroke-width="1"/>
+  <rect x="24" y="48" width="30" height="16" fill="#4f6fff" opacity="0.6"/>
+  <rect x="60" y="46" width="34" height="20" fill="#3a3a48" stroke="#4a4a62" stroke-width="1"/>
+  <rect x="62" y="48" width="30" height="16" fill="#3ec07b" opacity="0.5"/>
+  <!-- 듀얼 모니터 2 -->
+  <rect x="220" y="46" width="34" height="20" fill="#3a3a48" stroke="#4a4a62" stroke-width="1"/>
+  <rect x="222" y="48" width="30" height="16" fill="#f2c94c" opacity="0.5"/>
+  <rect x="258" y="46" width="34" height="20" fill="#3a3a48" stroke="#4a4a62" stroke-width="1"/>
+  <rect x="260" y="48" width="30" height="16" fill="#e55f5f" opacity="0.45"/>
+  <!-- 화분(큰 식물) -->
+  <rect x="156" y="54" width="14" height="10" fill="#6a4a30"/>
+  <path d="M158 54 Q162 42 156 30 Q166 36 168 48 Q172 32 178 42 Q176 52 172 54 Z" fill="#3ec07b" opacity="0.85"/>
+  <!-- 키보드 -->
+  <rect x="22" y="68" width="76" height="3" fill="#9b9bb0" opacity="0.6"/>
+  <rect x="220" y="68" width="76" height="3" fill="#9b9bb0" opacity="0.6"/>
+  <!-- 의자 -->
+  <rect x="40" y="84" width="22" height="14" fill="#3a3a48" rx="3"/>
+  <rect x="68" y="84" width="22" height="14" fill="#3a3a48" rx="3"/>
+  <rect x="232" y="84" width="22" height="14" fill="#3a3a48" rx="3"/>
+  <rect x="260" y="84" width="22" height="14" fill="#3a3a48" rx="3"/>
+</svg>

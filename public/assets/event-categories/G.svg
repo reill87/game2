@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 80" width="240" height="80">
+  <!-- G. 일상 — 머그컵 김 + 노트북(반쯤 닫힌) + 빵 -->
+  <defs>
+    <linearGradient id="gBg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2a2638"/>
+      <stop offset="1" stop-color="#1a1822"/>
+    </linearGradient>
+  </defs>
+  <rect width="240" height="80" fill="url(#gBg)"/>
+  <!-- 책상 라인 -->
+  <line x1="0" y1="64" x2="240" y2="64" stroke="#4a4a62" stroke-width="1.2" opacity="0.7"/>
+  <!-- 머그컵 (왼쪽) -->
+  <g transform="translate(40 30)">
+    <!-- 김 -->
+    <g stroke="#9b9bb0" stroke-width="2" fill="none" stroke-linecap="round" opacity="0.6">
+      <path d="M2 -10 Q-4 -16 2 -22 Q8 -28 2 -34"/>
+      <path d="M14 -10 Q8 -16 14 -22 Q20 -28 14 -34"/>
+      <path d="M26 -10 Q20 -16 26 -22 Q32 -28 26 -34"/>
+    </g>
+    <!-- 컵 본체 -->
+    <path d="M-6 -8 L-6 28 Q-6 34 0 34 L28 34 Q34 34 34 28 L34 -8 Z" fill="#f2f2f7"/>
+    <!-- 손잡이 -->
+    <path d="M34 0 Q44 0 44 10 Q44 20 34 20" stroke="#f2f2f7" stroke-width="3" fill="none"/>
+    <!-- 음료 표면 -->
+    <ellipse cx="14" cy="-8" rx="20" ry="3" fill="#5a3525"/>
+    <ellipse cx="14" cy="-8" rx="16" ry="1.5" fill="#7a4a32"/>
+    <!-- 컵 무늬 -->
+    <rect x="2" y="6" width="24" height="6" fill="#4f6fff" opacity="0.85" rx="1"/>
+  </g>
+  <!-- 노트북 (오른쪽, 반쯤 닫힘) -->
+  <g transform="translate(140 18)">
+    <!-- 화면 (살짝 기울임) -->
+    <path d="M2 4 L72 0 L74 32 L4 36 Z" fill="#1a1a22" stroke="#4a4a62" stroke-width="1"/>
+    <path d="M8 8 L68 4.5 L70 30 L10 33 Z" fill="#0e0e16"/>
+    <!-- 화면 코드 라인 -->
+    <line x1="14" y1="14" x2="46" y2="12" stroke="#3ec07b" stroke-width="1.4"/>
+    <line x1="14" y1="20" x2="58" y2="18" stroke="#9b9bb0" stroke-width="1.4" opacity="0.7"/>
+    <line x1="14" y1="26" x2="40" y2="24.5" stroke="#9b9bb0" stroke-width="1.4" opacity="0.7"/>
+    <!-- 베이스 -->
+    <path d="M4 36 L74 32 L86 46 L0 48 Z" fill="#3a3a48" stroke="#4a4a62" stroke-width="1"/>
+    <path d="M10 38 L72 34.5" stroke="#5a5a72" stroke-width="0.6"/>
+  </g>
+  <!-- 작은 빵/케이크 (가운데 아래) -->
+  <g transform="translate(110 56)">
+    <path d="M-8 0 Q-8 -8 0 -8 Q8 -8 8 0 Z" fill="#a87340"/>
+    <path d="M-6 -1 Q-2 -3 2 -1" stroke="#f2c94c" stroke-width="1" fill="none"/>
+    <ellipse cx="-3" cy="-3" rx="0.8" ry="0.8" fill="#5a3525"/>
+    <ellipse cx="2" cy="-4" rx="0.8" ry="0.8" fill="#5a3525"/>
+  </g>
+</svg>

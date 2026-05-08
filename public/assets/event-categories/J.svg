@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 80" width="240" height="80">
+  <!-- J. 갈등 — 두 인물 마주봄 + 가운데 충돌 스파크 -->
+  <defs>
+    <linearGradient id="jBg" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#1f2a2a"/>
+      <stop offset="0.5" stop-color="#221820"/>
+      <stop offset="1" stop-color="#2a201a"/>
+    </linearGradient>
+  </defs>
+  <rect width="240" height="80" fill="url(#jBg)"/>
+  <!-- 가운데 충돌 라인 -->
+  <g stroke="#f2c94c" stroke-width="2" stroke-linecap="round" fill="none" opacity="0.85">
+    <line x1="120" y1="20" x2="120" y2="8"/>
+    <line x1="120" y1="60" x2="120" y2="72"/>
+    <line x1="106" y1="14" x2="100" y2="6"/>
+    <line x1="134" y1="14" x2="140" y2="6"/>
+    <line x1="106" y1="66" x2="100" y2="74"/>
+    <line x1="134" y1="66" x2="140" y2="74"/>
+  </g>
+  <!-- 가운데 폭발 -->
+  <g transform="translate(120 40)">
+    <path d="M-14 0 L-6 -3 L-3 -10 L0 -3 L8 -6 L4 1 L10 8 L2 6 L-1 12 L-4 5 L-12 7 L-7 0 Z" fill="#f2c94c"/>
+    <path d="M-8 0 L-2 -2 L0 -6 L2 -2 L6 -3 L4 1 L7 5 L1 4 L-1 8 L-3 3 Z" fill="#e55f5f"/>
+  </g>
+  <!-- 왼쪽 인물 (실루엣) -->
+  <g transform="translate(54 44)">
+    <!-- 어깨 -->
+    <path d="M-18 24 Q0 6 18 24 Z" fill="#3ec07b"/>
+    <!-- 머리 -->
+    <circle cx="0" cy="-4" r="14" fill="#3ec07b"/>
+    <!-- 표정 — 화남 (눈썹 아래로) -->
+    <line x1="-7" y1="-9" x2="-3" y2="-7" stroke="#1a1a22" stroke-width="2" stroke-linecap="round"/>
+    <line x1="3" y1="-7" x2="7" y2="-9" stroke="#1a1a22" stroke-width="2" stroke-linecap="round"/>
+    <circle cx="-5" cy="-3" r="1.6" fill="#1a1a22"/>
+    <circle cx="5" cy="-3" r="1.6" fill="#1a1a22"/>
+    <path d="M-4 5 Q0 2 4 5" stroke="#1a1a22" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+    <!-- 손가락질 -->
+    <line x1="14" y1="14" x2="32" y2="6" stroke="#3ec07b" stroke-width="6" stroke-linecap="round"/>
+    <circle cx="32" cy="6" r="3" fill="#3ec07b"/>
+  </g>
+  <!-- 오른쪽 인물 (실루엣) -->
+  <g transform="translate(186 44)">
+    <path d="M-18 24 Q0 6 18 24 Z" fill="#e55f5f"/>
+    <circle cx="0" cy="-4" r="14" fill="#e55f5f"/>
+    <line x1="-7" y1="-9" x2="-3" y2="-7" stroke="#1a1a22" stroke-width="2" stroke-linecap="round"/>
+    <line x1="3" y1="-7" x2="7" y2="-9" stroke="#1a1a22" stroke-width="2" stroke-linecap="round"/>
+    <circle cx="-5" cy="-3" r="1.6" fill="#1a1a22"/>
+    <circle cx="5" cy="-3" r="1.6" fill="#1a1a22"/>
+    <path d="M-4 6 Q0 3 4 6" stroke="#1a1a22" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+    <!-- 손가락질 (반대 방향) -->
+    <line x1="-14" y1="14" x2="-32" y2="6" stroke="#e55f5f" stroke-width="6" stroke-linecap="round"/>
+    <circle cx="-32" cy="6" r="3" fill="#e55f5f"/>
+  </g>
+</svg>

@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 80" width="240" height="80">
+  <!-- E. 출시·운영 — 로켓 발사 + 트래픽 그래프 + 별 -->
+  <defs>
+    <linearGradient id="eBg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1a1f3a"/>
+      <stop offset="1" stop-color="#15182a"/>
+    </linearGradient>
+    <linearGradient id="eFlame" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f2c94c"/>
+      <stop offset="0.7" stop-color="#e55f5f"/>
+      <stop offset="1" stop-color="#7a2222"/>
+    </linearGradient>
+  </defs>
+  <rect width="240" height="80" fill="url(#eBg)"/>
+  <!-- 별/먼지 -->
+  <g fill="#f2f2f7">
+    <circle cx="180" cy="14" r="0.8" opacity="0.7"/>
+    <circle cx="200" cy="22" r="1.2" opacity="0.85"/>
+    <circle cx="218" cy="10" r="0.8" opacity="0.7"/>
+    <circle cx="160" cy="6" r="0.8" opacity="0.5"/>
+    <circle cx="148" cy="20" r="1" opacity="0.65"/>
+  </g>
+  <!-- 로켓 -->
+  <g transform="translate(56 38) rotate(-18)">
+    <!-- 본체 -->
+    <path d="M-6 -22 Q0 -32 6 -22 L6 8 L-6 8 Z" fill="#f2f2f7"/>
+    <!-- 빨간 띠 -->
+    <rect x="-6" y="-6" width="12" height="4" fill="#e55f5f"/>
+    <!-- 창 -->
+    <circle cx="0" cy="-12" r="3" fill="#4f6fff" stroke="#1a1a22" stroke-width="1"/>
+    <!-- 핀 -->
+    <path d="M-6 4 L-12 12 L-6 10 Z" fill="#e55f5f"/>
+    <path d="M6 4 L12 12 L6 10 Z" fill="#e55f5f"/>
+    <!-- 화염 -->
+    <path d="M-5 8 Q-3 18 0 22 Q3 18 5 8 Z" fill="url(#eFlame)"/>
+  </g>
+  <!-- 발사 연기 -->
+  <g fill="#9b9bb0" opacity="0.4">
+    <circle cx="38" cy="68" r="6"/>
+    <circle cx="46" cy="72" r="5"/>
+    <circle cx="32" cy="74" r="4"/>
+    <circle cx="50" cy="66" r="4"/>
+  </g>
+  <!-- 트래픽 그래프 (오른쪽) -->
+  <g>
+    <polyline points="120,68 138,58 154,62 168,42 184,48 204,22 224,18"
+              stroke="#3ec07b" stroke-width="2.5" fill="none"
+              stroke-linecap="round" stroke-linejoin="round"/>
+    <!-- 그래프 도트 -->
+    <circle cx="204" cy="22" r="3" fill="#3ec07b"/>
+    <circle cx="224" cy="18" r="3" fill="#3ec07b"/>
+    <!-- 베이스 라인 -->
+    <line x1="120" y1="68" x2="224" y2="68" stroke="#5a5a72" stroke-width="1" opacity="0.5"/>
+  </g>
+</svg>

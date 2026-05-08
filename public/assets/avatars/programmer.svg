@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" width="80" height="80">
+  <!-- 개발자 — 후드 + 다크써클 -->
+  <circle cx="40" cy="44" r="36" fill="#3a3a48"/>
+  <!-- 후드 후반(뒤쪽) -->
+  <path d="M14 76 Q40 50 66 76 Z" fill="#1a1a22"/>
+  <!-- 후드 앞면 -->
+  <path d="M18 76 Q40 56 62 76 Z" fill="#2a2a30"/>
+  <!-- 목 -->
+  <rect x="35" y="42" width="10" height="6" fill="#e0c8a8"/>
+  <!-- 머리 -->
+  <circle cx="40" cy="32" r="18" fill="#f0d4b0"/>
+  <!-- 후드 후드 부분(머리 위) -->
+  <path d="M18 30 Q18 12 40 12 Q62 12 62 30 L62 22 Q40 18 18 22 Z" fill="#1a1a22"/>
+  <!-- 머리카락 후드 안에 살짝 -->
+  <path d="M26 26 Q26 22 40 22 Q54 22 54 26 L54 28 Q40 26 26 28 Z" fill="#1f1410"/>
+  <!-- 다크써클 -->
+  <ellipse cx="33" cy="36" rx="4" ry="1.5" fill="#5a3525" opacity="0.5"/>
+  <ellipse cx="47" cy="36" rx="4" ry="1.5" fill="#5a3525" opacity="0.5"/>
+  <!-- 눈 (반쯤 감김) -->
+  <path d="M30 33 Q33 35 36 33" stroke="#1a1a22" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+  <path d="M44 33 Q47 35 50 33" stroke="#1a1a22" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+  <!-- 입 -->
+  <line x1="37" y1="42" x2="43" y2="42" stroke="#1a1a22" stroke-width="1.5" stroke-linecap="round"/>
+  <!-- 후드 끈 -->
+  <line x1="35" y1="56" x2="34" y2="68" stroke="#9b9bb0" stroke-width="1.5"/>
+  <line x1="45" y1="56" x2="46" y2="68" stroke="#9b9bb0" stroke-width="1.5"/>
+</svg>

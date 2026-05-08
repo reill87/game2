@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" width="80" height="80">
+  <!-- 디자이너 — 베레모 + 안경 -->
+  <circle cx="40" cy="44" r="36" fill="#3a3a48"/>
+  <path d="M16 76 Q40 56 64 76 Z" fill="#e55f5f" opacity="0.85"/>
+  <rect x="35" y="40" width="10" height="8" fill="#e0c8a8"/>
+  <!-- 머리 -->
+  <circle cx="40" cy="32" r="18" fill="#f0d4b0"/>
+  <!-- 베레모 -->
+  <ellipse cx="40" cy="18" rx="22" ry="6" fill="#3ec07b"/>
+  <ellipse cx="40" cy="16" rx="20" ry="5" fill="#5fd68d"/>
+  <circle cx="56" cy="14" r="3" fill="#2ea566"/>
+  <!-- 머리카락 (베레모 아래로) -->
+  <path d="M22 26 Q22 18 40 18 Q58 18 58 26 L58 30 Q40 28 22 30 Z" fill="#5a3525"/>
+  <!-- 안경 -->
+  <circle cx="33" cy="33" r="4.5" fill="none" stroke="#1a1a22" stroke-width="1.5"/>
+  <circle cx="47" cy="33" r="4.5" fill="none" stroke="#1a1a22" stroke-width="1.5"/>
+  <line x1="37.5" y1="33" x2="42.5" y2="33" stroke="#1a1a22" stroke-width="1.5"/>
+  <!-- 눈 -->
+  <circle cx="33" cy="33" r="1.4" fill="#1a1a22"/>
+  <circle cx="47" cy="33" r="1.4" fill="#1a1a22"/>
+  <!-- 입 -->
+  <path d="M36 40 Q40 43 44 40" stroke="#1a1a22" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+</svg>

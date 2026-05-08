@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 80" width="240" height="80">
+  <!-- I. 사고·재해 — 경고 삼각형 + 깜빡 빨간빛 + 깨진 화면 -->
+  <defs>
+    <linearGradient id="iBg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3a1818"/>
+      <stop offset="1" stop-color="#1f0e0e"/>
+    </linearGradient>
+    <radialGradient id="iGlow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#e55f5f" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#e55f5f" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="240" height="80" fill="url(#iBg)"/>
+  <!-- 빨간 글로우 -->
+  <ellipse cx="120" cy="40" rx="120" ry="40" fill="url(#iGlow)"/>
+  <!-- 경광 라이트 (좌우) -->
+  <g>
+    <circle cx="32" cy="40" r="22" fill="none" stroke="#e55f5f" stroke-width="1" opacity="0.25"/>
+    <circle cx="32" cy="40" r="14" fill="none" stroke="#e55f5f" stroke-width="1.5" opacity="0.5"/>
+    <circle cx="32" cy="40" r="9" fill="#e55f5f"/>
+    <circle cx="30" cy="38" r="3" fill="#fff" opacity="0.6"/>
+  </g>
+  <g>
+    <circle cx="208" cy="40" r="22" fill="none" stroke="#e55f5f" stroke-width="1" opacity="0.25"/>
+    <circle cx="208" cy="40" r="14" fill="none" stroke="#e55f5f" stroke-width="1.5" opacity="0.5"/>
+    <circle cx="208" cy="40" r="9" fill="#e55f5f"/>
+    <circle cx="206" cy="38" r="3" fill="#fff" opacity="0.6"/>
+  </g>
+  <!-- 경고 삼각형 -->
+  <g transform="translate(120 42)">
+    <!-- 그림자 -->
+    <path d="M0 -28 L26 18 L-26 18 Z" transform="translate(2 2)" fill="#000" opacity="0.4"/>
+    <!-- 본체 -->
+    <path d="M0 -28 L26 18 L-26 18 Z" fill="#f2c94c" stroke="#1a1a22" stroke-width="2.5" stroke-linejoin="round"/>
+    <!-- 느낌표 -->
+    <rect x="-3" y="-16" width="6" height="20" fill="#1a1a22" rx="1.5"/>
+    <circle cx="0" cy="11" r="3" fill="#1a1a22"/>
+  </g>
+</svg>

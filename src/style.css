@@ -30,19 +30,26 @@ body {
 
 /*
  * #app은 fixed-inset 으로 viewport에 강제 고정한다.
- * - PC에서 min-height: 100vh + flex 조합이 캔버스 크기에 맞춰 #app 자체를 키우는 경우가 있어
- *   캔버스 하단이 body { overflow: hidden } 에 잘렸음.
- * - position: fixed; inset: 0 은 모바일 dvh도 같이 따라가므로 별도 fallback 불필요.
+ * RESIZE 모드: 캔버스가 viewport를 가득 채우므로 flex 중앙 정렬 불필요.
+ * 좌우 빈 공간(콘텐츠 컬럼 바깥)은 Phaser 배경색(#0e0e12)과 이 gradient가 채운다.
+ * padding: env(safe-area-inset-*) — iOS 노치 / Android 시스템 바 영역 안쪽으로 캔버스 padding.
  */
 #app {
   position: fixed;
   inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  padding:
+    env(safe-area-inset-top, 0px)
+    env(safe-area-inset-right, 0px)
+    env(safe-area-inset-bottom, 0px)
+    env(safe-area-inset-left, 0px);
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 0%, rgba(79, 111, 255, 0.06), transparent 60%),
+    radial-gradient(ellipse 80% 60% at 50% 100%, rgba(79, 111, 255, 0.04), transparent 60%),
+    linear-gradient(180deg, #1a1a28 0%, #0e0e12 60%, #0a0a14 100%);
 }
 
 #app canvas {
   display: block;
-  vertical-align: top;
+  width: 100% !important;
+  height: 100% !important;
 }

@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 80" width="240" height="80">
+  <!-- D. 조직·HR — 조직도 노드 4개 + 연결선 + 점멸 노드(이탈) -->
+  <defs>
+    <linearGradient id="dBg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#262a3a"/>
+      <stop offset="1" stop-color="#181a26"/>
+    </linearGradient>
+  </defs>
+  <rect width="240" height="80" fill="url(#dBg)"/>
+  <!-- 연결선 -->
+  <g stroke="#5a5a72" stroke-width="1.5" fill="none" stroke-linecap="round">
+    <line x1="120" y1="26" x2="60" y2="58"/>
+    <line x1="120" y1="26" x2="120" y2="58"/>
+    <line x1="120" y1="26" x2="180" y2="58"/>
+  </g>
+  <!-- 루트 노드 -->
+  <g>
+    <rect x="100" y="14" width="40" height="22" rx="11" fill="#4f6fff"/>
+    <circle cx="112" cy="25" r="3" fill="#fff"/>
+    <rect x="119" y="22" width="14" height="2" fill="#fff" rx="1"/>
+    <rect x="119" y="26" width="10" height="2" fill="#fff" rx="1" opacity="0.7"/>
+  </g>
+  <!-- 자식 노드 1 -->
+  <g>
+    <rect x="40" y="50" width="40" height="22" rx="11" fill="#3ec07b"/>
+    <circle cx="52" cy="61" r="3" fill="#fff"/>
+    <rect x="59" y="58" width="14" height="2" fill="#fff" rx="1"/>
+    <rect x="59" y="62" width="10" height="2" fill="#fff" rx="1" opacity="0.7"/>
+  </g>
+  <!-- 자식 노드 2 -->
+  <g>
+    <rect x="100" y="50" width="40" height="22" rx="11" fill="#f2c94c"/>
+    <circle cx="112" cy="61" r="3" fill="#fff"/>
+    <rect x="119" y="58" width="14" height="2" fill="#fff" rx="1"/>
+    <rect x="119" y="62" width="10" height="2" fill="#fff" rx="1" opacity="0.7"/>
+  </g>
+  <!-- 자식 노드 3 — 점선(이탈/이동) -->
+  <g opacity="0.45">
+    <rect x="160" y="50" width="40" height="22" rx="11" fill="none" stroke="#e55f5f" stroke-width="1.6" stroke-dasharray="3 2"/>
+    <circle cx="172" cy="61" r="3" fill="#e55f5f"/>
+    <rect x="179" y="58" width="14" height="2" fill="#e55f5f" rx="1"/>
+    <rect x="179" y="62" width="10" height="2" fill="#e55f5f" rx="1" opacity="0.7"/>
+  </g>
+  <!-- 빠져나가는 화살표 -->
+  <g stroke="#e55f5f" stroke-width="1.6" fill="none" stroke-linecap="round">
+    <line x1="206" y1="60" x2="222" y2="60"/>
+    <line x1="222" y1="60" x2="218" y2="56"/>
+    <line x1="222" y1="60" x2="218" y2="64"/>
+  </g>
+</svg>

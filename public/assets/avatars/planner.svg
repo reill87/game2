@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" width="80" height="80">
+  <!-- PM — 헤드셋 + 클립보드 -->
+  <circle cx="40" cy="44" r="36" fill="#3a3a48"/>
+  <!-- 어깨 -->
+  <path d="M16 76 Q40 56 64 76 Z" fill="#4f6fff" opacity="0.85"/>
+  <!-- 목 -->
+  <rect x="35" y="40" width="10" height="8" fill="#e0c8a8"/>
+  <!-- 머리 -->
+  <circle cx="40" cy="32" r="18" fill="#f0d4b0"/>
+  <!-- 머리카락 -->
+  <path d="M22 30 Q22 14 40 14 Q58 14 58 30 L58 22 Q40 18 22 22 Z" fill="#3a2820"/>
+  <!-- 헤드셋 밴드 -->
+  <path d="M22 30 Q40 14 58 30" stroke="#1a1a22" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <!-- 헤드셋 이어컵 -->
+  <ellipse cx="22" cy="32" rx="4" ry="6" fill="#1a1a22"/>
+  <ellipse cx="58" cy="32" rx="4" ry="6" fill="#1a1a22"/>
+  <!-- 마이크 -->
+  <path d="M22 36 Q26 42 32 42" stroke="#1a1a22" stroke-width="2" fill="none"/>
+  <circle cx="32" cy="42" r="2" fill="#1a1a22"/>
+  <!-- 눈 -->
+  <circle cx="34" cy="33" r="1.6" fill="#1a1a22"/>
+  <circle cx="46" cy="33" r="1.6" fill="#1a1a22"/>
+  <!-- 입 -->
+  <path d="M36 40 Q40 42 44 40" stroke="#1a1a22" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+</svg>

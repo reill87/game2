@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 80" width="240" height="80">
+  <!-- C. 개발·기술 — 터미널 창 (3-bullet header + 코드 라인 + 깜빡 커서) -->
+  <defs>
+    <linearGradient id="cBg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1f2230"/>
+      <stop offset="1" stop-color="#15161e"/>
+    </linearGradient>
+  </defs>
+  <rect width="240" height="80" fill="url(#cBg)"/>
+  <!-- 터미널 윈도우 -->
+  <rect x="20" y="10" width="200" height="60" rx="6" fill="#0e0e16" stroke="#4a4a62" stroke-width="1.5"/>
+  <!-- 윈도우 헤더 -->
+  <rect x="20" y="10" width="200" height="14" rx="6" fill="#262638"/>
+  <rect x="20" y="20" width="200" height="4" fill="#262638"/>
+  <circle cx="30" cy="17" r="2.5" fill="#e55f5f"/>
+  <circle cx="40" cy="17" r="2.5" fill="#f2c94c"/>
+  <circle cx="50" cy="17" r="2.5" fill="#3ec07b"/>
+  <!-- 코드 라인들 -->
+  <g font-family="ui-monospace,Menlo,monospace" font-size="9">
+    <text x="30" y="38" fill="#9b9bb0">$</text>
+    <text x="40" y="38" fill="#3ec07b">npm</text>
+    <text x="58" y="38" fill="#f2f2f7">build</text>
+    <text x="30" y="50" fill="#4f6fff">› </text>
+    <text x="40" y="50" fill="#9b9bb0">compiling...</text>
+    <text x="30" y="62" fill="#3ec07b">✓ </text>
+    <text x="40" y="62" fill="#f2f2f7">done in</text>
+    <text x="76" y="62" fill="#f2c94c">3.2s</text>
+  </g>
+  <!-- 커서 -->
+  <rect x="100" y="55" width="6" height="9" fill="#3ec07b"/>
+</svg>
