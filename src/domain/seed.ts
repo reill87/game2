@@ -1,14 +1,63 @@
 import { BALANCE, CONDITION } from './balance';
-import type { Employee, GameState, GenreId, Job, SlotKind, ThemeId } from './types';
+import type {
+  Employee,
+  GameState,
+  GenreId,
+  Job,
+  Rank,
+  SlotKind,
+  Stance,
+  ThemeId,
+  Trait,
+} from './types';
 
 const M0 = CONDITION.defaultMorale;
 const S0 = CONDITION.defaultStamina;
 
-/** 튜토리얼 첫 프로젝트 — 직원 3명 (QA 직군 없음, 2단계 채용). */
+/**
+ * 튜토리얼 첫 프로젝트 — 5인 미만 스타트업 가정. 모두 주니어로 시작해 작품을
+ * 거치며 진급해 가는 재미를 남긴다.
+ *
+ * 페르소나(PIVOT-3):
+ *  - PM 김기획: 보수파, 주니어
+ *  - 디자이너 이UX: 급진파, 주니어
+ *  - 개발자 박코더: 보수파, 주니어, 트레이트 '고인물' (직급은 낮지만 효율 ↑)
+ */
 export const TUTORIAL_EMPLOYEES: ReadonlyArray<Employee> = [
-  { id: 'emp-planner', name: 'PM 김기획', job: 'planner', skill: 1, morale: M0, stamina: S0 },
-  { id: 'emp-designer', name: '디자이너 이UX', job: 'designer', skill: 1, morale: M0, stamina: S0 },
-  { id: 'emp-programmer', name: '개발자 박코더', job: 'programmer', skill: 1, morale: M0, stamina: S0 },
+  {
+    id: 'emp-planner',
+    name: 'PM 김기획',
+    job: 'planner',
+    skill: 1,
+    morale: M0,
+    stamina: S0,
+    stance: 'conservative',
+    rank: 'junior',
+    shippedProjects: 0,
+  },
+  {
+    id: 'emp-designer',
+    name: '디자이너 이UX',
+    job: 'designer',
+    skill: 1,
+    morale: M0,
+    stamina: S0,
+    stance: 'progressive',
+    rank: 'junior',
+    shippedProjects: 0,
+  },
+  {
+    id: 'emp-programmer',
+    name: '개발자 박코더',
+    job: 'programmer',
+    skill: 1,
+    morale: M0,
+    stamina: S0,
+    stance: 'conservative',
+    rank: 'junior',
+    shippedProjects: 0,
+    trait: 'oldTimer',
+  },
 ] as const;
 
 /** 사무실 2단계(판교 임대) 해금 시 채용 가능한 QA 후보. */
@@ -19,6 +68,9 @@ export const QA_HIRE_CANDIDATE: Employee = {
   skill: 1,
   morale: M0,
   stamina: S0,
+  stance: 'progressive',
+  rank: 'junior',
+  shippedProjects: 0,
 };
 
 /** 슬라이스 5의 SOUND_HIRE_CANDIDATE 호환 alias — 옛 import 경로 보존. */
@@ -36,6 +88,32 @@ export const JOB_LABEL: Readonly<Record<Job, string>> = {
   designer: '디자이너',
   programmer: '개발자',
   qa: 'QA',
+};
+
+export const STANCE_LABEL: Readonly<Record<Stance, string>> = {
+  progressive: '급진',
+  conservative: '보수',
+};
+
+export const TRAIT_LABEL: Readonly<Record<Trait, string>> = {
+  oldTimer: '고인물',
+  allTalk: '입 개발',
+  remoteSlacker: '재택 빌런',
+};
+
+export const RANK_LABEL: Readonly<Record<Rank, string>> = {
+  newbie: '신입',
+  junior: '주니어',
+  senior: '시니어',
+  lead: '리더',
+};
+
+/** rank 1글자 약어 — 카드 배지용. */
+export const RANK_SHORT: Readonly<Record<Rank, string>> = {
+  newbie: 'N',
+  junior: 'J',
+  senior: 'S',
+  lead: 'L',
 };
 
 /** 슬롯/직군 아이콘 매핑 — src/icons.ts ICONS의 키. */

@@ -2,13 +2,36 @@
  * 출시 결과 산정 — 순수 함수.
  * 모든 수치는 docs/BALANCE.md v0.1 대역에 맞춤. 추후 문서 갱신과 함께 조정.
  */
-import { BALANCE, PROMO, SKILL_GROWTH } from './balance';
+import { BALANCE, PROMO, RANK_NEXT, RANK_PROMOTION, SKILL_GROWTH } from './balance';
 import { isMatched, SLOT_ORDER } from './match';
 import { release } from './tick';
-import type { GameState, PromoTier } from './types';
+import type { Employee, GameState, PromoTier, Rank } from './types';
 
 function clamp(n: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, n));
+}
+
+/** 한 단계 진급 가능하면 다음 단계, 아니면 현 단계 그대로. 한 번에 한 단계만. */
+function checkPromotion(rank: Rank, ships: number, skill: number): Rank {
+  const next = RANK_NEXT[rank];
+  const req = RANK_PROMOTION[rank];
+  if (!next || !req) return rank;
+  if (ships >= req.ships && skill >= req.skill) return next;
+  return rank;
+}
+
+/** 출시 직후 변경된 직급(진급한 직원)을 비교해 알림용 목록을 만든다. */
+export function diffPromotions(
+  before: ReadonlyArray<Employee>,
+  after: ReadonlyArray<Employee>,
+): ReadonlyArray<{ employee: Employee; from: Rank; to: Rank }> {
+  const beforeMap = new Map(before.map((e) => [e.id, e] as const));
+  const promotions: { employee: Employee; from: Rank; to: Rank }[] = [];
+  for (const a of after) {
+    const b = beforeMap.get(a.id);
+    if (b && b.rank !== a.rank) promotions.push({ employee: a, from: b.rank, to: a.rank });
+  }
+  return promotions;
 }
 
 export type ReviewStars = 1 | 2 | 3 | 4 | 5;
@@ -99,7 +122,7 @@ export function shipProject(
 
   const goldAfterPromo = Math.max(0, prev.gold - eff.cost);
 
-  // 정배치 직원에게 출시 보너스 스킬 가산. 같은 작품에서 일한 사람이 다음에도 더 잘함.
+  // 정배치 직원에게 출시 보너스: skill ↑ + shippedProjects ↑ + 진급 평가.
   const placedAndMatched = new Set<string>();
   for (const slot of SLOT_ORDER) {
     const id = prev.assignment[slot];
@@ -107,11 +130,13 @@ export function shipProject(
     const emp = prev.employees.find((e) => e.id === id);
     if (emp && isMatched(slot, emp.job)) placedAndMatched.add(id);
   }
-  const boostedEmployees = prev.employees.map((e) =>
-    placedAndMatched.has(e.id)
-      ? { ...e, skill: clamp(e.skill + SKILL_GROWTH.perReleaseBonus, 0, SKILL_GROWTH.maxSkill) }
-      : e,
-  );
+  const boostedEmployees = prev.employees.map((e) => {
+    if (!placedAndMatched.has(e.id)) return e;
+    const newSkill = clamp(e.skill + SKILL_GROWTH.perReleaseBonus, 0, SKILL_GROWTH.maxSkill);
+    const newShipped = e.shippedProjects + 1;
+    const newRank = checkPromotion(e.rank, newShipped, newSkill);
+    return { ...e, skill: newSkill, shippedProjects: newShipped, rank: newRank };
+  });
 
   const released = release({ ...prev, gold: goldAfterPromo, employees: boostedEmployees });
   const state: GameState = { ...released, gold: released.gold + revenue };

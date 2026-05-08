@@ -2,7 +2,7 @@
  * 밸런스 v0.1 상수. 모든 수치는 docs/BALANCE.md의 표와 1:1 대응.
  * 변경 시 문서도 함께 갱신할 것.
  */
-import type { GenreId, PromoTier, ThemeId } from './types';
+import type { GenreId, PromoTier, Rank, ThemeId } from './types';
 
 export const BALANCE = {
   /** 정배치 직원 1명이 1주에 내는 진행도(%) — 3명 정배치 시 약 +10.5%/주 (목표 +9~11%). */
@@ -80,6 +80,53 @@ export const CONDITION = {
   /** 새 직원 기본값. */
   defaultMorale: 70,
   defaultStamina: 100,
+} as const;
+
+/**
+ * 직급 — PIVOT-3.
+ *
+ * effective skill = skill × condition × RANK_MULTIPLIER × trait × leadBonus.
+ *
+ * 진급은 출시 시점에 정배치 직원에게만 평가됨:
+ *  - shippedProjects ≥ ships  AND  skill ≥ skillReq  → 다음 단계로
+ *  - 한 작품에 여러 단계 동시 진급은 없음 (한 단계씩)
+ */
+export const RANK_MULTIPLIER: Readonly<Record<Rank, number>> = {
+  newbie: 0.6,
+  junior: 1.0,
+  senior: 1.4,
+  lead: 1.6,
+};
+
+export const RANK_NEXT: Readonly<Record<Rank, Rank | null>> = {
+  newbie: 'junior',
+  junior: 'senior',
+  senior: 'lead',
+  lead: null,
+};
+
+/** 다음 단계로 가기 위한 최소 조건. lead는 더 갈 곳 없음(null). */
+export const RANK_PROMOTION: Readonly<Record<Rank, { ships: number; skill: number } | null>> = {
+  newbie: { ships: 1, skill: 0 },
+  junior: { ships: 3, skill: 1.3 },
+  senior: { ships: 5, skill: 1.6 },
+  lead: null,
+};
+
+/** 리더 1명당 다른 직원 effective skill에 합산되는 보너스(곱연산). */
+export const LEAD_TEAM_BONUS = 0.05;
+
+/**
+ * 트레이트별 효과. 일부는 advanceWeek에서, 일부는 이벤트 트리거에서 사용.
+ * v1 PIVOT-3에서 effectiveSkill에 적용되는 것만 정의. 다른 효과는 PIVOT-3.5+에서.
+ */
+export const TRAIT_EFFECT = {
+  /** 고인물 — 평소 기여가 강함. */
+  oldTimer: { effectiveSkillMul: 1.3 },
+  /** 입 개발 — 평소 기여 약함 (해커톤 보너스는 별도). */
+  allTalk: { effectiveSkillMul: 0.7 },
+  /** 재택 빌런 — PIVOT-5 재택 시스템과 함께. */
+  remoteSlacker: { effectiveSkillMul: 1.0 }, // 평소엔 정상, 재택 발현 시 별도
 } as const;
 
 /**

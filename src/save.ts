@@ -13,7 +13,7 @@
  *  - 미인식 버전은 'game2.save.unknown'에 백업한 뒤 null 반환 (사용자에게는 "저장 없음"으로 보임).
  */
 import { CONDITION } from './domain/balance';
-import type { Employee, Job } from './domain/types';
+import type { Employee, Job, Rank, Stance, Trait } from './domain/types';
 
 const KEY = 'game2.save';
 const LEGACY_KEY_V1 = 'game2.save.v1';
@@ -117,24 +117,42 @@ function readAndParse(storage: Storage, key: string): unknown {
   }
 }
 
+const VALID_STANCES: ReadonlyArray<Stance> = ['progressive', 'conservative'];
+const VALID_RANKS: ReadonlyArray<Rank> = ['newbie', 'junior', 'senior', 'lead'];
+const VALID_TRAITS: ReadonlyArray<Trait> = ['oldTimer', 'allTalk', 'remoteSlacker'];
+
 function sanitizeEmployee(raw: unknown): Employee | null {
   if (!raw || typeof raw !== 'object') return null;
-  const e = raw as Partial<Employee> & { job?: string };
+  const e = raw as Partial<Employee> & { job?: string; stance?: string; rank?: string; trait?: string };
   if (typeof e.id !== 'string' || typeof e.name !== 'string' || typeof e.job !== 'string') {
     return null;
   }
-  // PIVOT-1 마이그레이션: 옛 'sound' 직군은 'qa'로 매핑.
-  // e.job은 raw string으로 들어오므로 타입 비교 전에 string 비교.
+  // PIVOT-1 마이그레이션: 옛 'sound' 직군은 'qa'로.
   const rawJob: string = e.job;
   const migratedJob = (rawJob === 'sound' ? 'qa' : rawJob) as Job;
-  return {
+
+  // PIVOT-3 마이그레이션: stance/rank/shippedProjects 결측 시 default.
+  const stance: Stance = VALID_STANCES.includes(e.stance as Stance)
+    ? (e.stance as Stance)
+    : 'conservative';
+  const rank: Rank = VALID_RANKS.includes(e.rank as Rank) ? (e.rank as Rank) : 'junior';
+  const trait: Trait | undefined = VALID_TRAITS.includes(e.trait as Trait)
+    ? (e.trait as Trait)
+    : undefined;
+
+  const result: Employee = {
     id: e.id,
     name: e.name,
     job: migratedJob,
     skill: typeof e.skill === 'number' ? e.skill : 1,
     morale: typeof e.morale === 'number' ? e.morale : CONDITION.defaultMorale,
     stamina: typeof e.stamina === 'number' ? e.stamina : CONDITION.defaultStamina,
+    stance,
+    rank,
+    shippedProjects: typeof e.shippedProjects === 'number' ? e.shippedProjects : 0,
+    ...(trait ? { trait } : {}),
   };
+  return result;
 }
 
 function sanitizeHired(raw: unknown): ReadonlyArray<Employee> {

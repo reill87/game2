@@ -8,10 +8,13 @@ import {
   JOB_ICON,
   JOB_LABEL,
   newTutorialGame,
+  RANK_SHORT,
   SLOT_ICON,
   SLOT_LABEL,
   THEME_LABEL,
+  TRAIT_LABEL,
 } from '@/domain/seed';
+import type { Rank } from '@/domain/types';
 import { isTutorialAssignmentReady, place } from '@/domain/tick';
 import type { Employee, GameState, SlotKind } from '@/domain/types';
 import { ICONS } from '@/icons';
@@ -24,6 +27,20 @@ import { addIconLabel } from '@/util/iconLabel';
 import { SCENE_KEYS } from './keys';
 
 const CX = GAME_WIDTH / 2;
+
+/** 직급별 배지 배경색 — newbie 회색 / junior 파랑 / senior 초록 / lead 노랑. */
+function rankBadgeColor(rank: Rank): number {
+  switch (rank) {
+    case 'newbie':
+      return COLOR.btnSecondary;
+    case 'junior':
+      return COLOR.btn;
+    case 'senior':
+      return COLOR.matchOk;
+    case 'lead':
+      return TINT.warn;
+  }
+}
 
 interface SlotView {
   bg: Phaser.GameObjects.Graphics;
@@ -237,6 +254,23 @@ export class AssignmentScene extends Phaser.Scene {
     const rect = new Phaser.Geom.Rectangle(x, y, w, h);
     const bg = this.add.graphics();
 
+    // 직급 배지 — 좌상단 작은 컬러 사각형 + 1글자 약어 (N/J/S/L)
+    const badgeW = 22;
+    const badgeH = 18;
+    const badgeX = x + 8;
+    const badgeY = y + 8;
+    const badge = this.add.graphics();
+    badge.fillStyle(rankBadgeColor(emp.rank), 1);
+    badge.fillRoundedRect(badgeX, badgeY, badgeW, badgeH, 4);
+    this.add
+      .text(badgeX + badgeW / 2, badgeY + badgeH / 2, RANK_SHORT[emp.rank], {
+        fontFamily: FONT_STACK,
+        fontSize: '11px',
+        fontStyle: 'bold',
+        color: TEXT_COLOR.primary,
+      })
+      .setOrigin(0.5);
+
     const nameText = this.add
       .text(x + w / 2, y + 30, emp.name, {
         fontFamily: FONT_STACK,
@@ -275,6 +309,17 @@ export class AssignmentScene extends Phaser.Scene {
         gap: 4,
       },
     );
+
+    // 트레이트 라벨 — 직무 라인 바로 아래 작게 (트레이트 있는 직원만)
+    if (emp.trait) {
+      this.add
+        .text(x + w / 2, y + h / 2 + 24, TRAIT_LABEL[emp.trait], {
+          fontFamily: FONT_STACK,
+          fontSize: '10px',
+          color: TEXT_COLOR.warn,
+        })
+        .setOrigin(0.5);
+    }
 
     // 컨디션 미니바 — 가로 50, 두께 3, 카드 하단 가운데 두 줄.
     const barW = 56;

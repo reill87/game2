@@ -2,7 +2,16 @@
  * 순수 도메인 리듀서. Phaser·DOM 비의존.
  * 모든 함수는 입력 state를 변경하지 않고 새 객체를 반환한다.
  */
-import { BALANCE, CONDITION, GENRE_MOD, SKILL_GROWTH, THEME_MOD } from './balance';
+import {
+  BALANCE,
+  CONDITION,
+  GENRE_MOD,
+  LEAD_TEAM_BONUS,
+  RANK_MULTIPLIER,
+  SKILL_GROWTH,
+  THEME_MOD,
+  TRAIT_EFFECT,
+} from './balance';
 import { isMatched, SLOT_ORDER } from './match';
 import type { Assignment, Employee, GameState, SlotKind } from './types';
 
@@ -10,11 +19,20 @@ function clamp(n: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, n));
 }
 
-/** 효과 스킬 = base × moraleFactor × staminaFactor. */
-export function effectiveSkill(emp: Employee): number {
+/**
+ * Effective skill — 작업 기여 계산에 쓰이는 최종 효율.
+ *  base × morale × stamina × rank × trait × leadBonus
+ *
+ * leadCount는 자기 자신을 제외한 lead 직원 수.
+ * 리더는 자신에겐 보너스를 주지 않고 다른 직원에게만 +5%/명.
+ */
+export function effectiveSkill(emp: Employee, leadCountForOthers: number = 0): number {
   const m = CONDITION.moraleFactorMin + (emp.morale / 100) * CONDITION.moraleFactorRange;
   const s = CONDITION.staminaFactorMin + (emp.stamina / 100) * CONDITION.staminaFactorRange;
-  return emp.skill * m * s;
+  const rankMul = RANK_MULTIPLIER[emp.rank];
+  const traitMul = emp.trait ? TRAIT_EFFECT[emp.trait].effectiveSkillMul : 1.0;
+  const leadBonus = 1 + leadCountForOthers * LEAD_TEAM_BONUS;
+  return emp.skill * m * s * rankMul * traitMul * leadBonus;
 }
 
 function findAssignedSlot(state: GameState, empId: string): SlotKind | null {
@@ -61,6 +79,7 @@ export function advanceWeek(prev: GameState): GameState {
   if (prev.project.released) return prev;
 
   const employeesById = new Map(prev.employees.map((e) => [e.id, e] as const));
+  const totalLeads = prev.employees.filter((e) => e.rank === 'lead').length;
 
   let progressDelta = 0;
   let appealDelta = 0;
@@ -75,7 +94,9 @@ export function advanceWeek(prev: GameState): GameState {
     if (!emp) continue;
     const matched = isMatched(slot, emp.job);
     const factor = matched ? 1 : BALANCE.mismatchContribFactor;
-    const eff = effectiveSkill(emp);
+    // 자기 자신이 lead면 lead bonus 대상에서 제외.
+    const leadCountForOthers = totalLeads - (emp.rank === 'lead' ? 1 : 0);
+    const eff = effectiveSkill(emp, leadCountForOthers);
     progressDelta += BALANCE.matchedProgressPerWeek * eff * factor;
     if (appealEnabled) {
       appealDelta += BALANCE.appealBySlot[slot] * eff * factor;
