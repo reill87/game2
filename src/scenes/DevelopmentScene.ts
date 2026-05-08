@@ -1,9 +1,10 @@
 import Phaser from 'phaser';
 import type { Types } from 'phaser';
 
-import { GAME_WIDTH } from '@/constants';
+import { GAME_HEIGHT, GAME_WIDTH } from '@/constants';
 import { isMatched, SLOT_ORDER } from '@/domain/match';
 import { PROMO } from '@/domain/balance';
+import { pickRandomEvent, type GameEvent } from '@/domain/events';
 import { GENRE_LABEL, JOB_LABEL, SLOT_ICON, SLOT_LABEL, THEME_LABEL } from '@/domain/seed';
 import { shipProject } from '@/domain/result';
 import { advanceWeek, canRelease, polishWeek } from '@/domain/tick';
@@ -98,6 +99,10 @@ export class DevelopmentScene extends Phaser.Scene {
   private controlSpeed2!: ControlButton;
   private controlSpeed4!: ControlButton;
 
+  // Random events (Slice 7)
+  private weeksSinceEvent = 0;
+  private eventModalContainer: Phaser.GameObjects.Container | null = null;
+
   private releaseBtn!: ButtonView;
   private polishBtn!: ButtonView;
 
@@ -136,6 +141,10 @@ export class DevelopmentScene extends Phaser.Scene {
     this.speed = 1;
     this.weekTimer?.remove();
     this.weekTimer = null;
+    // 이벤트 카운터 초기화 + 떠있던 모달 정리
+    this.weeksSinceEvent = 0;
+    this.eventModalContainer?.destroy(true);
+    this.eventModalContainer = null;
   }
 
   create(): void {
@@ -721,11 +730,137 @@ export class DevelopmentScene extends Phaser.Scene {
       return;
     }
     this.state = advanceWeek(this.state);
+    this.weeksSinceEvent += 1;
     this.redraw();
+
     if (canRelease(this.state)) {
       // 출시 가능 도달 — 자동 일시정지하고 출시 패널 노출(redraw가 처리).
       this.handlePause();
+      return;
     }
+
+    // 랜덤 이벤트 발동 — 마지막 이벤트로부터 3주 이상 + 35% 확률.
+    if (this.weeksSinceEvent >= 3 && Math.random() < 0.35) {
+      const ev = pickRandomEvent(this.state);
+      if (ev) {
+        this.weeksSinceEvent = 0;
+        this.handlePause();
+        this.showEventModal(ev);
+      }
+    }
+  }
+
+  // ────────────────────────── event modal ──────────────────────────
+  private showEventModal(ev: GameEvent): void {
+    const c = this.add.container(0, 0).setDepth(100);
+
+    // 어두운 오버레이 — 뒤쪽 입력 차단.
+    const overlay = this.add
+      .rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.7)
+      .setOrigin(0, 0)
+      .setInteractive();
+    c.add(overlay);
+
+    // 이벤트 패널
+    const panelW = 640;
+    const panelH = 700;
+    const panelX = (GAME_WIDTH - panelW) / 2;
+    const panelY = (GAME_HEIGHT - panelH) / 2;
+    const panel = makePanel(this, panelX, panelY, panelW, panelH, COLOR.panel);
+    c.add(panel);
+
+    // 헤더 라벨 ("이벤트")
+    c.add(
+      this.add
+        .text(panelX + 30, panelY + 28, '이벤트', {
+          fontFamily: FONT_STACK,
+          fontSize: '12px',
+          fontStyle: 'bold',
+          color: TEXT_COLOR.warn,
+        })
+        .setOrigin(0, 0),
+    );
+
+    // 제목
+    c.add(
+      this.add
+        .text(panelX + panelW / 2, panelY + 70, ev.title, {
+          fontFamily: FONT_STACK,
+          fontSize: '24px',
+          fontStyle: 'bold',
+          color: TEXT_COLOR.primary,
+        })
+        .setOrigin(0.5, 0),
+    );
+
+    // 설명
+    c.add(
+      this.add
+        .text(panelX + 30, panelY + 130, ev.description, {
+          fontFamily: FONT_STACK,
+          fontSize: '15px',
+          color: TEXT_COLOR.dim,
+          wordWrap: { width: panelW - 60, useAdvancedWrap: true },
+          lineSpacing: 4,
+        })
+        .setOrigin(0, 0),
+    );
+
+    // 선택지
+    const choiceX = panelX + 30;
+    const choiceW = panelW - 60;
+    const choiceH = 88;
+    const choiceGap = 14;
+    const choicesTotalH = ev.choices.length * choiceH + (ev.choices.length - 1) * choiceGap;
+    const choicesStartY = panelY + panelH - choicesTotalH - 30;
+
+    ev.choices.forEach((ch, i) => {
+      const y = choicesStartY + i * (choiceH + choiceGap);
+      const btnBg = this.add.graphics();
+      const drawBtn = (pressed: boolean): void => {
+        btnBg.clear();
+        btnBg.fillStyle(pressed ? COLOR.btnSecondaryDown : COLOR.btnSecondary, 1);
+        btnBg.fillRoundedRect(choiceX, y, choiceW, choiceH, 14);
+      };
+      drawBtn(false);
+
+      const label = this.add.text(choiceX + 22, y + 18, ch.label, {
+        fontFamily: FONT_STACK,
+        fontSize: '17px',
+        fontStyle: 'bold',
+        color: TEXT_COLOR.primary,
+      });
+      const summary = this.add.text(choiceX + 22, y + 50, ch.summary, {
+        fontFamily: FONT_STACK,
+        fontSize: '12px',
+        color: TEXT_COLOR.dim,
+      });
+
+      const hit = this.add
+        .zone(choiceX + choiceW / 2, y + choiceH / 2, choiceW, choiceH)
+        .setInteractive({ useHandCursor: true });
+      hit.on('pointerdown', () => drawBtn(true));
+      hit.on('pointerout', () => drawBtn(false));
+      hit.on('pointerup', () => {
+        drawBtn(false);
+        this.handleEventChoice(ev, i);
+      });
+
+      c.add([btnBg, label, summary, hit]);
+    });
+
+    this.eventModalContainer = c;
+    // 새로 추가된 텍스트들도 HiDPI 해상도로 다시 래스터화.
+    applyHiDPI(this);
+  }
+
+  private handleEventChoice(ev: GameEvent, index: number): void {
+    const choice = ev.choices[index];
+    if (!choice) return;
+    this.state = choice.apply(this.state);
+    this.eventModalContainer?.destroy(true);
+    this.eventModalContainer = null;
+    this.redraw();
   }
 
   private handlePolish(): void {
