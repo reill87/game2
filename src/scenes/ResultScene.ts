@@ -165,7 +165,7 @@ export class ResultScene extends Phaser.Scene {
     return TINT.bad;
   }
 
-  /** 5 별 가로 행 — index < stars 면 filled, 아니면 outline. centerY는 별 중심선. */
+  /** 5 별 가로 행 — index < stars 면 filled, 아니면 outline. 좌→우로 stagger 등장. */
   private drawStarRow(centerX: number, centerY: number, stars: ReviewStars): void {
     const size = 36;
     const gap = 6;
@@ -175,11 +175,23 @@ export class ResultScene extends Phaser.Scene {
     for (let i = 0; i < 5; i++) {
       const filled = i < stars;
       const key = filled ? ICONS.star.key : ICONS.starOutline.key;
-      this.add
+      const star = this.add
         .image(startX + i * (size + gap) + size / 2, centerY, key)
         .setDisplaySize(size, size)
         .setOrigin(0.5)
         .setTint(filled ? filledTint : TINT.dim);
+      // 펑펑 튀어나오는 stagger 등장 (300ms 동안 0→size, 110ms씩 시차).
+      const targetX = star.scaleX;
+      const targetY = star.scaleY;
+      star.setScale(0);
+      this.tweens.add({
+        targets: star,
+        scaleX: targetX,
+        scaleY: targetY,
+        duration: 300,
+        delay: 200 + i * 110,
+        ease: 'Back.easeOut',
+      });
     }
   }
 
@@ -235,17 +247,36 @@ export class ResultScene extends Phaser.Scene {
       color: TEXT_COLOR.dim,
     };
 
+    let revenueValueText: Phaser.GameObjects.Text | null = null;
     rows.forEach(([label, value, color], i) => {
       const y = panelY + 14 + i * rowH + rowH / 2;
       this.add.text(panelX + 20, y, label, labelStyle).setOrigin(0, 0.5);
-      this.add
-        .text(panelX + panelW - 20, y, value, {
+      const initial = label === '매출' ? '+0 골드' : value;
+      const valueText = this.add
+        .text(panelX + panelW - 20, y, initial, {
           fontFamily: FONT_STACK,
           fontSize: '15px',
           color,
         })
         .setOrigin(1, 0.5);
+      if (label === '매출') revenueValueText = valueText;
     });
+
+    // 매출 카운트업 — 0에서 outcome.revenue까지 800ms.
+    if (revenueValueText) {
+      const counter = { v: 0 };
+      const target: number = o.revenue;
+      const ref: Phaser.GameObjects.Text = revenueValueText;
+      this.tweens.add({
+        targets: counter,
+        v: target,
+        duration: 800,
+        delay: 250,
+        ease: 'Cubic.easeOut',
+        onUpdate: () => ref.setText(`+${Math.round(counter.v)} 골드`),
+        onComplete: () => ref.setText(`+${target} 골드`),
+      });
+    }
   }
 
   // ────────────────────────── office panel ──────────────────────────

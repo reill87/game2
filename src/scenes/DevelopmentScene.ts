@@ -103,6 +103,10 @@ export class DevelopmentScene extends Phaser.Scene {
   private weeksSinceEvent = 0;
   private eventModalContainer: Phaser.GameObjects.Container | null = null;
 
+  // 화면 표시 값 — state로 점프 안 하고 부드럽게 따라가도록 tween 타깃 (Slice 9).
+  private displayStats = { p: 0, b: 0, a: 0, g: 0 };
+  private statsTween: Phaser.Tweens.Tween | null = null;
+
   private releaseBtn!: ButtonView;
   private polishBtn!: ButtonView;
 
@@ -145,6 +149,15 @@ export class DevelopmentScene extends Phaser.Scene {
     this.weeksSinceEvent = 0;
     this.eventModalContainer?.destroy(true);
     this.eventModalContainer = null;
+    // 표시 값을 현재 state로 즉시 동기화 (다음 tween 시작점).
+    this.displayStats = {
+      p: this.state.project.progress,
+      b: this.state.project.bugDebt,
+      a: this.state.project.appeal,
+      g: this.state.gold,
+    };
+    this.statsTween?.stop();
+    this.statsTween = null;
   }
 
   create(): void {
@@ -852,6 +865,15 @@ export class DevelopmentScene extends Phaser.Scene {
     this.eventModalContainer = c;
     // 새로 추가된 텍스트들도 HiDPI 해상도로 다시 래스터화.
     applyHiDPI(this);
+
+    // 가벼운 fade-in.
+    c.setAlpha(0);
+    this.tweens.add({
+      targets: c,
+      alpha: 1,
+      duration: 200,
+      ease: 'Cubic.easeOut',
+    });
   }
 
   private handleEventChoice(ev: GameEvent, index: number): void {
@@ -883,24 +905,48 @@ export class DevelopmentScene extends Phaser.Scene {
     this.weekText.setText(`Week ${project.weeksElapsed} / ${project.weeksTarget}`);
     // calendar 아이콘은 weekText 좌측에 — 텍스트 폭에 따라 위치 보정.
     this.weekIcon.setX(this.weekText.x - this.weekText.width / 2 - 6);
-    this.progressText.setText(`${project.progress.toFixed(1)}%`);
-    this.bugText
-      .setText(`${Math.round(project.bugDebt)} / 100`)
-      .setColor(project.bugDebt >= 70 ? TEXT_COLOR.bad : TEXT_COLOR.primary);
-    this.goldText.setText(String(this.state.gold));
 
-    const panelX = (GAME_WIDTH - 690) / 2 + 24;
-    this.drawGauge(this.progressBar, panelX, 172, project.progress / 100, COLOR.gaugeFillProgress);
-    this.drawGauge(this.bugBar, panelX, 252, project.bugDebt / 100, COLOR.gaugeFillBug);
-    if (this.appealBar && this.appealText) {
-      this.drawGauge(this.appealBar, panelX, 332, project.appeal / 100, COLOR.gaugeFillProgress);
-      this.appealText.setText(`${Math.round(project.appeal)} / 100`);
-    }
+    // 게이지·매출 등 수치는 tween으로 부드럽게 변화.
+    this.tweenStats();
 
     if (this.state.productIndex >= 1) this.drawCrunchToggle();
     this.redrawAssignmentRecap();
     this.updateStatus();
     this.updateActionPanel();
+  }
+
+  /** displayStats가 state의 현재값으로 부드럽게 따라가게 하고, 매 프레임 패널을 다시 그린다. */
+  private tweenStats(): void {
+    this.statsTween?.stop();
+    this.statsTween = this.tweens.add({
+      targets: this.displayStats,
+      p: this.state.project.progress,
+      b: this.state.project.bugDebt,
+      a: this.state.project.appeal,
+      g: this.state.gold,
+      duration: 600,
+      ease: 'Cubic.easeOut',
+      onUpdate: () => this.drawStatPanel(),
+      onComplete: () => this.drawStatPanel(),
+    });
+    this.drawStatPanel();
+  }
+
+  private drawStatPanel(): void {
+    const { p, b, a, g } = this.displayStats;
+    this.progressText.setText(`${p.toFixed(1)}%`);
+    this.bugText
+      .setText(`${Math.round(b)} / 100`)
+      .setColor(b >= 70 ? TEXT_COLOR.bad : TEXT_COLOR.primary);
+    this.goldText.setText(String(Math.round(g)));
+
+    const panelX = (GAME_WIDTH - 690) / 2 + 24;
+    this.drawGauge(this.progressBar, panelX, 172, p / 100, COLOR.gaugeFillProgress);
+    this.drawGauge(this.bugBar, panelX, 252, b / 100, COLOR.gaugeFillBug);
+    if (this.appealBar && this.appealText) {
+      this.drawGauge(this.appealBar, panelX, 332, a / 100, COLOR.gaugeFillProgress);
+      this.appealText.setText(`${Math.round(a)} / 100`);
+    }
   }
 
   private redrawAssignmentRecap(): void {
