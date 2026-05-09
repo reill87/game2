@@ -25,7 +25,10 @@ import { isRndPurchased } from './rnd';
 import { getSprintPhase, SPRINT_SLOT_WEIGHT } from './sprintPhase';
 import { computeEquipmentBonuses } from './equipment';
 import { isFacilityBuilt } from './facilities';
-import type { Assignment, Employee, GameState, SlotKind } from './types';
+import type { Assignment, Employee, GameState, SlotKind, SupportAssignment } from './types';
+
+/** support 직원이 primary 대비 기여하는 배수. */
+export const SUPPORT_CONTRIBUTION_FACTOR = 0.5;
 
 /** 매주 자동 차감되는 회사 운영비(인건비 + 사옥 임대료). */
 export function computeBurnRate(state: GameState): number {
@@ -99,6 +102,29 @@ export function computeSlotContributions(state: GameState): SlotContribution[] {
       : 0;
     appealDelta *= phaseWeight;
 
+    // support 직원 기여 — primary 기여의 ×0.5 (정배치) 또는 ×0.25 (오배치).
+    const suppId = state.support?.[slot];
+    if (suppId) {
+      const suppEmp = employeesById.get(suppId);
+      if (suppEmp) {
+        const suppMatched = isMatched(slot, suppEmp.job);
+        const suppFactor = suppMatched ? 1 : mismatchFactor;
+        const suppTeamUnits = totalUnits - teamWeight(suppEmp);
+        const suppEff = effectiveSkill(suppEmp, state, suppTeamUnits);
+        let suppProgress = BALANCE.matchedProgressPerWeek * suppEff * suppFactor * SUPPORT_CONTRIBUTION_FACTOR;
+        suppProgress *= gMod.progressMul * tMod.progressMul;
+        suppProgress *= phaseWeight;
+        if (isRndPurchased(state.rnd, 'ci-cd')) suppProgress *= 1.05;
+        if (isRndPurchased(state.rnd, 'continuous-integration')) suppProgress *= 1.08;
+        if (state.crunch) suppProgress *= BALANCE.crunchProgressMul;
+        progressDelta += suppProgress;
+        if (state.project.appealEnabled) {
+          const suppAppeal = BALANCE.appealBySlot[slot] * suppEff * suppFactor * SUPPORT_CONTRIBUTION_FACTOR;
+          appealDelta += suppAppeal * phaseWeight;
+        }
+      }
+    }
+
     result.push({ slot, empId, matched, progressDelta, appealDelta });
   }
   return result;
@@ -158,14 +184,23 @@ export function effectiveSkill(
   return baseSkill * m * s * rankMul * traitMul * trackMul * dressMul * remoteVillainMul * leadBonus * aiMul;
 }
 
-function findAssignedSlot(state: GameState, empId: string): SlotKind | null {
-  for (const s of SLOT_ORDER) if (state.assignment[s] === empId) return s;
+interface AssignedSlotResult {
+  slot: SlotKind;
+  isSupport: boolean;
+}
+
+/** primary + support 모두 검색해 배치된 슬롯 반환. 미배치면 null. */
+function findAssignedSlot(state: GameState, empId: string): AssignedSlotResult | null {
+  for (const s of SLOT_ORDER) {
+    if (state.assignment[s] === empId) return { slot: s, isSupport: false };
+    if (state.support?.[s] === empId) return { slot: s, isSupport: true };
+  }
   return null;
 }
 
 /** 한 직원의 한 주 컨디션 변화. 작업 모드(advanceWeek)와 휴식 모드(polishWeek)를 구분. */
 function tickCondition(emp: Employee, state: GameState, mode: 'work' | 'rest'): Employee {
-  const assigned = findAssignedSlot(state, emp.id);
+  const assignedResult = findAssignedSlot(state, emp.id);
 
   let dStamina = 0;
   let dMorale = 0;
@@ -174,11 +209,11 @@ function tickCondition(emp: Employee, state: GameState, mode: 'work' | 'rest'): 
   if (mode === 'rest') {
     // 폴리싱·휴식 주: 모두가 회복.
     dStamina = CONDITION.staminaRest;
-  } else if (!assigned) {
+  } else if (!assignedResult) {
     // 미배치는 휴식.
     dStamina = CONDITION.staminaRest;
   } else {
-    const matched = isMatched(assigned, emp.job);
+    const matched = isMatched(assignedResult.slot, emp.job);
     dStamina = matched ? CONDITION.staminaMatched : CONDITION.staminaMismatch;
     if (state.crunch) dStamina += CONDITION.staminaCrunchExtra;
     if (state.crunch) dMorale += CONDITION.moraleCrunch;
@@ -270,6 +305,23 @@ export function advanceWeek(prev: GameState): GameState {
       appealDelta += BALANCE.appealBySlot[slot] * eff * factor * phaseWeight;
     }
     if (!matched) mismatchedCount += 1;
+
+    // support 직원 기여 — primary 기여의 ×0.5 (정배치 기준).
+    const suppId = prev.support?.[slot];
+    if (suppId) {
+      const suppEmp = employeesById.get(suppId);
+      if (suppEmp) {
+        const suppMatched = isMatched(slot, suppEmp.job);
+        const suppFactor = suppMatched ? 1 : mismatchFactor;
+        const suppTeamUnits = totalUnits - teamWeight(suppEmp);
+        const suppEff = effectiveSkill(suppEmp, prev, suppTeamUnits);
+        progressDelta += BALANCE.matchedProgressPerWeek * suppEff * suppFactor * phaseWeight * SUPPORT_CONTRIBUTION_FACTOR;
+        if (appealEnabled) {
+          appealDelta += BALANCE.appealBySlot[slot] * suppEff * suppFactor * phaseWeight * SUPPORT_CONTRIBUTION_FACTOR;
+        }
+        if (!suppMatched) mismatchedCount += 1;
+      }
+    }
   }
 
   // 장르 × 테마 보정 — progress·bugDebt 둘 다 곱연산
@@ -335,10 +387,12 @@ export function advanceWeek(prev: GameState): GameState {
   // 남는 인력(슬롯 미배치) 보조 효과 — 매주 직원 1명당:
   //  - 사이드 컨설팅 +2g
   //  - 백그라운드 유지 BugDebt −0.4
-  // 슬롯 4개 초과 인원의 기여(1~2명 정도)를 의미 있게 만든다.
+  // primary + support 모두 배치 인원으로 간주한다.
   const assignedIds = new Set(
-    [prev.assignment.planning, prev.assignment.graphics, prev.assignment.qa, prev.assignment.programming]
-      .filter((v): v is string => typeof v === 'string'),
+    [
+      prev.assignment.planning, prev.assignment.graphics, prev.assignment.qa, prev.assignment.programming,
+      prev.support?.planning, prev.support?.graphics, prev.support?.qa, prev.support?.programming,
+    ].filter((v): v is string => typeof v === 'string'),
   );
   const idleCount = prev.employees.filter((e) => !assignedIds.has(e.id)).length;
   const idleGold = idleCount * 2;
@@ -410,6 +464,20 @@ export function place(state: GameState, slot: SlotKind, empId: string | null): G
     delete next[slot];
   }
   return { ...state, assignment: next };
+}
+
+/** support 직원 배치/이동/해제. 같은 직원이 다른 support 슬롯에 있었다면 자동 제거. */
+export function placeSupport(state: GameState, slot: SlotKind, empId: string | null): GameState {
+  const next: SupportAssignment = { ...(state.support ?? {}) };
+  if (empId) {
+    for (const s of SLOT_ORDER) {
+      if (next[s] === empId) delete next[s];
+    }
+    next[slot] = empId;
+  } else {
+    delete next[slot];
+  }
+  return { ...state, support: next };
 }
 
 export function canRelease(state: GameState): boolean {

@@ -4,6 +4,7 @@ import type { Types } from 'phaser';
 import { isMatched, SLOT_ORDER } from '@/domain/match';
 import {
   GENRE_LABEL,
+  isSupportSlotActive,
   JOB_ICON,
   JOB_LABEL,
   newTutorialGame,
@@ -14,7 +15,7 @@ import {
   TRAIT_LABEL,
 } from '@/domain/seed';
 import type { Rank } from '@/domain/types';
-import { isTutorialAssignmentReady, place } from '@/domain/tick';
+import { isTutorialAssignmentReady, place, placeSupport } from '@/domain/tick';
 import type { Employee, GameState, SlotKind } from '@/domain/types';
 import { AVATAR_KEY } from '@/avatars';
 import { BGM } from '@/bgm';
@@ -73,6 +74,11 @@ interface SlotView {
   matchHint: Phaser.GameObjects.Text;
   rect: Phaser.Geom.Rectangle;
   hit: Phaser.GameObjects.Zone;
+  /** support 영역 — 사옥 단계별 활성/비활성. */
+  supportBg: Phaser.GameObjects.Graphics;
+  supportText: Phaser.GameObjects.Text;
+  supportHit: Phaser.GameObjects.Zone;
+  supportRect: Phaser.Geom.Rectangle;
 }
 
 interface EmployeeView {
@@ -201,9 +207,9 @@ export class AssignmentScene extends Phaser.Scene {
   // ────────────────────────── slots ──────────────────────────
   private buildSlots(): void {
     const tileW = 290;
-    const tileH = 150;
+    const tileH = 180;
     const gapX = 20;
-    const gapY = 20;
+    const gapY = 14;
     const startX = this.contentX + (720 - (tileW * 2 + gapX)) / 2;
     const startY = 150;
 
@@ -217,6 +223,11 @@ export class AssignmentScene extends Phaser.Scene {
   }
 
   private makeSlotView(slot: SlotKind, x: number, y: number, w: number, h: number): SlotView {
+    // primary 영역: 상단 ~138px, support 영역: 하단 ~38px
+    const primaryH = h - 42;
+    const supportH = 38;
+    const supportY = y + h - supportH;
+
     const rect = new Phaser.Geom.Rectangle(x, y, w, h);
     const bg = this.add.graphics();
 
@@ -237,7 +248,7 @@ export class AssignmentScene extends Phaser.Scene {
     );
 
     const empNameText = this.add
-      .text(x + w / 2, y + h / 2 + 6, '비어 있음', {
+      .text(x + w / 2, y + primaryH / 2 + 6, '비어 있음', {
         fontFamily: FONT_STACK,
         fontSize: '30px',
         color: TEXT_COLOR.disabled,
@@ -245,20 +256,36 @@ export class AssignmentScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     const matchHint = this.add
-      .text(x + w / 2, y + h - 26, '', {
+      .text(x + w / 2, y + primaryH - 20, '', {
         fontFamily: FONT_STACK,
-        fontSize: '23px',
+        fontSize: '20px',
         color: TEXT_COLOR.ok,
       })
       .setOrigin(0.5);
 
+    // primary 영역 hit — 타일 상단 primaryH 높이.
     const hit = this.add
-      .zone(x + w / 2, y + h / 2, w, h)
-      .setRectangleDropZone(w, h)
+      .zone(x + w / 2, y + primaryH / 2, w, primaryH)
+      .setRectangleDropZone(w, primaryH)
       .setInteractive({ useHandCursor: true });
-    hit.on('pointerup', () => this.onSlotTap(slot));
+    hit.on('pointerup', () => this.onSlotTap(slot, 'primary'));
 
-    return { bg, slotLabel, empNameText, matchHint, rect, hit };
+    // support 영역 — 하단 고정 38px 띠.
+    const supportRect = new Phaser.Geom.Rectangle(x, supportY, w, supportH);
+    const supportBg = this.add.graphics();
+    const supportText = this.add
+      .text(x + w / 2, supportY + supportH / 2, '', {
+        fontFamily: FONT_STACK,
+        fontSize: '20px',
+        color: TEXT_COLOR.disabled,
+      })
+      .setOrigin(0.5);
+    const supportHit = this.add
+      .zone(x + w / 2, supportY + supportH / 2, w, supportH)
+      .setInteractive({ useHandCursor: true });
+    supportHit.on('pointerup', () => this.onSlotTap(slot, 'support'));
+
+    return { bg, slotLabel, empNameText, matchHint, rect, hit, supportBg, supportText, supportHit, supportRect };
   }
 
   // ────────────────────────── employee cards ──────────────────────────
@@ -468,15 +495,31 @@ export class AssignmentScene extends Phaser.Scene {
     this.redraw();
   }
 
-  private onSlotTap(slot: SlotKind): void {
-    const occupant = this.state.assignment[slot];
+  private onSlotTap(slot: SlotKind, area: 'primary' | 'support'): void {
+    const officeLevel = this.state.officeLevel;
+    const supportActive = isSupportSlotActive(officeLevel, slot);
+
+    if (area === 'support' && !supportActive) return; // 비활성 support 영역 무시.
+
     if (this.selectedEmpId) {
       playSfx(this, SFX.toggle);
-      this.state = place(this.state, slot, this.selectedEmpId);
+      if (area === 'primary') {
+        this.state = place(this.state, slot, this.selectedEmpId);
+      } else {
+        this.state = placeSupport(this.state, slot, this.selectedEmpId);
+      }
       this.selectedEmpId = null;
-    } else if (occupant) {
-      playSfx(this, SFX.tap);
-      this.state = place(this.state, slot, null);
+    } else {
+      // 선택 없이 탭 — 해당 영역 비우기.
+      const occupant = area === 'primary' ? this.state.assignment[slot] : this.state.support?.[slot];
+      if (occupant) {
+        playSfx(this, SFX.tap);
+        if (area === 'primary') {
+          this.state = place(this.state, slot, null);
+        } else {
+          this.state = placeSupport(this.state, slot, null);
+        }
+      }
     }
     this.redraw();
   }
@@ -503,6 +546,8 @@ export class AssignmentScene extends Phaser.Scene {
 
   private drawSlots(): void {
     const empById = new Map(this.state.employees.map((e) => [e.id, e] as const));
+    const officeLevel = this.state.officeLevel;
+
     for (const slot of SLOT_ORDER) {
       const view = this.slotViews.get(slot);
       if (!view) continue;
@@ -525,31 +570,72 @@ export class AssignmentScene extends Phaser.Scene {
       if (emp) {
         view.empNameText.setText(emp.name).setColor(TEXT_COLOR.primary);
         view.matchHint
-          .setText(matched ? '정배치' : '오배치 — 효율 50% / BugDebt +2')
+          .setText(matched ? '정배치' : '오배치 — 효율 50%')
           .setColor(matched ? TEXT_COLOR.ok : TEXT_COLOR.bad)
           .setVisible(true);
       } else {
         view.empNameText.setText('비어 있음').setColor(TEXT_COLOR.disabled);
         view.matchHint.setVisible(false);
       }
+
+      // support 영역 그리기.
+      const supportActive = isSupportSlotActive(officeLevel, slot);
+      const sr = view.supportRect;
+      view.supportBg.clear();
+
+      if (!supportActive) {
+        // 비활성 — 잠금 표시 (어두운 띠).
+        view.supportBg.fillStyle(0x1a1a2e, 0.6);
+        view.supportBg.fillRoundedRect(sr.x + 2, sr.y + 2, sr.width - 4, sr.height - 4, { tl: 0, tr: 0, bl: 12, br: 12 });
+        view.supportText.setText('지원 잠김').setColor(TEXT_COLOR.disabled).setVisible(true);
+      } else {
+        // 활성 — support 직원 표시.
+        const suppId = this.state.support?.[slot];
+        const suppEmp = suppId ? empById.get(suppId) : undefined;
+        const suppMatched = suppEmp ? isMatched(slot, suppEmp.job) : null;
+        const suppFill = suppEmp ? 0x1e3040 : 0x1a2535;
+        const suppStroke = this.selectedEmpId && !suppEmp
+          ? COLOR.selected
+          : suppMatched === true ? COLOR.matchOk : suppMatched === false ? COLOR.matchBad : 0x3a4a5a;
+        view.supportBg.fillStyle(suppFill, 1);
+        view.supportBg.lineStyle(1, suppStroke, 0.85);
+        view.supportBg.fillRoundedRect(sr.x + 2, sr.y + 2, sr.width - 4, sr.height - 4, { tl: 0, tr: 0, bl: 12, br: 12 });
+        view.supportBg.strokeRoundedRect(sr.x + 2, sr.y + 2, sr.width - 4, sr.height - 4, { tl: 0, tr: 0, bl: 12, br: 12 });
+        const suppLabel = suppEmp
+          ? `지원: ${suppEmp.name}${suppMatched ? ' ✓' : ' △'}`
+          : '+ 지원 인력';
+        view.supportText
+          .setText(suppLabel)
+          .setColor(suppEmp ? (suppMatched ? TEXT_COLOR.ok : TEXT_COLOR.warn) : TEXT_COLOR.dim)
+          .setVisible(true);
+      }
     }
   }
 
   private drawEmployees(): void {
+    // primary 배치 추적.
     const placedSlotByEmp = new Map<string, SlotKind>();
     for (const slot of SLOT_ORDER) {
       const id = this.state.assignment[slot];
       if (id) placedSlotByEmp.set(id, slot);
+    }
+    // support 배치 추적.
+    const supportSlotByEmp = new Map<string, SlotKind>();
+    for (const slot of SLOT_ORDER) {
+      const id = this.state.support?.[slot];
+      if (id) supportSlotByEmp.set(id, slot);
     }
 
     for (const emp of this.state.employees) {
       const view = this.empViews.get(emp.id);
       if (!view) continue;
       const placedSlot = placedSlotByEmp.get(emp.id);
+      const supportSlot = supportSlotByEmp.get(emp.id);
+      const isPlaced = !!(placedSlot ?? supportSlot);
       const selected = this.selectedEmpId === emp.id;
 
       view.bg.clear();
-      view.bg.fillStyle(placedSlot ? COLOR.panelEmpty : COLOR.panel, 1);
+      view.bg.fillStyle(isPlaced ? COLOR.panelEmpty : COLOR.panel, 1);
       view.bg.lineStyle(selected ? 3 : 2, selected ? COLOR.selected : COLOR.panelStroke, 1);
       view.bg.fillRoundedRect(view.rect.x, view.rect.y, view.rect.width, view.rect.height, 14);
       view.bg.strokeRoundedRect(view.rect.x, view.rect.y, view.rect.width, view.rect.height, 14);
@@ -558,6 +644,13 @@ export class AssignmentScene extends Phaser.Scene {
         view.placedText
           .setText(`배치됨 · ${SLOT_LABEL[placedSlot]}`)
           .setColor(TEXT_COLOR.dim)
+          .setVisible(true);
+        view.nameText.setColor(TEXT_COLOR.dim);
+        view.jobText.setColor(TEXT_COLOR.dim);
+      } else if (supportSlot) {
+        view.placedText
+          .setText(`지원 · ${SLOT_LABEL[supportSlot]}`)
+          .setColor(TEXT_COLOR.warn)
           .setVisible(true);
         view.nameText.setColor(TEXT_COLOR.dim);
         view.jobText.setColor(TEXT_COLOR.dim);
@@ -612,9 +705,15 @@ export class AssignmentScene extends Phaser.Scene {
     let count = 0;
     for (const slot of SLOT_ORDER) {
       const id = this.state.assignment[slot];
-      if (!id) continue;
-      const emp = empById.get(id);
-      if (emp && !isMatched(slot, emp.job)) count += 1;
+      if (id) {
+        const emp = empById.get(id);
+        if (emp && !isMatched(slot, emp.job)) count += 1;
+      }
+      const suppId = this.state.support?.[slot];
+      if (suppId) {
+        const emp = empById.get(suppId);
+        if (emp && !isMatched(slot, emp.job)) count += 1;
+      }
     }
     return count;
   }

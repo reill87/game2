@@ -101,6 +101,8 @@ export interface SaveData {
   readonly acquisitions?: AcquisitionState;
   /** 직전 프로젝트 슬롯 배정 — 새 프로젝트 시작 시 자동 복원용. */
   readonly lastAssignment?: Partial<Record<'planning' | 'graphics' | 'qa' | 'programming', string>>;
+  /** 직전 프로젝트 support 배정 — 새 프로젝트 시작 시 자동 복원용. */
+  readonly lastSupport?: Partial<Record<'planning' | 'graphics' | 'qa' | 'programming', string>>;
 }
 
 /** history에 보관할 최대 개수. 너무 많아지면 storage 부담 + Stats UI도 길어짐. */
@@ -140,6 +142,7 @@ export function saveData(input: {
   markets?: MarketState;
   acquisitions?: AcquisitionState;
   lastAssignment?: Partial<Record<'planning' | 'graphics' | 'qa' | 'programming', string>>;
+  lastSupport?: Partial<Record<'planning' | 'graphics' | 'qa' | 'programming', string>>;
 }): SaveData | null {
   const storage = getStorage();
   if (!storage) return null;
@@ -163,6 +166,7 @@ export function saveData(input: {
     ...(input.markets ? { markets: input.markets } : {}),
     ...(input.acquisitions ? { acquisitions: input.acquisitions } : {}),
     ...(input.lastAssignment ? { lastAssignment: input.lastAssignment } : {}),
+    ...(input.lastSupport ? { lastSupport: input.lastSupport } : {}),
   };
   try {
     storage.setItem(KEY, JSON.stringify(full));
@@ -296,6 +300,18 @@ function sanitizeAssignment(raw: unknown): SaveData['lastAssignment'] | undefine
   return Object.keys(out).length > 0 ? out : undefined;
 }
 
+/** support 배정 sanitize — lastAssignment와 동일 구조. */
+function sanitizeSupport(raw: unknown): SaveData['lastSupport'] | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const r = raw as Record<string, unknown>;
+  const out: NonNullable<SaveData['lastSupport']> = {};
+  for (const slot of ['planning', 'graphics', 'qa', 'programming'] as const) {
+    const v = r[slot];
+    if (typeof v === 'string') out[slot] = v;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
 /** 자회사 인수 상태 sanitize — VALID_ACQUISITION_IDS 화이트리스트로 필터. */
 function sanitizeAcquisitions(raw: unknown): AcquisitionState | undefined {
   if (!raw || typeof raw !== 'object') return undefined;
@@ -421,6 +437,7 @@ function interpret(storage: Storage, parsed: unknown, fromLegacy: boolean): Save
       ...(sanitizedMarkets ? { markets: sanitizedMarkets } : {}),
       ...(sanitizedAcquisitions ? { acquisitions: sanitizedAcquisitions } : {}),
       ...(obj.lastAssignment ? { lastAssignment: sanitizeAssignment(obj.lastAssignment) } : {}),
+      ...(obj.lastSupport ? { lastSupport: sanitizeSupport(obj.lastSupport) } : {}),
     };
     if (fromLegacy) {
       saveDataDirect(storage, sanitized);

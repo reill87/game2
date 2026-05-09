@@ -77,6 +77,16 @@ export class BootScene extends Phaser.Scene {
       }
     }
 
+    // 직전 support 배정 — 현재 직원 id가 여전히 존재하는 항목만 필터링.
+    const filteredSupport: NonNullable<typeof saved>['lastSupport'] = {};
+    if (saved?.lastSupport) {
+      for (const slot of ['planning', 'graphics', 'qa', 'programming'] as const) {
+        const id = saved.lastSupport[slot];
+        if (id && empIds.has(id)) filteredSupport[slot] = id;
+      }
+    }
+    const hasFilteredSupport = Object.keys(filteredSupport).length > 0;
+
     if (productIndex === 0) {
       const fresh = newTutorialGame(rnd);
       const state = { ...fresh, employees, gold, officeLevel, reputation, policy, trend, rnd, facilities, markets, acquisitions };
@@ -99,6 +109,7 @@ export class BootScene extends Phaser.Scene {
       facilities,
       markets,
       lastAssignment: filteredAssignment,
+      ...(hasFilteredSupport ? { lastSupport: filteredSupport } : {}),
     });
   }
 }

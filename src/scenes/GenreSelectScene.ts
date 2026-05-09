@@ -69,6 +69,8 @@ export class GenreSelectScene extends Phaser.Scene {
   private markets: MarketState = EMPTY_MARKETS;
   /** 직전 프로젝트 슬롯 배정 — newProject로 전달해 자동 복원. */
   private lastAssignment: Assignment = {};
+  /** 직전 프로젝트 support 배정 — newProject로 전달해 자동 복원. */
+  private lastSupport: import('@/domain/types').SupportAssignment = {};
 
   private selectedGenre: GenreId | null = null;
   private selectedTheme: ThemeId | null = null;
@@ -102,6 +104,7 @@ export class GenreSelectScene extends Phaser.Scene {
     facilities?: FacilityState;
     markets?: MarketState;
     lastAssignment?: Assignment;
+    lastSupport?: import('@/domain/types').SupportAssignment;
   }): void {
     this.productIndex = data.productIndex;
     this.gold = data.gold;
@@ -115,6 +118,7 @@ export class GenreSelectScene extends Phaser.Scene {
     this.facilities = data.facilities ?? EMPTY_FACILITIES;
     this.markets = data.markets ?? EMPTY_MARKETS;
     this.lastAssignment = data.lastAssignment ?? {};
+    this.lastSupport = data.lastSupport ?? {};
     this.selectedGenre = null;
     this.selectedTheme = null;
   }
@@ -431,6 +435,7 @@ export class GenreSelectScene extends Phaser.Scene {
       facilities: this.facilities,
       markets: this.markets,
       assignment: this.lastAssignment,
+      support: Object.keys(this.lastSupport).length > 0 ? this.lastSupport : undefined,
     });
     this.scene.start(SCENE_KEYS.Assignment, { state, lastResult: this.lastResult });
   }

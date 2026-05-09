@@ -119,8 +119,11 @@ export interface Employee {
   readonly equipment?: EmployeeEquipment;
 }
 
-/** 슬롯 → 직원 id. 빈 슬롯은 키 부재. */
+/** 슬롯 → 직원 id (primary). 빈 슬롯은 키 부재. */
 export type Assignment = Partial<Record<SlotKind, string>>;
+
+/** 슬롯 → 지원 인력 id (support). 옵셔널. */
+export type SupportAssignment = Partial<Record<SlotKind, string>>;
 
 export interface ProjectState {
   readonly genre: GenreId;
@@ -168,4 +171,6 @@ export interface GameState {
   readonly markets?: MarketState;
   /** 자회사 인수 상태. 옛 데이터 호환을 위해 옵셔널. */
   readonly acquisitions?: AcquisitionState;
+  /** 슬롯별 지원 인력 배정 — 옵셔널 (옛 데이터 호환). */
+  readonly support?: SupportAssignment;
 }

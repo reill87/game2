@@ -359,6 +359,23 @@ export const OFFICE_STAGE_LABEL: Readonly<Record<1 | 2 | 3, string>> = {
   3: '강남 자가 사옥',
 };
 
+/**
+ * 사옥 단계별 support 슬롯 활성 여부.
+ *  - 1단계(분당): support 없음 (총 4명 배치 가능)
+ *  - 2단계(판교): programming + graphics support 활성 (총 6명)
+ *  - 3단계(강남): 모든 슬롯 support 활성 (총 8명)
+ */
+export const SUPPORT_SLOTS_BY_OFFICE: Readonly<Record<1 | 2 | 3, ReadonlySet<SlotKind>>> = {
+  1: new Set<SlotKind>(),
+  2: new Set<SlotKind>(['programming', 'graphics']),
+  3: new Set<SlotKind>(['planning', 'graphics', 'qa', 'programming']),
+};
+
+/** 해당 사옥 단계에서 슬롯의 support 배치가 가능한지 여부. */
+export function isSupportSlotActive(officeLevel: 1 | 2 | 3, slot: SlotKind): boolean {
+  return SUPPORT_SLOTS_BY_OFFICE[officeLevel].has(slot);
+}
+
 /** 새 프로젝트 시작 시 GameState 생성. */
 export function newProject(opts: {
   productIndex: number;
@@ -376,10 +393,13 @@ export function newProject(opts: {
   markets?: import('./markets').MarketState;
   /** 직전 프로젝트 슬롯 배정 — 자동 복원용. */
   assignment?: import('./types').Assignment;
+  /** 직전 프로젝트 support 배정 — 자동 복원용. */
+  support?: import('./types').SupportAssignment;
 }): GameState {
   return {
     employees: opts.employees,
     assignment: opts.assignment ?? {},
+    ...(opts.support ? { support: opts.support } : {}),
     project: {
       genre: opts.genre,
       theme: opts.theme,

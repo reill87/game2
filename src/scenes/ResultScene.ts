@@ -314,6 +314,7 @@ export class ResultScene extends Phaser.Scene {
       markets: this.liveMarkets,
       acquisitions: this.liveAcquisitions,
       lastAssignment: o.state.assignment,
+      ...(o.state.support ? { lastSupport: o.state.support } : {}),
     });
     this.savedAt = saved?.savedAt ?? null;
   }
