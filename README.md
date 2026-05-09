@@ -30,6 +30,23 @@ npm run preview  # 빌드 미리보기
 
 에셋 로컬 경로는 [docs/ASSETS.md](docs/ASSETS.md) §8 참고.
 
+## 배포 (Vercel)
+
+`vercel.json` 사전 구성됨. 두 가지 방법:
+
+**A. GitHub 연동 (권장)** — 푸시 시 자동 배포
+1. https://vercel.com/new 접속
+2. `reill87/game2` 저장소 import
+3. Framework: Vite (자동 감지) / Build: `npm run build` / Output: `dist`
+4. Deploy 클릭 → 푸시할 때마다 자동 재배포
+
+**B. Vercel CLI** — 로컬에서 한 번
+```bash
+vercel login
+vercel        # 첫 실행 시 프로젝트 연동
+vercel --prod # 프로덕션 배포
+```
+
 ## 다음 단계 (제안)
 
 1. [PRODUCT_LOOP.md](docs/PRODUCT_LOOP.md) + [BALANCE.md](docs/BALANCE.md) 기준으로 **v1 슬라이스**를 [SCOPE.md](docs/SCOPE.md)와 맞추어 갱신  

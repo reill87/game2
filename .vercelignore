@@ -1,0 +1,6 @@
+.ai/
+.claude/
+.aider*
+docs/
+*.md
+!README.md
