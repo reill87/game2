@@ -576,7 +576,7 @@ export class ResultScene extends Phaser.Scene {
     const panelY = 800;
     const panelW = 660;
     // 일러스트 100h + 정보 row + 버튼 2개 + R&D(52h) + 정책 row(52h) + 4버튼 row(52h) + 메일 row(52h+8gap).
-    const panelH = 480;
+    const panelH = 420;
 
     makePanel(this, panelX, panelY, panelW, panelH, COLOR.panel);
 
@@ -692,12 +692,12 @@ export class ResultScene extends Phaser.Scene {
     // h: 40 → 52 (R&D 버튼과 동일하게 터치 타겟 확대).
     this.buildPolicyRow(panelX + 20, rndBtnY + rndBtnH + 8, panelW - 40, 52);
 
-    // 4개 보조 버튼(장비/시설/시장/자회사)을 1 row에 컴팩트 배치.
-    // h: 40 → 52 (터치 타겟 확대).
+    // 5개 보조 버튼(장비/시설/시장/인수/메일)을 1 row에 컴팩트 배치.
+    // h: 52 (터치 타겟). 5등분 narrow but 라벨이 짧음.
     const extraBtnY = rndBtnY + rndBtnH + 8 + 52 + 8;
     const extraBtnH = 52;
-    const extraGap = 8;
-    const extraW = (panelW - 40 - extraGap * 3) / 4;
+    const extraGap = 6;
+    const extraW = (panelW - 40 - extraGap * 4) / 5;
     const baseX = panelX + 20;
 
     // 장비
@@ -780,22 +780,20 @@ export class ResultScene extends Phaser.Scene {
       this.openAcquisitionsModal();
     });
 
-    // 메일 버튼 — 4 보조 버튼 아래 새 row.
-    const mailBtnY = extraBtnY + extraBtnH + 8;
-    const mailBtnH = 52;
-    const mailBtnW = panelW - 40;
-    this.mailBtnRect = new Phaser.Geom.Rectangle(panelX + 20, mailBtnY, mailBtnW, mailBtnH);
+    // 메일 — 5번째 보조 버튼 (장비/시설/시장/인수와 같은 row).
+    const mailX = baseX + (extraW + extraGap) * 4;
+    this.mailBtnRect = new Phaser.Geom.Rectangle(mailX, extraBtnY, extraW, extraBtnH);
     this.mailBtnBg = this.add.graphics();
     this.mailBtnText = this.add
-      .text(panelX + 20 + mailBtnW / 2, mailBtnY + mailBtnH / 2, '📬 메일함', {
+      .text(mailX + extraW / 2, extraBtnY + extraBtnH / 2, '📬 메일', {
         fontFamily: FONT_STACK,
-        fontSize: '23px',
+        fontSize: '18px',
         fontStyle: 'bold',
         color: TEXT_COLOR.primary,
       })
       .setOrigin(0.5);
     this.mailBtnHit = this.add
-      .zone(panelX + 20 + mailBtnW / 2, mailBtnY + mailBtnH / 2, mailBtnW, mailBtnH)
+      .zone(mailX + extraW / 2, extraBtnY + extraBtnH / 2, extraW, extraBtnH)
       .setInteractive({ useHandCursor: true });
     this.mailBtnHit.on('pointerup', () => {
       playSfx(this, SFX.modal, 0.45);
