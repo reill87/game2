@@ -180,10 +180,11 @@ export class ResultScene extends Phaser.Scene {
     this.liveFacilities = existing?.facilities ?? EMPTY_FACILITIES;
     this.liveMarkets = existing?.markets ?? EMPTY_MARKETS;
     this.liveAcquisitions = existing?.acquisitions ?? EMPTY_ACQUISITIONS;
-    // endingsShown 로드 — 옛 endingShown 필드 호환(sanitize에서 마이그레이트됨).
+    // endingsShown 로드 — save.ts의 sanitizeEndingsShown이 endingShown(deprecated) 마이그레이션을
+    // 이미 처리하므로 여기서는 endingsShown만 보면 된다.
     type EndingId = 'acquisition' | 'ipo' | 'global-no1' | 'unicorn';
     const initialEndingsShown: ReadonlyArray<EndingId> =
-      existing?.endingsShown ?? (existing?.endingShown ? ['acquisition' as EndingId] : []);
+      existing?.endingsShown ?? [];
     this.liveEndingsShown = initialEndingsShown;
     this.liveMilestones = existing?.milestones ?? [];
     this.yearEndReputationBonus = 0;
@@ -450,7 +451,7 @@ export class ResultScene extends Phaser.Scene {
         .setDisplaySize(size, size)
         .setOrigin(0.5)
         .setTint(filled ? filledTint : TINT.dim);
-      // 펑펑 튀어나오는 stagger 등장 (300ms 동안 0→size, 110ms씩 시차).
+      // stagger 등장: scale 0→1.2→1 (Back.easeOut), 각 별 120ms 시차.
       const targetX = star.scaleX;
       const targetY = star.scaleY;
       star.setScale(0);
@@ -458,8 +459,8 @@ export class ResultScene extends Phaser.Scene {
         targets: star,
         scaleX: targetX,
         scaleY: targetY,
-        duration: 300,
-        delay: 200 + i * 110,
+        duration: 400,
+        delay: i * 120,
         ease: 'Back.easeOut',
       });
     }
@@ -553,7 +554,7 @@ export class ResultScene extends Phaser.Scene {
       if (label === '매출') revenueValueText = valueText;
     });
 
-    // 매출 카운트업 — 0에서 outcome.revenue까지 800ms.
+    // 매출 카운트업 — 0에서 outcome.revenue까지 1500ms.
     if (revenueValueText) {
       const counter = { v: 0 };
       const target: number = o.revenue;
@@ -561,7 +562,7 @@ export class ResultScene extends Phaser.Scene {
       this.tweens.add({
         targets: counter,
         v: target,
-        duration: 800,
+        duration: 1500,
         delay: 250,
         ease: 'Cubic.easeOut',
         onUpdate: () => ref.setText(`+${Math.round(counter.v)} 골드`),
@@ -1198,7 +1199,8 @@ export class ResultScene extends Phaser.Scene {
       .setInteractive({ useHandCursor: true });
     layer.add(hit);
     hit.on('pointerup', () => {
-      playSfx(this, SFX.success);
+      // 진급 트랙 선택 — promote alias 사용.
+      playSfx(this, SFX.promote);
       onPick();
     });
   }
@@ -1424,7 +1426,8 @@ export class ResultScene extends Phaser.Scene {
         .setInteractive({ useHandCursor: true });
       layer.add(hit);
       hit.on('pointerup', () => {
-        playSfx(this, SFX.success);
+        // 직원 채용 — buy alias 사용.
+        playSfx(this, SFX.buy);
         onHire();
       });
     }
@@ -1722,7 +1725,8 @@ export class ResultScene extends Phaser.Scene {
           .setInteractive({ useHandCursor: true });
         layer.add(hit);
         hit.on('pointerup', () => {
-          playSfx(this, SFX.success);
+          // R&D 연구 구매 — buy alias 사용.
+          playSfx(this, SFX.buy);
           onBuy();
         });
       }
@@ -1875,7 +1879,8 @@ export class ResultScene extends Phaser.Scene {
                 .setInteractive({ useHandCursor: true });
               slotsContainer.add(hit);
               hit.on('pointerup', () => {
-                playSfx(this, SFX.success);
+                // 장비 구매 — buy alias 사용.
+                playSfx(this, SFX.buy);
                 this.applyEquipmentPurchase(empIdx, slot, nextTier, nextDef.cost);
                 // 레이어 재구성 (모달 재오픈).
                 layer.destroy();
@@ -2174,7 +2179,8 @@ export class ResultScene extends Phaser.Scene {
           .setInteractive({ useHandCursor: true });
         layer.add(hit);
         hit.on('pointerup', () => {
-          playSfx(this, SFX.success);
+          // 시설 건설 구매 — buy alias 사용.
+          playSfx(this, SFX.buy);
           onBuild();
         });
       }
@@ -2754,7 +2760,8 @@ export class ResultScene extends Phaser.Scene {
           .setInteractive({ useHandCursor: true });
         layer.add(hit);
         hit.on('pointerup', () => {
-          playSfx(this, SFX.success);
+          // 글로벌 시장 진출 구매 — buy alias 사용.
+          playSfx(this, SFX.buy);
           onEnter();
         });
       }
@@ -2963,7 +2970,8 @@ export class ResultScene extends Phaser.Scene {
           .setInteractive({ useHandCursor: true });
         layer.add(hit);
         hit.on('pointerup', () => {
-          playSfx(this, SFX.success);
+          // 자회사 인수 구매 — buy alias 사용.
+          playSfx(this, SFX.buy);
           onBuy();
         });
       }

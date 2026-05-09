@@ -18,8 +18,18 @@ export default defineConfig({
     include: ['eventemitter3'],
   },
   build: {
+    chunkSizeWarningLimit: 1000,
     commonjsOptions: {
       transformMixedEsModules: true,
+    },
+    rollupOptions: {
+      output: {
+        // phaser와 rex-ui를 별도 chunk로 분리해 메인 bundle 크기 감소.
+        manualChunks: {
+          phaser: ['phaser'],
+          'rex-ui': ['phaser3-rex-plugins/templates/ui/ui-plugin.js'],
+        },
+      },
     },
   },
 });

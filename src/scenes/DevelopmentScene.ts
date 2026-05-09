@@ -2054,7 +2054,8 @@ export class DevelopmentScene extends Phaser.Scene {
 
   /** 빨간 헤더의 위기 모달 — 5초 카운트다운 후 defaultApply 자동 발동. */
   private showCrisisModal(crisis: Crisis): void {
-    playSfx(this, SFX.modal, 0.8);
+    // 위기용 — warning alias(modal과 동일 key이나 의도가 명확).
+    playSfx(this, SFX.warning, 0.8);
     const c = this.add.container(0, 0).setDepth(120);
     const overlay = this.add
       .rectangle(0, 0, 720, 1280, 0x000000, 0.8)

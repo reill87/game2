@@ -35,6 +35,11 @@ export class BootScene extends Phaser.Scene {
     preloadAvatars(this);
     preloadEventCategories(this);
     preloadSfx(this);
+
+    // 모든 자산 로드 완료 후 초기 스피너 제거.
+    this.load.once('complete', () => {
+      document.getElementById('initial-loader')?.remove();
+    });
   }
 
   create(): void {

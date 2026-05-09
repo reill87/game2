@@ -45,6 +45,13 @@ export const SFX = {
   modal: 'sfx-switch-b',
   /** 출시·진급·업그레이드 등 긍정 이벤트. */
   success: 'sfx-tap-a',
+  // 의미 별칭 — 기존 audio key 재사용, 호출 지점의 의도를 명확히 전달.
+  /** 위기 모달 등장 — 더 어두운 톤(modal과 동일 key). */
+  warning: 'sfx-switch-b',
+  /** 직원 진급 알림 — success와 동일 key. */
+  promote: 'sfx-tap-a',
+  /** 시설·R&D·장비 구매 — click과 동일 key. */
+  buy: 'sfx-click-a',
 } as const;
 
 export type SfxKey = (typeof SFX)[keyof typeof SFX];
