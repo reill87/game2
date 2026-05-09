@@ -809,20 +809,24 @@ export class ResultScene extends Phaser.Scene {
       this.officeGoldIcon.setX(textLeft - 6);
     }
 
-    // 업그레이드 버튼 상태·라벨 결정.
+    // 업그레이드 버튼 상태·라벨 결정. 골드 부족 시 부족분 표시.
     let upgradeBtnLabel: string;
     let canUpgrade: boolean;
     if (this.officeLevel === 1) {
       const cost = BALANCE.officeUpgradeCostBy[2];
       canUpgrade = this.liveGold >= cost;
-      upgradeBtnLabel = `판교 임대 사무실로 (-${cost}g)`;
+      upgradeBtnLabel = canUpgrade
+        ? `판교 임대로 (-${cost}g)`
+        : `판교 임대 (${this.liveGold}/${cost}g)`;
     } else if (this.officeLevel === 2) {
       const cost = BALANCE.officeUpgradeCostBy[3];
       canUpgrade = this.liveGold >= cost;
-      upgradeBtnLabel = `강남 자가 사옥으로 (-${cost}g)`;
+      upgradeBtnLabel = canUpgrade
+        ? `강남 자가로 (-${cost}g)`
+        : `강남 자가 (${this.liveGold}/${cost}g)`;
     } else {
       canUpgrade = false;
-      upgradeBtnLabel = '사옥 (완료)';
+      upgradeBtnLabel = '사옥 최대 단계 ✓';
     }
     if (this.upgradeBtnText) this.upgradeBtnText.setText(upgradeBtnLabel);
 
