@@ -690,13 +690,32 @@ export class AssignmentScene extends Phaser.Scene {
       this.statusText.setText(msg).setColor(TEXT_COLOR.dim);
       return;
     }
+    // 미배치 직원 수 — primary + support 모두 비어 있는 직원.
+    const placedIds = new Set<string>();
+    for (const slot of SLOT_ORDER) {
+      const p = this.state.assignment[slot];
+      if (p) placedIds.add(p);
+      const s = this.state.support?.[slot];
+      if (s) placedIds.add(s);
+    }
+    const idleCount = this.state.employees.filter((e) => !placedIds.has(e.id)).length;
+
     const mismatches = this.countMismatches();
-    if (mismatches === 0) {
-      this.statusText.setText('정배치 완료. 개발을 시작할 수 있습니다.').setColor(TEXT_COLOR.ok);
-    } else {
+    if (mismatches > 0) {
       this.statusText
         .setText(`오배치 ${mismatches}건. 시작은 가능하지만 일정·버그 페널티가 누적됩니다.`)
         .setColor(TEXT_COLOR.bad);
+    } else if (idleCount > 0) {
+      // 정배치 OK + 미배치 직원 있음 → 지원 인력 안내.
+      this.statusText
+        .setText(
+          `미배치 직원 ${idleCount}명 — 직원 카드 → "+ 지원 인력" 영역 클릭으로 배치 가능 (효율 ↑)`,
+        )
+        .setColor(TEXT_COLOR.warn);
+    } else {
+      this.statusText
+        .setText('정배치 완료. 개발을 시작할 수 있습니다.')
+        .setColor(TEXT_COLOR.ok);
     }
   }
 
