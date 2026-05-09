@@ -14,10 +14,11 @@ export const gameConfig: Phaser.Types.Core.GameConfig = {
   // transparent 캔버스 — letterbox 영역은 CSS #app 그라디언트가 비춤.
   transparent: true,
   scale: {
-    // RESIZE: 캔버스가 viewport를 가득 채움. 콘텐츠 컬럼 좌표는 viewport.ts 헬퍼로 계산.
-    // 캔버스 드로잉 버퍼는 DPR 배수로 — 모바일(DPR=3)에서 폰트·도형 선명도 확보.
-    // CSS는 100%×100% (style.css)이라 브라우저가 다운샘플해서 sharp.
-    mode: Phaser.Scale.RESIZE,
+    // NONE: 자동 리사이즈 끔. main.ts가 window resize 이벤트로 직접 game.scale.resize() 호출.
+    // RESIZE 모드는 우리가 DPR로 키운 사이즈를 다시 CSS px로 줄여 다운샘플 효과를 무력화함.
+    // 캔버스 드로잉 버퍼는 viewport × DPR (예: iPhone 1170×2532).
+    // CSS는 100%×100%로 다운샘플 → 폰트·도형 선명.
+    mode: Phaser.Scale.NONE,
     autoCenter: Phaser.Scale.NO_CENTER,
     width: window.innerWidth * (window.devicePixelRatio || 1),
     height: window.innerHeight * (window.devicePixelRatio || 1),

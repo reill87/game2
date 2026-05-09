@@ -16,23 +16,28 @@ async function boot(): Promise<void> {
   const game = new Phaser.Game(gameConfig);
 
   /**
-   * HiDPI 리사이즈 핸들러 — 캔버스 드로잉 버퍼를 항상 viewport × DPR로 유지.
-   * Phaser RESIZE 모드는 부모 CSS 크기에 맞추므로, 윈도우 리사이즈 후 DPR 보정을
-   * 수동으로 다시 적용해야 폰트/도형 선명도가 유지된다.
+   * HiDPI 리사이즈 — Phaser scale=NONE이라 모든 사이즈 조정을 직접 처리.
+   *  - 캔버스 드로잉 버퍼: viewport × DPR (물리 픽셀)
+   *  - 캔버스 CSS 표시: 100% × 100% (viewport CSS 픽셀)
+   *  - 결과: buffer:CSS = DPR:1 → 브라우저가 다운샘플로 sharp 표시.
    */
   const applyHiDpiSize = (): void => {
     const dpr = window.devicePixelRatio || 1;
-    game.scale.resize(window.innerWidth * dpr, window.innerHeight * dpr);
-    // 캔버스 CSS는 100%로 — 결과적으로 buffer:CSS = DPR:1 (다운샘플 = 선명).
-    if (game.canvas) {
-      game.canvas.style.width = '100%';
-      game.canvas.style.height = '100%';
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    game.scale.resize(w * dpr, h * dpr);
+    const canvas = game.canvas;
+    if (canvas) {
+      canvas.style.width = w + 'px';
+      canvas.style.height = h + 'px';
+      canvas.style.display = 'block';
     }
+    // 모든 활성 씬의 fitCamera 다시 계산하도록 resize 이벤트 발행.
+    game.scale.refresh();
   };
-  // 초기 적용 (Phaser 내부 정렬 후 1 frame 늦춰).
+  // 초기 적용 — Phaser canvas DOM 추가 후.
   setTimeout(applyHiDpiSize, 0);
   window.addEventListener('resize', applyHiDpiSize);
-  // 모바일 화면 회전 시.
   window.addEventListener('orientationchange', applyHiDpiSize);
 }
 
