@@ -14,7 +14,7 @@ import Phaser from 'phaser';
 
 import { BGM } from '@/bgm';
 import { ENDING } from '@/domain/balance';
-import { clearData, loadData } from '@/save';
+import { clearData, loadData, DEFAULT_COMPANY_NAME } from '@/save';
 import { playSfx, SFX } from '@/sounds';
 import { COLOR, FONT_STACK, TEXT_COLOR } from '@/theme';
 import { applyHiDPI } from '@/util/hidpi';
@@ -53,6 +53,7 @@ export class EndingScene extends Phaser.Scene {
     const saved = loadData();
     const totalRevenue = (saved?.history ?? []).reduce((s, r) => s + r.revenue, 0);
     const productCount = saved?.history?.length ?? saved?.productCount ?? 0;
+    const companyName = saved?.companyName ?? DEFAULT_COMPANY_NAME;
 
     // 어두운 배경 — logical 720×1280 풀 사이즈.
     const bg = this.add.graphics();
@@ -60,13 +61,13 @@ export class EndingScene extends Phaser.Scene {
     bg.fillRect(0, 0, 720, 1280);
 
     if (this.endingType === 'unicorn') {
-      this.buildUnicornEnding(totalRevenue, productCount);
+      this.buildUnicornEnding(totalRevenue, productCount, companyName);
     } else if (this.endingType === 'global-no1') {
-      this.buildGlobalNo1Ending(totalRevenue, productCount);
+      this.buildGlobalNo1Ending(totalRevenue, productCount, companyName);
     } else if (this.endingType === 'ipo') {
-      this.buildIpoEnding(totalRevenue, productCount);
+      this.buildIpoEnding(totalRevenue, productCount, companyName);
     } else {
-      this.buildAcquisitionEnding(totalRevenue, productCount);
+      this.buildAcquisitionEnding(totalRevenue, productCount, companyName);
     }
 
     applyHiDPI(this);
@@ -74,7 +75,7 @@ export class EndingScene extends Phaser.Scene {
   }
 
   // ────────────────────────── 인수합병 엔딩 ──────────────────────────
-  private buildAcquisitionEnding(totalRevenue: number, productCount: number): void {
+  private buildAcquisitionEnding(totalRevenue: number, productCount: number, companyName: string): void {
     const title = this.add
       .text(this.cx, 220, '인수합병 제안', {
         fontFamily: FONT_STACK,
@@ -86,7 +87,7 @@ export class EndingScene extends Phaser.Scene {
       .setAlpha(0);
 
     const headline = this.add
-      .text(this.cx, 270, '회사가 인수되었습니다', {
+      .text(this.cx, 270, `'${companyName}'이 인수되었습니다`, {
         fontFamily: FONT_STACK,
         fontSize: '48px',
         fontStyle: 'bold',
@@ -156,7 +157,7 @@ export class EndingScene extends Phaser.Scene {
   }
 
   // ────────────────────────── IPO 엔딩 ──────────────────────────
-  private buildIpoEnding(totalRevenue: number, productCount: number): void {
+  private buildIpoEnding(totalRevenue: number, productCount: number, companyName: string): void {
     const title = this.add
       .text(this.cx, 220, 'IPO 상장', {
         fontFamily: FONT_STACK,
@@ -168,7 +169,7 @@ export class EndingScene extends Phaser.Scene {
       .setAlpha(0);
 
     const headline = this.add
-      .text(this.cx, 270, '회사가 상장되었습니다', {
+      .text(this.cx, 270, `'${companyName}'이 상장되었습니다`, {
         fontFamily: FONT_STACK,
         fontSize: '48px',
         fontStyle: 'bold',
@@ -256,11 +257,11 @@ export class EndingScene extends Phaser.Scene {
   }
 
   // ────────────────────────── 글로벌 1위 엔딩 ──────────────────────────
-  private buildGlobalNo1Ending(totalRevenue: number, productCount: number): void {
+  private buildGlobalNo1Ending(totalRevenue: number, productCount: number, companyName: string): void {
     this.buildContinueEnding({
       titleText: '글로벌 1위',
       titleColor: TEXT_COLOR.warn,
-      headline: '시장 점유율 1위',
+      headline: `${companyName} — 시장 점유율 1위`,
       sub: '국내를 넘어 해외 거점에서 매출이 더 크다.\n경쟁사들이 따라잡으려 자료를 모으고 있다.',
       footer: '회사 가치는 계속 오른다. 다음은 유니콘.',
       threshold: ENDING.globalNo1RevenueThreshold,
@@ -270,11 +271,11 @@ export class EndingScene extends Phaser.Scene {
   }
 
   // ────────────────────────── 유니콘 엔딩 (1조원) ──────────────────────────
-  private buildUnicornEnding(totalRevenue: number, productCount: number): void {
+  private buildUnicornEnding(totalRevenue: number, productCount: number, companyName: string): void {
     this.buildContinueEnding({
       titleText: '유니콘 등극',
       titleColor: TEXT_COLOR.ok,
-      headline: '시가총액 1조 돌파',
+      headline: `${companyName} — 시가총액 1조 돌파`,
       sub: '뉴스에 회사 이름이 매일 오른다.\n과거 분당 셰어오피스 시절을 기억하는 사람도 적어졌다.',
       footer: '게임 명전. 그래도 회사는 계속 굴러간다.',
       threshold: ENDING.unicornRevenueThreshold,

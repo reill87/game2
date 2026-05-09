@@ -63,7 +63,16 @@ import type { CompanyPolicy, Employee, Track } from '@/domain/types';
 import { ICONS } from '@/icons';
 import { BGM } from '@/bgm';
 import { OFFICE_ILLUSTRATION } from '@/illustrations';
-import { HISTORY_CAP, loadData, saveData, type SavedResult } from '@/save';
+import { HISTORY_CAP, loadData, saveData, DEFAULT_COMPANY_NAME, type SavedResult } from '@/save';
+import {
+  MAIL_TEMPLATES,
+  createMailMessage,
+  markMailRead,
+  pickRandomMail,
+  trimMails,
+  type MailMessage,
+} from '@/domain/mail';
+import { NPCS } from '@/domain/npcs';
 import { detectNewMilestones, type Milestone, type MilestoneId } from '@/domain/milestones';
 import { playSfx, SFX } from '@/sounds';
 import { COLOR, FONT_STACK, TEXT_COLOR, TINT } from '@/theme';
@@ -109,6 +118,8 @@ export class ResultScene extends Phaser.Scene {
   private liveMilestones: ReadonlyArray<MilestoneId> = [];
   /** 연말 결산 달성 시 reputation 보너스 — persistResult에서 합산. */
   private yearEndReputationBonus = 0;
+  /** 수신 메일 목록 — 최대 30개 보관. */
+  private liveMails: ReadonlyArray<MailMessage> = [];
 
   // office panel widgets
   private officeStatusText: Phaser.GameObjects.Text | null = null;
@@ -143,6 +154,10 @@ export class ResultScene extends Phaser.Scene {
   private acqBtnText: Phaser.GameObjects.Text | null = null;
   private acqBtnRect: Phaser.Geom.Rectangle | null = null;
   private acqBtnHit: Phaser.GameObjects.Zone | null = null;
+  private mailBtnBg: Phaser.GameObjects.Graphics | null = null;
+  private mailBtnText: Phaser.GameObjects.Text | null = null;
+  private mailBtnRect: Phaser.Geom.Rectangle | null = null;
+  private mailBtnHit: Phaser.GameObjects.Zone | null = null;
   /** 매 create() 시 갱신. */
   private cx = 360;
   private contentX = 0;
@@ -172,6 +187,8 @@ export class ResultScene extends Phaser.Scene {
     this.liveEndingsShown = initialEndingsShown;
     this.liveMilestones = existing?.milestones ?? [];
     this.yearEndReputationBonus = 0;
+    // 메일 로드.
+    this.liveMails = existing?.mails ?? [];
     // shipProject가 반환한 outcome.state.employees가 가장 최신 직원 상태(skill·rank 포함).
     this.liveEmployees = data.outcome.state.employees;
     // 이번 outcome을 history에 한 번 append. 매 init당 한 번만 실행.
@@ -211,6 +228,10 @@ export class ResultScene extends Phaser.Scene {
     this.acqBtnText = null;
     this.acqBtnRect = null;
     this.acqBtnHit = null;
+    this.mailBtnBg = null;
+    this.mailBtnText = null;
+    this.mailBtnRect = null;
+    this.mailBtnHit = null;
   }
 
   create(): void {
@@ -221,6 +242,7 @@ export class ResultScene extends Phaser.Scene {
     BGM.resume();
     BGM.setMood('celebrate');
     addMuteToggle(this);
+    this.addSettingsButton();
     this.persistResult();
     // 엔딩 분기 — 가장 높은 미달성 임계 우선.
     const totalRevenue = this.history.reduce((s, r) => s + r.revenue, 0);
@@ -267,6 +289,8 @@ export class ResultScene extends Phaser.Scene {
       this.persistResult();
       this.queueMilestoneToasts(newMilestones);
     }
+    // 메일 트리거 — 출시마다 1~2개 새 메일 수신.
+    this.triggerNewMails();
     // 직급 트랙 분기 — junior→senior 진급 직원 중 track 미선택자 모달 큐.
     this.queueTrackChoiceModalsIfNeeded();
     // 출시 등장 사운드 — 첫 별 등장 직전 살짝 늦춰 재생.
@@ -320,8 +344,33 @@ export class ResultScene extends Phaser.Scene {
       acquisitions: this.liveAcquisitions,
       lastAssignment: o.state.assignment,
       ...(o.state.support ? { lastSupport: o.state.support } : {}),
+      mails: this.liveMails,
     });
     this.savedAt = saved?.savedAt ?? null;
+  }
+
+  // ────────────────────────── 설정 버튼 ──────────────────────────
+  /** 화면 우상단 뮤트 버튼 옆에 ⚙ 설정 버튼 추가. */
+  private addSettingsButton(): void {
+    const btnW = 88;
+    const btnH = 36;
+    const x = this.contentX + 720 - 14 - btnW;
+    const y = 14;
+    const bg = this.add.graphics();
+    bg.fillStyle(COLOR.btnSecondary, 0.85);
+    bg.fillRoundedRect(x, y, btnW, btnH, 10);
+    this.add.text(x + btnW / 2, y + btnH / 2, '⚙ 설정', {
+      fontFamily: FONT_STACK,
+      fontSize: '22px',
+      color: TEXT_COLOR.dim,
+    }).setOrigin(0.5);
+    const hit = this.add
+      .zone(x + btnW / 2, y + btnH / 2, btnW, btnH)
+      .setInteractive({ useHandCursor: true });
+    hit.on('pointerup', () => {
+      playSfx(this, SFX.tap);
+      this.scene.start(SCENE_KEYS.Settings, { returnTo: SCENE_KEYS.Result });
+    });
   }
 
   // ────────────────────────── header ──────────────────────────
@@ -526,9 +575,8 @@ export class ResultScene extends Phaser.Scene {
     const panelX = this.contentX + (720 - 660) / 2;
     const panelY = 800;
     const panelW = 660;
-    // 일러스트 100h + 정보 row + 버튼 2개 + R&D(52h) + 정책 row(52h) + 4버튼 row(52h).
-    // 40→52 3개 row +12씩 = +36 → 384+36 = 420.
-    const panelH = 420;
+    // 일러스트 100h + 정보 row + 버튼 2개 + R&D(52h) + 정책 row(52h) + 4버튼 row(52h) + 메일 row(52h+8gap).
+    const panelH = 480;
 
     makePanel(this, panelX, panelY, panelW, panelH, COLOR.panel);
 
@@ -732,6 +780,28 @@ export class ResultScene extends Phaser.Scene {
       this.openAcquisitionsModal();
     });
 
+    // 메일 버튼 — 4 보조 버튼 아래 새 row.
+    const mailBtnY = extraBtnY + extraBtnH + 8;
+    const mailBtnH = 52;
+    const mailBtnW = panelW - 40;
+    this.mailBtnRect = new Phaser.Geom.Rectangle(panelX + 20, mailBtnY, mailBtnW, mailBtnH);
+    this.mailBtnBg = this.add.graphics();
+    this.mailBtnText = this.add
+      .text(panelX + 20 + mailBtnW / 2, mailBtnY + mailBtnH / 2, '📬 메일함', {
+        fontFamily: FONT_STACK,
+        fontSize: '23px',
+        fontStyle: 'bold',
+        color: TEXT_COLOR.primary,
+      })
+      .setOrigin(0.5);
+    this.mailBtnHit = this.add
+      .zone(panelX + 20 + mailBtnW / 2, mailBtnY + mailBtnH / 2, mailBtnW, mailBtnH)
+      .setInteractive({ useHandCursor: true });
+    this.mailBtnHit.on('pointerup', () => {
+      playSfx(this, SFX.modal, 0.45);
+      this.openMailInboxModal();
+    });
+
     this.refreshOfficePanel();
   }
 
@@ -806,7 +876,8 @@ export class ResultScene extends Phaser.Scene {
     const cap = BALANCE.officeHireCap[this.officeLevel];
     // liveEmployees는 튜토리얼 + 채용 + 이탈을 모두 반영한 실제 인원.
     const totalEmps = this.liveEmployees.length;
-    this.officeStatusText.setText(`${OFFICE_STAGE_LABEL[this.officeLevel]} — 고용 ${totalEmps}/${cap}명`);
+    const companyName = loadData()?.companyName ?? DEFAULT_COMPANY_NAME;
+    this.officeStatusText.setText(`${companyName} — ${OFFICE_STAGE_LABEL[this.officeLevel]} — 고용 ${totalEmps}/${cap}명`);
     this.officeGoldText.setText(`${this.liveGold}g`);
     // 코인 아이콘은 골드 텍스트 좌측, 텍스트 폭이 변하므로 동적으로 위치 보정.
     if (this.officeGoldIcon) {
@@ -883,6 +954,17 @@ export class ResultScene extends Phaser.Scene {
       this.acqBtnText.setText(`인수 ${acqCount}/${acqTotal}`);
     }
     this.drawSecondaryButton(this.acqBtnBg, this.acqBtnText, this.acqBtnRect, this.acqBtnHit, true);
+
+    // 메일 버튼 — 안 읽은 메일 수 표시.
+    const unreadCount = this.liveMails.filter((m) => !m.read).length;
+    const totalMailCount = this.liveMails.length;
+    if (this.mailBtnText) {
+      const mailLabel = unreadCount > 0
+        ? `📬 메일함 (안 읽음 ${unreadCount})`
+        : `📬 메일함 (${totalMailCount}건)`;
+      this.mailBtnText.setText(mailLabel);
+    }
+    this.drawSecondaryButton(this.mailBtnBg, this.mailBtnText, this.mailBtnRect, this.mailBtnHit, true);
 
     // 정책 토글 row 색·텍스트 갱신.
     for (const btn of this.policyButtons) {
@@ -2895,4 +2977,421 @@ export class ResultScene extends Phaser.Scene {
     this.refreshOfficePanel();
     this.refreshSaveFooter();
   }
+
+  // ────────────────────────── 메일 시스템 ──────────────────────────
+
+  /**
+   * 출시 진입 시 새 메일 1~2개 랜덤 수신.
+   * GameState를 직접 받지 않고 outcome.state를 활용한다.
+   */
+  private triggerNewMails(): void {
+    const state = this.outcome.state;
+    // 최근 메일 id 목록 (중복 방지).
+    const recentIds = this.liveMails.slice(-8).map((m) => m.id);
+    const count = Math.random() < 0.5 ? 1 : 2;
+    const newMails: MailMessage[] = [];
+    for (let i = 0; i < count; i++) {
+      const tpl = pickRandomMail(state, [...recentIds, ...newMails.map((m) => m.id)]);
+      if (!tpl) break;
+      newMails.push(createMailMessage(tpl, Date.now() + i));
+    }
+    if (newMails.length === 0) return;
+    this.liveMails = trimMails([...this.liveMails, ...newMails]);
+    this.persistResult();
+    // 새 메일 토스트 알림.
+    this.time.delayedCall(1800, () => this.showMailToast(newMails.length));
+  }
+
+  /** 새 메일 도착 토스트 — 3초 후 사라짐. */
+  private showMailToast(count: number): void {
+    const toastW = 300;
+    const toastH = 60;
+    const toastX = this.contentX + (720 - toastW) / 2;
+    const toastY = 70;
+
+    const container = this.add.container(toastX, toastY - 80).setDepth(210);
+
+    const bg = this.add.graphics();
+    bg.fillStyle(0x1a2a3a, 0.95);
+    bg.fillRoundedRect(0, 0, toastW, toastH, 12);
+    bg.lineStyle(1.5, 0x3a5a7a, 1);
+    bg.strokeRoundedRect(0, 0, toastW, toastH, 12);
+    container.add(bg);
+
+    container.add(
+      this.add
+        .text(toastW / 2, toastH / 2, `📬 새 메일 ${count}건 도착`, {
+          fontFamily: FONT_STACK,
+          fontSize: '24px',
+          fontStyle: 'bold',
+          color: TEXT_COLOR.primary,
+        })
+        .setOrigin(0.5),
+    );
+
+    // 슬라이드 인.
+    this.tweens.add({
+      targets: container,
+      y: toastY,
+      duration: 300,
+      ease: 'Back.easeOut',
+      onComplete: () => {
+        // 3초 후 페이드 아웃.
+        this.time.delayedCall(3000, () => {
+          this.tweens.add({
+            targets: container,
+            alpha: 0,
+            y: toastY - 30,
+            duration: 260,
+            ease: 'Cubic.easeIn',
+            onComplete: () => container.destroy(),
+          });
+        });
+      },
+    });
+  }
+
+  // ────────────────────────── 메일 인박스 모달 ──────────────────────────
+
+  /** 메일 인박스 모달 열기. */
+  private openMailInboxModal(): void {
+    // 최근 메일부터 최대 10개 표시.
+    const sorted = [...this.liveMails].sort((a, b) => b.receivedAt - a.receivedAt).slice(0, 10);
+
+    const layer = this.add.container(0, 0).setDepth(150);
+    const overlay = this.add
+      .rectangle(0, 0, 720, 1280, 0x000000, 0.7)
+      .setOrigin(0, 0)
+      .setInteractive();
+    layer.add(overlay);
+
+    const panelW = 620;
+    const panelX = this.contentX + (720 - panelW) / 2;
+    const panelY = 60;
+
+    // 행 높이 계산 — 헤더 + 메일 리스트.
+    const rowH = 76;
+    const rowGap = 6;
+    const headerH = 90;
+    const footerH = 60;
+    const listH = sorted.length > 0 ? sorted.length * (rowH + rowGap) - rowGap : 60;
+    const panelH = Math.min(1160, headerH + listH + footerH + 16);
+    const panel = makePanel(this, panelX, panelY, panelW, panelH, COLOR.panel);
+    layer.add(panel);
+
+    // 헤더.
+    const unreadCount = this.liveMails.filter((m) => !m.read).length;
+    layer.add(
+      this.add.text(panelX + 24, panelY + 18, '📬 메일함', {
+        fontFamily: FONT_STACK,
+        fontSize: '21px',
+        fontStyle: 'bold',
+        color: TEXT_COLOR.warn,
+      }),
+    );
+    layer.add(
+      this.add.text(panelX + 24, panelY + 42, unreadCount > 0 ? `안 읽은 메일 ${unreadCount}건` : '모두 읽음', {
+        fontFamily: FONT_STACK,
+        fontSize: '26px',
+        fontStyle: 'bold',
+        color: unreadCount > 0 ? TEXT_COLOR.primary : TEXT_COLOR.dim,
+      }),
+    );
+
+    // 메일 리스트.
+    if (sorted.length === 0) {
+      layer.add(
+        this.add
+          .text(panelX + panelW / 2, panelY + headerH + 30, '수신된 메일이 없습니다.', {
+            fontFamily: FONT_STACK,
+            fontSize: '24px',
+            color: TEXT_COLOR.dim,
+          })
+          .setOrigin(0.5),
+      );
+    } else {
+      sorted.forEach((mail, i) => {
+        const rowY = panelY + headerH + i * (rowH + rowGap);
+        this.buildMailRow(layer, panelX + 16, rowY, panelW - 32, rowH, mail, () => {
+          layer.destroy();
+          this.openMailDetailModal(mail);
+        });
+      });
+    }
+
+    // 닫기 버튼.
+    const closeY = panelY + panelH - footerH + 8;
+    const closeBg = this.add.graphics();
+    closeBg.fillStyle(COLOR.btnSecondary, 1);
+    closeBg.fillRoundedRect(panelX + 24, closeY, panelW - 48, 40, 12);
+    layer.add(closeBg);
+    layer.add(
+      this.add
+        .text(panelX + panelW / 2, closeY + 20, '닫기', {
+          fontFamily: FONT_STACK,
+          fontSize: '24px',
+          color: TEXT_COLOR.dim,
+        })
+        .setOrigin(0.5),
+    );
+    const closeHit = this.add
+      .zone(panelX + panelW / 2, closeY + 20, panelW - 48, 40)
+      .setInteractive({ useHandCursor: true });
+    layer.add(closeHit);
+    closeHit.on('pointerup', () => {
+      playSfx(this, SFX.tap);
+      layer.destroy();
+    });
+  }
+
+  /** 메일 한 row 렌더링. */
+  private buildMailRow(
+    layer: Phaser.GameObjects.Container,
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    mail: MailMessage,
+    onTap: () => void,
+  ): void {
+    const npc = NPCS.find((n) => n.id === mail.fromNpcId);
+    const npcName = npc?.name ?? mail.fromNpcId;
+
+    // 배경.
+    const rowBg = this.add.graphics();
+    rowBg.fillStyle(mail.read ? COLOR.panelEmpty : 0x1a2d4a, 1);
+    rowBg.fillRoundedRect(x, y, w, h, 8);
+    layer.add(rowBg);
+
+    // 안 읽음 표시 — 좌측 빨간 도트.
+    if (!mail.read) {
+      const dot = this.add.graphics();
+      dot.fillStyle(0xff4444, 1);
+      dot.fillCircle(x + 10, y + h / 2, 5);
+      layer.add(dot);
+    }
+
+    const textX = x + (mail.read ? 16 : 22);
+
+    // NPC 이름 + 제목.
+    layer.add(
+      this.add.text(textX, y + 10, npcName, {
+        fontFamily: FONT_STACK,
+        fontSize: '19px',
+        fontStyle: 'bold',
+        color: TEXT_COLOR.warn,
+      }),
+    );
+    layer.add(
+      this.add.text(textX, y + 28, mail.subject, {
+        fontFamily: FONT_STACK,
+        fontSize: '22px',
+        color: mail.read ? TEXT_COLOR.dim : TEXT_COLOR.primary,
+        wordWrap: { width: w - 110 },
+      }),
+    );
+
+    // 시간 (우측).
+    const d = new Date(mail.receivedAt);
+    const timeStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    layer.add(
+      this.add
+        .text(x + w - 8, y + 10, timeStr, {
+          fontFamily: FONT_STACK,
+          fontSize: '20px',
+          color: TEXT_COLOR.dim,
+        })
+        .setOrigin(1, 0),
+    );
+
+    // 선택지 있음 표시.
+    if (mail.choices && mail.choices.length > 0) {
+      layer.add(
+        this.add
+          .text(x + w - 8, y + 30, '[ 선택 ]', {
+            fontFamily: FONT_STACK,
+            fontSize: '18px',
+            color: TEXT_COLOR.ok,
+          })
+          .setOrigin(1, 0),
+      );
+    }
+
+    // 터치 히트.
+    const hit = this.add
+      .zone(x + w / 2, y + h / 2, w, h)
+      .setInteractive({ useHandCursor: true });
+    layer.add(hit);
+    hit.on('pointerup', () => {
+      playSfx(this, SFX.tap);
+      onTap();
+    });
+  }
+
+  /** 메일 상세 모달. */
+  private openMailDetailModal(mail: MailMessage): void {
+    // 읽음 처리.
+    this.liveMails = markMailRead(this.liveMails, mail.id);
+    this.persistResult();
+    this.refreshOfficePanel();
+
+    const npc = NPCS.find((n) => n.id === mail.fromNpcId);
+    const npcName = npc?.name ?? mail.fromNpcId;
+    const npcRole = npc?.role ?? '';
+
+    const layer = this.add.container(0, 0).setDepth(155);
+    const overlay = this.add
+      .rectangle(0, 0, 720, 1280, 0x000000, 0.75)
+      .setOrigin(0, 0)
+      .setInteractive();
+    layer.add(overlay);
+
+    const panelW = 600;
+    const panelX = this.contentX + (720 - panelW) / 2;
+
+    // 패널 높이 계산 — 본문 + 선택지.
+    const choiceH = mail.choices ? mail.choices.length * 68 + 16 : 0;
+    const panelH = Math.min(1100, 180 + choiceH + 60);
+    const panelY = Math.max(40, (1280 - panelH) / 2);
+    const panel = makePanel(this, panelX, panelY, panelW, panelH, COLOR.panel);
+    layer.add(panel);
+
+    // 발신자 정보.
+    layer.add(
+      this.add.text(panelX + 24, panelY + 18, `${npcName} — ${npcRole}`, {
+        fontFamily: FONT_STACK,
+        fontSize: '20px',
+        fontStyle: 'bold',
+        color: TEXT_COLOR.warn,
+      }),
+    );
+    // 제목.
+    layer.add(
+      this.add.text(panelX + 24, panelY + 40, mail.subject, {
+        fontFamily: FONT_STACK,
+        fontSize: '28px',
+        fontStyle: 'bold',
+        color: TEXT_COLOR.primary,
+        wordWrap: { width: panelW - 48 },
+      }),
+    );
+    // 본문.
+    layer.add(
+      this.add.text(panelX + 24, panelY + 80, mail.body, {
+        fontFamily: FONT_STACK,
+        fontSize: '22px',
+        color: TEXT_COLOR.dim,
+        wordWrap: { width: panelW - 48 },
+      }),
+    );
+
+    // 선택지 버튼들.
+    const choicesY = panelY + 148;
+    if (mail.choices && mail.choices.length > 0) {
+      mail.choices.forEach((choice, i) => {
+        const btnY = choicesY + i * 68;
+        const btnH = 58;
+        const btnBg = this.add.graphics();
+        btnBg.fillStyle(COLOR.btn, 1);
+        btnBg.fillRoundedRect(panelX + 24, btnY, panelW - 48, btnH, 10);
+        layer.add(btnBg);
+        layer.add(
+          this.add.text(panelX + 24 + 12, btnY + 8, choice.label, {
+            fontFamily: FONT_STACK,
+            fontSize: '20px',
+            fontStyle: 'bold',
+            color: TEXT_COLOR.primary,
+            wordWrap: { width: panelW - 72 },
+          }),
+        );
+        layer.add(
+          this.add.text(panelX + 24 + 12, btnY + 30, choice.summary, {
+            fontFamily: FONT_STACK,
+            fontSize: '18px',
+            color: TEXT_COLOR.dim,
+            wordWrap: { width: panelW - 72 },
+          }),
+        );
+        const hit = this.add
+          .zone(panelX + 24 + (panelW - 48) / 2, btnY + btnH / 2, panelW - 48, btnH)
+          .setInteractive({ useHandCursor: true });
+        layer.add(hit);
+        hit.on('pointerup', () => {
+          playSfx(this, SFX.success);
+          this.applyMailChoice(mail, choice.apply);
+          layer.destroy();
+        });
+      });
+    }
+
+    // 닫기 버튼.
+    const closeY = panelY + panelH - 56;
+    const closeBg = this.add.graphics();
+    closeBg.fillStyle(COLOR.btnSecondary, 1);
+    closeBg.fillRoundedRect(panelX + 24, closeY, panelW - 48, 40, 12);
+    layer.add(closeBg);
+    layer.add(
+      this.add
+        .text(panelX + panelW / 2, closeY + 20, '닫기', {
+          fontFamily: FONT_STACK,
+          fontSize: '24px',
+          color: TEXT_COLOR.dim,
+        })
+        .setOrigin(0.5),
+    );
+    const closeHit = this.add
+      .zone(panelX + panelW / 2, closeY + 20, panelW - 48, 40)
+      .setInteractive({ useHandCursor: true });
+    layer.add(closeHit);
+    closeHit.on('pointerup', () => {
+      playSfx(this, SFX.tap);
+      layer.destroy();
+      // 인박스로 돌아감.
+      this.openMailInboxModal();
+    });
+  }
+
+  /**
+   * 메일 선택지 apply 실행.
+   * outcome.state는 읽기 전용이므로 gold·reputation·morale 등은 live 필드에 반영한다.
+   */
+  private applyMailChoice(
+    mail: MailMessage,
+    applyFn: (state: import('@/domain/types').GameState) => import('@/domain/types').GameState,
+  ): void {
+    // 현재 live 상태를 GameState 형태로 조합.
+    const fakeState: import('@/domain/types').GameState = {
+      ...this.outcome.state,
+      gold: this.liveGold,
+      reputation: this.outcome.reputation.total + this.yearEndReputationBonus,
+      employees: [...this.liveEmployees],
+    };
+    const next = applyFn(fakeState);
+    // 변경 사항을 live 필드에 반영.
+    this.liveGold = next.gold;
+    // reputation 변화분을 yearEndReputationBonus에 누적.
+    const repDelta = next.reputation - fakeState.reputation;
+    this.yearEndReputationBonus += repDelta;
+    this.liveEmployees = next.employees;
+    // hiredEmployees에도 동기화 (morale/stamina/skill 변경 반영).
+    this.hiredEmployees = this.hiredEmployees.map((he) => {
+      const updated = next.employees.find((e) => e.id === he.id);
+      return updated ?? he;
+    });
+    // 메일에서 project(bugDebt 등)가 변경됐을 경우 outcome.state는 readonly이므로
+    // bugDebt 변경은 outcome.state.project를 직접 수정 (mutable 필드).
+    if (next.project.bugDebt !== fakeState.project.bugDebt) {
+      this.outcome.state.project.bugDebt = next.project.bugDebt;
+    }
+    // 메일 읽음 + 선택지 사용 표시를 위해 choices 제거.
+    this.liveMails = this.liveMails.map((m) =>
+      m.id === mail.id ? { ...m, read: true, choices: undefined } : m,
+    );
+    this.persistResult();
+    this.refreshOfficePanel();
+    this.refreshSaveFooter();
+  }
 }
+
+// MAIL_TEMPLATES 사용 확인 (tree-shaking 방지).
+void MAIL_TEMPLATES;

@@ -29,6 +29,8 @@ import { applyHiDPI } from '@/util/hidpi';
 import { addIconLabel } from '@/util/iconLabel';
 import { fitCamera } from '@/util/cameraFit';
 import { onResize } from '@/util/viewport';
+import { showHint } from '@/util/onboarding';
+import type { OnboardingHint } from '@/util/onboarding';
 
 import { SCENE_KEYS } from './keys';
 
@@ -107,6 +109,10 @@ export class AssignmentScene extends Phaser.Scene {
   private state: GameState = newTutorialGame();
   private selectedEmpId: string | null = null;
   private lastResult: SavedResult | null = null;
+  /** 온보딩 모드 여부 (productCount=0). */
+  private isOnboarding = false;
+  /** 현재 표시 중인 힌트 컨테이너. */
+  private hintContainer: Phaser.GameObjects.Container | null = null;
 
   private slotViews = new Map<SlotKind, SlotView>();
   private empViews = new Map<string, EmployeeView>();
@@ -123,11 +129,14 @@ export class AssignmentScene extends Phaser.Scene {
   }
 
   /** Boot 또는 Result에서 GameState/지난 결과를 인계 받아 다시 시작할 수 있게 한다. */
-  init(data?: { state?: GameState; lastResult?: SavedResult }): void {
+  init(data?: { state?: GameState; lastResult?: SavedResult; isOnboarding?: boolean }): void {
     if (data?.state) this.state = data.state;
     else this.state = newTutorialGame();
     this.lastResult = data?.lastResult ?? null;
     this.selectedEmpId = null;
+    // isOnboarding 명시 전달 없으면 productIndex로 판정.
+    this.isOnboarding = data?.isOnboarding ?? (this.state.productIndex === 0);
+    this.hintContainer = null;
   }
 
   create(): void {
@@ -144,6 +153,8 @@ export class AssignmentScene extends Phaser.Scene {
     this.buildStatus();
     addMuteToggle(this);
     this.redraw();
+    // 온보딩 힌트 — 첫 프로젝트에서만 표시.
+    if (this.isOnboarding) this.updateOnboardingHint();
     applyHiDPI(this);
     onResize(this, () => { this.scene.restart(); });
   }
@@ -542,6 +553,8 @@ export class AssignmentScene extends Phaser.Scene {
     this.drawEmployees();
     this.drawStartButton(false);
     this.updateStatus();
+    // 온보딩 힌트 갱신 — 배치 상태 변화 반영.
+    if (this.isOnboarding) this.updateOnboardingHint();
   }
 
   private drawSlots(): void {
@@ -735,5 +748,97 @@ export class AssignmentScene extends Phaser.Scene {
       }
     }
     return count;
+  }
+
+  // ────────────────────────── onboarding ──────────────────────────
+
+  /** primary 슬롯에 배치된 직원 수. */
+  private placedPrimaryCount(): number {
+    let n = 0;
+    for (const slot of SLOT_ORDER) {
+      if (this.state.assignment[slot]) n += 1;
+    }
+    return n;
+  }
+
+  /**
+   * 현재 배치 상태에 맞는 힌트를 다시 계산해 표시한다.
+   * 이전 힌트는 파괴 후 재생성.
+   * 온보딩 모드(isOnboarding=true)에서만 호출된다.
+   */
+  private updateOnboardingHint(): void {
+    // 이전 힌트 제거.
+    this.hintContainer?.destroy(true);
+    this.hintContainer = null;
+
+    if (!this.isOnboarding) return;
+
+    const placed = this.placedPrimaryCount();
+    const required = Math.min(this.state.employees.length, 3);
+    const allReady = isTutorialAssignmentReady(this.state);
+
+    let hint: OnboardingHint;
+
+    if (allReady) {
+      // 3단계: 모두 배치 완료 → 시작 버튼 안내.
+      // 시작 버튼 중앙: (360, 1180 + 72/2) = (360, 1216)
+      hint = {
+        targetX: 360,
+        targetY: 1216,
+        arrowDir: 'down',
+        text: '[개발 시작]을 눌러 진행하세요!',
+      };
+    } else if (placed === 0) {
+      // 1단계: 아무도 배치 안 됨 → 첫 직원 카드 가리킴.
+      // 직원 카드 첫 번째 중심(3명 기준): startX=46, cardW=200 → center x=146, y=540+120=660
+      const count = this.state.employees.length;
+      const layout = count <= 3
+        ? { cols: Math.max(1, count), cardW: 200, gap: 14 }
+        : count === 4
+          ? { cols: 4, cardW: 160, gap: 12 }
+          : { cols: 3, cardW: 200, gap: 14 };
+      const totalW = layout.cardW * layout.cols + layout.gap * (layout.cols - 1);
+      const startX = (720 - totalW) / 2;
+      const cardCX = startX + layout.cardW / 2;
+      const cardCY = 540 + (count <= 3 ? 120 : 100);
+      hint = {
+        targetX: cardCX,
+        targetY: cardCY - 60,
+        arrowDir: 'down',
+        text: '직원을 슬롯에 배치하세요!\n카드 클릭 → 슬롯 클릭',
+      };
+    } else if (placed < required) {
+      // 2단계: 일부 배치 → 미배치 직원 안내.
+      // 두 번째 미배치 직원 카드를 가리킴 (첫 번째는 이미 배치됨 가정).
+      const count = this.state.employees.length;
+      const layout = count <= 3
+        ? { cols: Math.max(1, count), cardW: 200, cardH: 240, gap: 14 }
+        : count === 4
+          ? { cols: 4, cardW: 160, cardH: 240, gap: 12 }
+          : { cols: 3, cardW: 200, cardH: 200, gap: 14 };
+      const totalW = layout.cardW * layout.cols + layout.gap * (layout.cols - 1);
+      const startX = (720 - totalW) / 2;
+      // 미배치 직원 중 첫 번째 인덱스 찾기.
+      const placedIds = new Set<string>(
+        SLOT_ORDER.map((s) => this.state.assignment[s]).filter((id): id is string => !!id),
+      );
+      const unplacedIdx = this.state.employees.findIndex((e) => !placedIds.has(e.id));
+      const idx = unplacedIdx >= 0 ? unplacedIdx : 1;
+      const col = idx % layout.cols;
+      const row = Math.floor(idx / layout.cols);
+      const cardCX = startX + col * (layout.cardW + layout.gap) + layout.cardW / 2;
+      const cardCY = 540 + row * (layout.cardH + 14) + layout.cardH / 2;
+      hint = {
+        targetX: cardCX,
+        targetY: cardCY - layout.cardH / 2 + 20,
+        arrowDir: 'down',
+        text: '남은 직원도 배치하세요.\n정배치 효율 100%, 오배치 50%.',
+      };
+    } else {
+      // 배치는 됐지만 isTutorialAssignmentReady가 false인 경우 — 힌트 없음.
+      return;
+    }
+
+    this.hintContainer = showHint(this, hint);
   }
 }

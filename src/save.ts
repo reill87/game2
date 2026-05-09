@@ -42,6 +42,8 @@ import type {
   Trait,
   TrendStatus,
 } from './domain/types';
+import type { MailMessage } from './domain/mail';
+import type { NpcId } from './domain/npcs';
 
 const KEY = 'game2.save';
 const LEGACY_KEY_V1 = 'game2.save.v1';
@@ -103,6 +105,47 @@ export interface SaveData {
   readonly lastAssignment?: Partial<Record<'planning' | 'graphics' | 'qa' | 'programming', string>>;
   /** 직전 프로젝트 support 배정 — 새 프로젝트 시작 시 자동 복원용. */
   readonly lastSupport?: Partial<Record<'planning' | 'graphics' | 'qa' | 'programming', string>>;
+  /** 회사명. 미설정 시 DEFAULT_COMPANY_NAME 사용. */
+  readonly companyName?: string;
+  /** 수신 메일 목록 — cap 30. 옛 데이터엔 없으므로 옵셔널. */
+  readonly mails?: ReadonlyArray<MailMessage>;
+}
+
+/** 회사명 기본값. */
+export const DEFAULT_COMPANY_NAME = '(주)판교개발';
+
+/** 앱 설정(볼륨 등) — SaveData와 분리해 'game2.settings'에 저장. */
+export interface AppSettings {
+  bgmVolume: number; // 0~1
+  sfxVolume: number; // 0~1
+}
+
+const SETTINGS_KEY = 'game2.settings';
+
+/** 앱 설정 저장. */
+export function saveSettings(s: AppSettings): void {
+  try {
+    if (typeof localStorage === 'undefined') return;
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
+  } catch {
+    /* noop */
+  }
+}
+
+/** 앱 설정 로드. 없거나 파싱 실패 시 기본값 반환. */
+export function loadSettings(): AppSettings {
+  try {
+    if (typeof localStorage === 'undefined') return { bgmVolume: 0.05, sfxVolume: 1.0 };
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    if (!raw) return { bgmVolume: 0.05, sfxVolume: 1.0 };
+    const parsed = JSON.parse(raw) as Partial<AppSettings>;
+    return {
+      bgmVolume: typeof parsed.bgmVolume === 'number' ? Math.max(0, Math.min(1, parsed.bgmVolume)) : 0.05,
+      sfxVolume: typeof parsed.sfxVolume === 'number' ? Math.max(0, Math.min(1, parsed.sfxVolume)) : 1.0,
+    };
+  } catch {
+    return { bgmVolume: 0.05, sfxVolume: 1.0 };
+  }
 }
 
 /** history에 보관할 최대 개수. 너무 많아지면 storage 부담 + Stats UI도 길어짐. */
@@ -124,6 +167,59 @@ function getStorage(): Storage | null {
   }
 }
 
+const VALID_NPC_IDS: ReadonlyArray<NpcId> = [
+  'rival-ceo',
+  'angel-investor',
+  'exec-coach',
+  'venture-capital',
+  'gov-regulator',
+  'tech-blogger',
+];
+
+/** 메일 목록 sanitize — cap 30, 필수 필드 타입 검증. choices는 함수라 직렬화 불가하므로 제거. */
+function sanitizeMailsForSave(mails: ReadonlyArray<MailMessage>): ReadonlyArray<MailMessage> {
+  const trimmed = mails.length > 30 ? [...mails].sort((a, b) => b.receivedAt - a.receivedAt).slice(0, 30) : mails;
+  return trimmed.map((m) => ({
+    id: m.id,
+    fromNpcId: m.fromNpcId,
+    subject: m.subject,
+    body: m.body,
+    receivedAt: m.receivedAt,
+    read: m.read,
+    // choices는 함수 포함이라 저장 불가 — 복원 시 재구성 불필요(상태는 read 여부만 보존).
+  }));
+}
+
+/** 저장된 메일 목록 sanitize — 로드 시 호출. */
+function sanitizeMails(raw: unknown): ReadonlyArray<MailMessage> | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const validIds = new Set<string>(VALID_NPC_IDS);
+  const result: MailMessage[] = [];
+  for (const item of raw as unknown[]) {
+    if (!item || typeof item !== 'object') continue;
+    const m = item as Record<string, unknown>;
+    if (
+      typeof m['id'] !== 'string' ||
+      typeof m['fromNpcId'] !== 'string' ||
+      !validIds.has(m['fromNpcId']) ||
+      typeof m['subject'] !== 'string' ||
+      typeof m['body'] !== 'string' ||
+      typeof m['receivedAt'] !== 'number' ||
+      typeof m['read'] !== 'boolean'
+    ) continue;
+    result.push({
+      id: m['id'],
+      fromNpcId: m['fromNpcId'] as NpcId,
+      subject: m['subject'],
+      body: m['body'],
+      receivedAt: m['receivedAt'],
+      read: m['read'],
+      // choices는 함수이므로 직렬화/역직렬화 불가 — 복원 없음.
+    });
+  }
+  return result.length > 0 ? result : undefined;
+}
+
 export function saveData(input: {
   gold: number;
   productCount: number;
@@ -143,6 +239,8 @@ export function saveData(input: {
   acquisitions?: AcquisitionState;
   lastAssignment?: Partial<Record<'planning' | 'graphics' | 'qa' | 'programming', string>>;
   lastSupport?: Partial<Record<'planning' | 'graphics' | 'qa' | 'programming', string>>;
+  companyName?: string;
+  mails?: ReadonlyArray<MailMessage>;
 }): SaveData | null {
   const storage = getStorage();
   if (!storage) return null;
@@ -167,6 +265,8 @@ export function saveData(input: {
     ...(input.acquisitions ? { acquisitions: input.acquisitions } : {}),
     ...(input.lastAssignment ? { lastAssignment: input.lastAssignment } : {}),
     ...(input.lastSupport ? { lastSupport: input.lastSupport } : {}),
+    ...(input.companyName ? { companyName: input.companyName.slice(0, 20) } : {}),
+    ...(input.mails ? { mails: sanitizeMailsForSave(input.mails) } : {}),
   };
   try {
     storage.setItem(KEY, JSON.stringify(full));
@@ -443,6 +543,7 @@ function interpret(storage: Storage, parsed: unknown, fromLegacy: boolean): Save
       ...(sanitizedAcquisitions ? { acquisitions: sanitizedAcquisitions } : {}),
       ...(obj.lastAssignment ? { lastAssignment: sanitizeAssignment(obj.lastAssignment) } : {}),
       ...(obj.lastSupport ? { lastSupport: sanitizeSupport(obj.lastSupport) } : {}),
+      ...(obj.mails ? { mails: sanitizeMails(obj.mails) } : {}),
     };
     if (fromLegacy) {
       saveDataDirect(storage, sanitized);

@@ -10,8 +10,8 @@ import { BGM } from '@/bgm';
 import { preloadEventCategories } from '@/eventCategoryAssets';
 import { ICON_DIR, ICONS } from '@/icons';
 import { preloadIllustrations } from '@/illustrations';
-import { loadData, type SavedResult } from '@/save';
-import { preloadSfx } from '@/sounds';
+import { loadData, saveData, loadSettings, DEFAULT_COMPANY_NAME, type SavedResult } from '@/save';
+import { setSfxVolume, preloadSfx } from '@/sounds';
 import { preloadUITextures } from '@/util/ui';
 import { SCENE_KEYS } from './keys';
 
@@ -37,6 +37,11 @@ export class BootScene extends Phaser.Scene {
   }
 
   create(): void {
+    // 저장된 볼륨 설정 복원.
+    const settings = loadSettings();
+    BGM.setVolume(settings.bgmVolume);
+    setSfxVolume(settings.sfxVolume);
+
     // 첫 입력 후 AudioContext resume — 브라우저 자동재생 정책 우회.
     this.input.once('pointerdown', () => {
       BGM.resume();
@@ -92,6 +97,15 @@ export class BootScene extends Phaser.Scene {
       const state = { ...fresh, employees, gold, officeLevel, reputation, policy, trend, rnd, facilities, markets, acquisitions };
       const carry: { lastResult?: SavedResult } = {};
       if (lastResult) carry.lastResult = lastResult;
+
+      // 첫 진입(저장 데이터 없음)에서 회사명 입력 모달 표시.
+      if (!saved?.companyName) {
+        this.showCompanyNameModal(() => {
+          this.scene.start(SCENE_KEYS.Assignment, { state, ...carry });
+        });
+        return;
+      }
+
       this.scene.start(SCENE_KEYS.Assignment, { state, ...carry });
       return;
     }
@@ -110,6 +124,103 @@ export class BootScene extends Phaser.Scene {
       markets,
       lastAssignment: filteredAssignment,
       ...(hasFilteredSupport ? { lastSupport: filteredSupport } : {}),
+    });
+  }
+
+  /**
+   * 회사명 입력 모달. DOM input 사용. 완료 시 onDone() 호출.
+   * 첫 진입(productIndex=0, companyName 없음)에서 한 번만 표시.
+   */
+  private showCompanyNameModal(onDone: () => void): void {
+    // 어두운 배경
+    const bg = this.add.graphics();
+    bg.fillStyle(0x0e0e12, 1);
+    bg.fillRect(0, 0, 720, 1280);
+
+    // 텍스트
+    this.add.text(360, 460, '회사명을 입력하세요', {
+      fontFamily: '"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif',
+      fontSize: '34px',
+      fontStyle: 'bold',
+      color: '#f2f2f7',
+    }).setOrigin(0.5);
+
+    this.add.text(360, 510, '최대 20자 · 나중에 설정에서 변경 가능', {
+      fontFamily: '"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif',
+      fontSize: '22px',
+      color: '#9b9bb0',
+    }).setOrigin(0.5);
+
+    // DOM input
+    const inputStyle = [
+      'width: 460px',
+      'height: 60px',
+      'padding: 0 18px',
+      'border: 2px solid #4a4a62',
+      'border-radius: 12px',
+      'background: #20202a',
+      'color: #f2f2f7',
+      'font-size: 26px',
+      'font-family: "Apple SD Gothic Neo","Malgun Gothic",sans-serif',
+      'outline: none',
+      'box-sizing: border-box',
+      'text-align: center',
+    ].join('; ');
+    const inputEl = this.add.dom(360, 590, 'input', inputStyle);
+    const node = inputEl.node as HTMLInputElement;
+    node.type = 'text';
+    node.placeholder = DEFAULT_COMPANY_NAME;
+    node.maxLength = 20;
+
+    // 시작 버튼
+    const btnW = 280;
+    const btnH = 60;
+    const btnX = 360 - btnW / 2;
+    const btnY = 660;
+    const btnBg = this.add.graphics();
+    btnBg.fillStyle(0x4f6fff, 1);
+    btnBg.fillRoundedRect(btnX, btnY, btnW, btnH, 14);
+    this.add.text(360, btnY + btnH / 2, '게임 시작', {
+      fontFamily: '"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif',
+      fontSize: '28px',
+      fontStyle: 'bold',
+      color: '#f2f2f7',
+    }).setOrigin(0.5);
+
+    const hit = this.add
+      .zone(360, btnY + btnH / 2, btnW, btnH)
+      .setInteractive({ useHandCursor: true });
+
+    hit.on('pointerup', () => {
+      const raw = node.value.trim();
+      const name = raw.length > 0 ? raw.slice(0, 20) : DEFAULT_COMPANY_NAME;
+      // 저장 — 현재 저장 데이터가 없을 수 있으므로 최소 데이터로 기록
+      const existing = loadData();
+      if (existing) {
+        saveData({
+          gold: existing.gold,
+          productCount: existing.productCount,
+          officeLevel: existing.officeLevel,
+          hiredEmployees: existing.hiredEmployees,
+          lastResult: existing.lastResult ?? null,
+          reputation: existing.reputation ?? 0,
+          policy: existing.policy ?? DEFAULT_POLICY,
+          trend: existing.trend ?? null,
+          history: existing.history,
+          endingsShown: existing.endingsShown,
+          employees: existing.employees,
+          rnd: existing.rnd,
+          milestones: existing.milestones,
+          facilities: existing.facilities,
+          markets: existing.markets,
+          acquisitions: existing.acquisitions,
+          lastAssignment: existing.lastAssignment,
+          lastSupport: existing.lastSupport,
+          companyName: name,
+        });
+      }
+      inputEl.destroy();
+      onDone();
     });
   }
 }

@@ -210,6 +210,19 @@ class BGMManagerImpl {
     return this.muted;
   }
 
+  /** BGM 마스터 볼륨 설정. v: 0~1. 음소거 상태에서도 값은 저장되며 음소거 해제 시 반영. */
+  setVolume(v: number): void {
+    this.masterVolume = Math.max(0, Math.min(1, v));
+    if (this.master && !this.muted) {
+      this.master.gain.setTargetAtTime(this.masterVolume, this.ctx?.currentTime ?? 0, 0.1);
+    }
+  }
+
+  /** 현재 BGM 마스터 볼륨(0~1). */
+  getVolume(): number {
+    return this.masterVolume;
+  }
+
   stop(): void {
     if (this.cycleTimer) clearTimeout(this.cycleTimer);
     this.cycleTimer = null;

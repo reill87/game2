@@ -11,7 +11,7 @@ import { calendarFor } from '@/domain/calendar';
 import { GENRE_LABEL, THEME_LABEL } from '@/domain/seed';
 import { BGM } from '@/bgm';
 import { ICONS } from '@/icons';
-import { loadData, type SavedResult } from '@/save';
+import { loadData, DEFAULT_COMPANY_NAME, type SavedResult } from '@/save';
 import { playSfx, SFX } from '@/sounds';
 import { COLOR, FONT_STACK, TEXT_COLOR, TINT } from '@/theme';
 import { applyHiDPI } from '@/util/hidpi';
@@ -49,7 +49,8 @@ export class StatsScene extends Phaser.Scene {
     BGM.resume();
     BGM.setMood('calm');
     addMuteToggle(this);
-    this.buildHeader(history.length);
+    const companyName = saved?.companyName ?? DEFAULT_COMPANY_NAME;
+    this.buildHeader(history.length, companyName);
     this.buildSummary(history);
     this.buildHistoryList(history);
     this.buildCloseButton();
@@ -58,9 +59,9 @@ export class StatsScene extends Phaser.Scene {
   }
 
   // ────────────────────────── header ──────────────────────────
-  private buildHeader(count: number): void {
+  private buildHeader(count: number, companyName: string): void {
     this.add
-      .text(this.cx, 60, '누적 통계', {
+      .text(this.cx, 60, `${companyName} 누적 통계`, {
         fontFamily: FONT_STACK,
         fontSize: '36px',
         fontStyle: 'bold',

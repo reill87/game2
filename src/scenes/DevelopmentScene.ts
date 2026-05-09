@@ -38,6 +38,7 @@ import {
 import { BGM } from '@/bgm';
 import { EVENT_CATEGORY_TEXTURE } from '@/eventCategoryAssets';
 import { ICONS } from '@/icons';
+import { loadData, DEFAULT_COMPANY_NAME } from '@/save';
 import { playSfx, SFX } from '@/sounds';
 import { COLOR, FONT_STACK, TEXT_COLOR, TINT } from '@/theme';
 import { addMuteToggle } from '@/util/muteToggle';
@@ -46,6 +47,7 @@ import { applyHiDPI } from '@/util/hidpi';
 import { makePanel } from '@/util/ui';
 import { fitCamera } from '@/util/cameraFit';
 import { onResize } from '@/util/viewport';
+import { showHint } from '@/util/onboarding';
 
 import { SCENE_KEYS } from './keys';
 
@@ -204,11 +206,23 @@ export class DevelopmentScene extends Phaser.Scene {
   private cx = 360;
   private contentX = 0;
 
+  // ── 온보딩 ────────────────────────────────────────────────────────────
+  /** 온보딩 모드 여부 (productCount=0). */
+  private isOnboarding = false;
+  /** 현재 표시 중인 힌트 컨테이너. */
+  private devHintContainer: Phaser.GameObjects.Container | null = null;
+  /** pick-speed 힌트를 이미 제거했는지 — 중복 제거 방지. */
+  private pickSpeedHintDone = false;
+  /** click-employee 힌트를 이미 표시했는지. */
+  private clickEmployeeHintShown = false;
+  /** release-time 힌트를 이미 표시했는지. */
+  private releaseHintShown = false;
+
   constructor() {
     super({ key: SCENE_KEYS.Development });
   }
 
-  init(data: { state: GameState }): void {
+  init(data: { state: GameState; isOnboarding?: boolean }): void {
     // 튜토리얼은 야근 토글을 노출하지 않으므로, 외부에서 crunch=true가 흘러 들어와도
     // 토글 없이 ON 상태로 잠기는 일을 방지한다.
     const incoming = data.state;
@@ -250,6 +264,12 @@ export class DevelopmentScene extends Phaser.Scene {
     };
     this.statsTween?.stop();
     this.statsTween = null;
+    // 온보딩 상태 초기화.
+    this.isOnboarding = data.isOnboarding ?? (incoming.productIndex === 0);
+    this.devHintContainer = null;
+    this.pickSpeedHintDone = false;
+    this.clickEmployeeHintShown = false;
+    this.releaseHintShown = false;
   }
 
   create(): void {
@@ -270,6 +290,8 @@ export class DevelopmentScene extends Phaser.Scene {
     this.buildActions();
     if (this.state.productIndex >= 1) this.buildPromoSelector();
     this.redraw();
+    // 온보딩 4단계: 재생 컨트롤 안내 힌트.
+    if (this.isOnboarding) this.showPickSpeedHint();
     applyHiDPI(this);
     onResize(this, () => { this.scene.restart(); });
   }
@@ -284,24 +306,30 @@ export class DevelopmentScene extends Phaser.Scene {
     };
     const genre = GENRE_LABEL[this.state.project.genre].name;
     const theme = THEME_LABEL[this.state.project.theme].name;
-    this.add.text(this.cx, 50, `개발 중 — ${genre} × ${theme}`, titleStyle).setOrigin(0.5);
+    const companyName = loadData()?.companyName ?? DEFAULT_COMPANY_NAME;
+    this.add.text(this.cx, 50, `${companyName} — 개발 중`, titleStyle).setOrigin(0.5);
+    this.add.text(this.cx, 84, `${genre} × ${theme}`, {
+      fontFamily: FONT_STACK,
+      fontSize: '22px',
+      color: TEXT_COLOR.dim,
+    }).setOrigin(0.5);
 
     this.weekText = this.add
-      .text(this.cx, 88, '', {
+      .text(this.cx, 112, '', {
         fontFamily: FONT_STACK,
         fontSize: '24px',
         color: TEXT_COLOR.dim,
       })
       .setOrigin(0.5);
     this.weekIcon = this.add
-      .image(0, 88, ICONS.calendar.key)
+      .image(0, 112, ICONS.calendar.key)
       .setDisplaySize(14, 14)
       .setOrigin(1, 0.5)
       .setTint(TINT.dim);
 
     // Sprint 단계 텍스트 — 헤더 Week 텍스트 우측에 표시.
     this.sprintPhaseText = this.add
-      .text(this.contentX + 720 - 14, 88, '', {
+      .text(this.contentX + 720 - 14, 112, '', {
         fontFamily: FONT_STACK,
         fontSize: '23px',
         fontStyle: 'bold',
@@ -960,6 +988,8 @@ export class DevelopmentScene extends Phaser.Scene {
     this.speedBeforeModal = null;
     this.refreshPlaybackHighlight();
     this.refreshTimer();
+    // 온보딩 4단계 힌트 제거 — 속도 선택 시.
+    this.dismissPickSpeedHint();
   }
 
   private refreshPlaybackHighlight(): void {
@@ -1017,9 +1047,20 @@ export class DevelopmentScene extends Phaser.Scene {
       );
     }
 
+    // 온보딩 5단계: 첫 주 경과 후 직원 타일 클릭 안내 (1회만).
+    if (this.isOnboarding && !this.clickEmployeeHintShown) {
+      this.clickEmployeeHintShown = true;
+      this.showClickEmployeeHint();
+    }
+
     if (canRelease(this.state)) {
       // 출시 가능 도달 — 자동 일시정지하고 출시 패널 노출(redraw가 처리).
       this.handlePause();
+      // 온보딩 6단계: 출시 힌트.
+      if (this.isOnboarding && !this.releaseHintShown) {
+        this.releaseHintShown = true;
+        this.showReleaseHint();
+      }
       return;
     }
 
@@ -1414,6 +1455,9 @@ export class DevelopmentScene extends Phaser.Scene {
 
   private handleRelease(): void {
     playSfx(this, SFX.click, 0.55);
+    // 온보딩 힌트 모두 제거.
+    this.devHintContainer?.destroy(true);
+    this.devHintContainer = null;
     const outcome = shipProject(this.state, this.polishCount, this.selectedPromo);
     // 출시 직후 → ResultScene으로 직행하지 않고 운영 결정 모달 표시.
     this.startPostReleasePhase(outcome);
@@ -2207,8 +2251,9 @@ export class DevelopmentScene extends Phaser.Scene {
 
     const c = this.add.container(0, 0).setDepth(90);
     // 팝업 위치 — 타일 바로 아래 (tileY+tileH+4) 또는 화면 밖이면 위로
-    const popW = 280;
-    const popH = 186;
+    // 5개 액션(야근/휴가/1on1/격려금/인센티브) + 닫기 = 6행 → 높이 316
+    const popW = 300;
+    const popH = 316;
     let popX = tileX;
     let popY = tileY + 70 + 4;
     // 화면 하단 넘침 방지
@@ -2292,6 +2337,45 @@ export class DevelopmentScene extends Phaser.Scene {
           };
         },
       },
+      {
+        // 소액 격려금 — morale +20
+        label: '🎁 격려금 (−50g)',
+        summary: 'morale +20',
+        apply: () => {
+          if (this.state.gold < 50) return;
+          this.state = {
+            ...this.state,
+            gold: this.state.gold - 50,
+            employees: this.state.employees.map((e) =>
+              e.id === empId
+                ? { ...e, morale: Math.min(100, e.morale + 20), weeklyActionUsed: true }
+                : e,
+            ),
+          };
+        },
+      },
+      {
+        // 대액 인센티브 — morale +50 + stamina +20
+        label: '💰 인센티브 (−200g)',
+        summary: 'morale +50, stamina +20',
+        apply: () => {
+          if (this.state.gold < 200) return;
+          this.state = {
+            ...this.state,
+            gold: this.state.gold - 200,
+            employees: this.state.employees.map((e) =>
+              e.id === empId
+                ? {
+                    ...e,
+                    morale: Math.min(100, e.morale + 50),
+                    stamina: Math.min(100, e.stamina + 20),
+                    weeklyActionUsed: true,
+                  }
+                : e,
+            ),
+          };
+        },
+      },
     ];
 
     const btnW = popW - 28;
@@ -2301,7 +2385,12 @@ export class DevelopmentScene extends Phaser.Scene {
 
     actions.forEach((action, i) => {
       const y = btnStartY + i * (btnH + btnGap);
-      const disabled = used || (action.label === '1on1 면담' && this.state.gold < 30);
+      // 골드 부족 체크 — 각 액션의 비용별로 판단
+      const goldCost = action.label.includes('−30') || action.label.includes('1on1') ? 30
+        : action.label.includes('−50') ? 50
+        : action.label.includes('−200') ? 200
+        : 0;
+      const disabled = used || (goldCost > 0 && this.state.gold < goldCost);
       const bg = this.add.graphics();
       bg.fillStyle(disabled ? COLOR.btnDisabled : COLOR.btnSecondary, 1);
       bg.fillRoundedRect(popX + 14, y, btnW, btnH, 8);
@@ -2354,9 +2443,10 @@ export class DevelopmentScene extends Phaser.Scene {
     c.add([closeBg, closeT, closeHit]);
 
     if (used) {
+      // 5개 액션 중앙(2.5번째 행)에 오버레이 텍스트
       c.add(
         this.add
-          .text(popX + popW / 2, btnStartY + 1.5 * (btnH + btnGap), '이번 주 이미 사용함', {
+          .text(popX + popW / 2, btnStartY + 2 * (btnH + btnGap), '이번 주 이미 사용함', {
             fontFamily: FONT_STACK,
             fontSize: '21px',
             fontStyle: 'bold',
@@ -2369,5 +2459,84 @@ export class DevelopmentScene extends Phaser.Scene {
 
     this.empPopupContainer = c;
     applyHiDPI(this);
+  }
+
+  // ────────────────────────── onboarding ──────────────────────────
+
+  /**
+   * 4단계: 재생 컨트롤 안내 힌트.
+   * 1× 버튼 위에 말풍선. 5초 후 자동 제거.
+   */
+  private showPickSpeedHint(): void {
+    this.devHintContainer?.destroy(true);
+    // 재생 컨트롤 Y=1170, 버튼 높이=64. 1× 버튼 중심 X 계산.
+    const ctrlW = 80;
+    const ctrlGap = 8;
+    const ctrlTotal = ctrlW * 4 + ctrlGap * 3;
+    const ctrlStartX = this.cx - ctrlTotal / 2;
+    // 1× 버튼은 index 1 (⏸ 다음).
+    const speed1CX = ctrlStartX + (ctrlW + ctrlGap) + ctrlW / 2;
+    const speed1CY = 1170 + 32;
+    this.devHintContainer = showHint(this, {
+      targetX: speed1CX,
+      targetY: speed1CY,
+      arrowDir: 'down',
+      text: '1× / 2× / 4× 버튼으로 자동 진행.\n4×가 가장 빠릅니다.',
+    });
+    // 5초 후 자동 제거.
+    this.time.delayedCall(5000, () => {
+      this.dismissPickSpeedHint();
+    });
+  }
+
+  /** pick-speed 힌트 제거 (이미 제거됐으면 no-op). */
+  private dismissPickSpeedHint(): void {
+    if (this.pickSpeedHintDone) return;
+    this.pickSpeedHintDone = true;
+    this.devHintContainer?.destroy(true);
+    this.devHintContainer = null;
+  }
+
+  /**
+   * 5단계: 첫 주 경과 후 직원 타일 클릭 안내 힌트.
+   * 첫 번째 슬롯 타일 위에 표시. 8초 후 자동 제거.
+   */
+  private showClickEmployeeHint(): void {
+    this.devHintContainer?.destroy(true);
+    // 첫 번째 슬롯 타일 좌표 조회 (SLOT_ORDER[0] = 'planning').
+    const firstSlot = SLOT_ORDER[0] as (typeof SLOT_ORDER)[number] | undefined;
+    const firstView = firstSlot ? this.slotSummaryViews.get(firstSlot) : undefined;
+    const tx = firstView ? firstView.tileX + firstView.tileW / 2 : this.cx;
+    const ty = firstView ? firstView.tileY : 470;
+    this.devHintContainer = showHint(this, {
+      targetX: tx,
+      targetY: ty,
+      arrowDir: 'down',
+      text: '사기·체력은 매주 변화.\n직원 타일 클릭 → 야근/휴가/1on1/보너스 가능',
+    });
+    // 8초 후 자동 제거.
+    this.time.delayedCall(8000, () => {
+      if (!this.releaseHintShown) {
+        this.devHintContainer?.destroy(true);
+        this.devHintContainer = null;
+      }
+    });
+  }
+
+  /**
+   * 6단계: 출시 가능 도달 후 출시 버튼 안내 힌트.
+   * 지금 출시 버튼 위에 표시. 사용자 클릭(handleRelease)으로 제거.
+   */
+  private showReleaseHint(): void {
+    this.devHintContainer?.destroy(true);
+    // 출시 버튼 중심: x = cx + 8 + 360/2 = 360 + 8 + 180 = 548, y = 1162 + 36 = 1198.
+    const releaseX = this.cx + 8 + 180;
+    const releaseY = 1162 + 36;
+    this.devHintContainer = showHint(this, {
+      targetX: releaseX,
+      targetY: releaseY,
+      arrowDir: 'down',
+      text: '출시할 시간! [지금 출시] 또는\n[1주 더 다듬기]로 BugDebt 감소 가능.',
+    });
   }
 }

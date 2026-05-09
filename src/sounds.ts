@@ -18,6 +18,19 @@ import Phaser from 'phaser';
 
 const ASSET_BASE = '/assets/ui/kenney/Sounds';
 
+/** SFX 전역 볼륨 배율(0~1). SettingsScene에서 setSfxVolume()으로 변경. */
+let sfxVolume = 1.0;
+
+/** SFX 볼륨 배율 설정. 0~1 범위로 clamp. */
+export function setSfxVolume(v: number): void {
+  sfxVolume = Math.max(0, Math.min(1, v));
+}
+
+/** 현재 SFX 볼륨 배율(0~1). */
+export function getSfxVolume(): number {
+  return sfxVolume;
+}
+
 /** 의미 키 → Phaser audio key. preload에서 이 key로 등록한다. */
 export const SFX = {
   /** Primary CTA·확인 버튼. 또렷한 클릭. */
@@ -53,7 +66,8 @@ export function preloadSfx(scene: Phaser.Scene): void {
 export function playSfx(scene: Phaser.Scene, key: SfxKey, volume = 0.4): void {
   try {
     if (!scene.cache.audio.exists(key)) return;
-    scene.sound.play(key, { volume });
+    // sfxVolume 배율 적용
+    scene.sound.play(key, { volume: volume * sfxVolume });
   } catch {
     /* noop */
   }

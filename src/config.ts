@@ -7,6 +7,7 @@ import { GenreSelectScene } from './scenes/GenreSelectScene';
 import { EndingScene } from './scenes/EndingScene';
 import { ResultScene } from './scenes/ResultScene';
 import { StatsScene } from './scenes/StatsScene';
+import { SettingsScene } from './scenes/SettingsScene';
 
 export const gameConfig: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
@@ -37,5 +38,5 @@ export const gameConfig: Phaser.Types.Core.GameConfig = {
       },
     ],
   },
-  scene: [BootScene, AssignmentScene, GenreSelectScene, DevelopmentScene, ResultScene, StatsScene, EndingScene],
+  scene: [BootScene, AssignmentScene, GenreSelectScene, DevelopmentScene, ResultScene, StatsScene, EndingScene, SettingsScene],
 };
