@@ -68,7 +68,7 @@ export interface SaveData {
   readonly savedAt: number;
   readonly gold: number;
   readonly productCount: number;
-  readonly officeLevel: 1 | 2 | 3;
+  readonly officeLevel: 1 | 2 | 3 | 4;
   readonly hiredEmployees: ReadonlyArray<Employee>;
   readonly lastResult: SavedResult | null;
   /** 회사 누적 명성 — PIVOT-4. 옛 v2 데이터엔 없을 수 있어 옵셔널 취급. */
@@ -223,7 +223,7 @@ function sanitizeMails(raw: unknown): ReadonlyArray<MailMessage> | undefined {
 export function saveData(input: {
   gold: number;
   productCount: number;
-  officeLevel: 1 | 2 | 3;
+  officeLevel: 1 | 2 | 3 | 4;
   hiredEmployees: ReadonlyArray<Employee>;
   lastResult: SavedResult | null;
   reputation: number;
@@ -333,6 +333,11 @@ const VALID_RND_IDS: ReadonlyArray<RndId> = [
   'global-hr-network',
   'autonomous-deploy',
   'ai-pm-assistant',
+  // Tier 4
+  'quantum-deploy',
+  'satellite-network',
+  'neural-architecture',
+  'company-os',
 ];
 
 const VALID_MARKET_IDS: ReadonlyArray<MarketId> = MARKETS.map((m) => m.id);
@@ -454,7 +459,7 @@ function sanitizeRnd(raw: unknown): RndState {
 
 const VALID_STANCES: ReadonlyArray<Stance> = ['progressive', 'conservative'];
 const VALID_RANKS: ReadonlyArray<Rank> = ['newbie', 'junior', 'senior', 'lead'];
-const VALID_TRAITS: ReadonlyArray<Trait> = ['oldTimer', 'allTalk', 'remoteSlacker'];
+const VALID_TRAITS: ReadonlyArray<Trait> = ['oldTimer', 'allTalk', 'remoteSlacker', 'perfectionist', 'crowd-pleaser', 'over-thinker'];
 const VALID_TRACKS: ReadonlyArray<Track> = ['manager', 'ic'];
 
 function sanitizeEmployee(raw: unknown): Employee | null {
@@ -521,8 +526,8 @@ function interpret(storage: Storage, parsed: unknown, fromLegacy: boolean): Save
     if (typeof obj.gold !== 'number') return backupAndNull(storage, parsed);
     // officeLevel 검증 — 잘못된 값이면 1로 fallback.
     const rawLevel = obj.officeLevel;
-    const safeOfficeLevel: 1 | 2 | 3 =
-      rawLevel === 1 || rawLevel === 2 || rawLevel === 3 ? rawLevel : 1;
+    const safeOfficeLevel: 1 | 2 | 3 | 4 =
+      rawLevel === 1 || rawLevel === 2 || rawLevel === 3 || rawLevel === 4 ? rawLevel : 1;
     // endingsShown 마이그레이션 — 옛 endingShown===true 이면 ['acquisition']으로 승격.
     const sanitizedEndingsShown = sanitizeEndingsShown(obj.endingsShown, obj.endingShown);
     // milestones 화이트리스트 필터.

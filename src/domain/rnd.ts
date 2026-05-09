@@ -25,7 +25,12 @@ export type RndId =
   | 'self-cloud-infra'
   | 'global-hr-network'
   | 'autonomous-deploy'
-  | 'ai-pm-assistant';
+  | 'ai-pm-assistant'
+  // Tier 4
+  | 'quantum-deploy'
+  | 'satellite-network'
+  | 'neural-architecture'
+  | 'company-os';
 
 export interface RndItem {
   readonly id: RndId;
@@ -218,6 +223,43 @@ export const RND_ITEMS: ReadonlyArray<RndItem> = [
     requires: ['continuous-integration', 'analytics-platform'],
     minProductCount: 22,
   },
+  // ── Tier 4 ────────────────────────────────────────────────────────────────
+  {
+    id: 'quantum-deploy',
+    name: '양자 배포 시스템',
+    desc: '양자 컴퓨팅 기반 배포 파이프라인. Progress 배수를 추가로 곱한다.',
+    cost: 50000,
+    effectLabel: 'Progress 배수 ×1.15',
+    requires: ['autonomous-deploy'],
+    minProductCount: 30,
+  },
+  {
+    id: 'satellite-network',
+    name: '자체 위성 네트워크',
+    desc: '전용 위성 인프라로 글로벌 커버리지 확보. 매출 ×1.3.',
+    cost: 80000,
+    effectLabel: '매출 ×1.3',
+    requires: ['global-hr-network'],
+    minProductCount: 35,
+  },
+  {
+    id: 'neural-architecture',
+    name: 'NAS 도입',
+    desc: '뉴럴 아키텍처 서치로 모든 직원 effective skill ×1.05.',
+    cost: 100000,
+    effectLabel: 'Effective skill ×1.05 (전원)',
+    requires: ['ai-pm-assistant'],
+    minProductCount: 40,
+  },
+  {
+    id: 'company-os',
+    name: '회사 운영체제',
+    desc: '전사 운영 최적화. Burn Rate ×0.4 — 가장 강력한 비용 절감.',
+    cost: 150000,
+    effectLabel: 'Burn Rate ×0.4',
+    requires: ['quantum-deploy', 'satellite-network'],
+    minProductCount: 50,
+  },
 ];
 
 export interface RndState {
@@ -242,8 +284,14 @@ export function isRndAvailable(
   return true;
 }
 
-/** R&D 항목의 티어 반환. T2/T3 화이트리스트로 판정. */
-export function getRndTier(id: RndId): 1 | 2 | 3 {
+/** R&D 항목의 티어 반환. T2/T3/T4 화이트리스트로 판정. */
+export function getRndTier(id: RndId): 1 | 2 | 3 | 4 {
+  const T4_IDS: ReadonlySet<RndId> = new Set([
+    'quantum-deploy',
+    'satellite-network',
+    'neural-architecture',
+    'company-os',
+  ]);
   const T3_IDS: ReadonlySet<RndId> = new Set([
     'self-cloud-infra',
     'global-hr-network',
@@ -260,6 +308,7 @@ export function getRndTier(id: RndId): 1 | 2 | 3 {
     'cloud-migration',
     'remote-collaboration',
   ]);
+  if (T4_IDS.has(id)) return 4;
   if (T3_IDS.has(id)) return 3;
   if (T2_IDS.has(id)) return 2;
   return 1;

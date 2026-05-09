@@ -221,6 +221,45 @@ const CANDIDATE_POOL: ReadonlyArray<Omit<HireCandidate, 'id'>> = [
     tagline: '의욕 폭발 신입',
     hireCost: 40,
   },
+  {
+    name: '디자이너 윤완벽',
+    job: 'designer',
+    skill: 1.3,
+    morale: M0,
+    stamina: S0,
+    stance: 'conservative',
+    rank: 'junior',
+    shippedProjects: 2,
+    trait: 'perfectionist',
+    tagline: '픽셀 하나도 못 넘어감',
+    hireCost: 110,
+  },
+  {
+    name: '개발자 최인기',
+    job: 'programmer',
+    skill: 1.1,
+    morale: M0,
+    stamina: S0,
+    stance: 'progressive',
+    rank: 'junior',
+    shippedProjects: 1,
+    trait: 'crowd-pleaser',
+    tagline: '팀 분위기 메이커',
+    hireCost: 90,
+  },
+  {
+    name: 'QA 이고민',
+    job: 'qa',
+    skill: 1.2,
+    morale: M0,
+    stamina: S0,
+    stance: 'conservative',
+    rank: 'junior',
+    shippedProjects: 2,
+    trait: 'over-thinker',
+    tagline: '버그 있나 없나 3번씩 생각',
+    hireCost: 95,
+  },
 ];
 
 /** 0.7~1.3 범위에서 무작위 성장률 — 채용마다 개인차 부여. */
@@ -284,6 +323,9 @@ export const TRAIT_LABEL: Readonly<Record<Trait, string>> = {
   oldTimer: '고인물',
   allTalk: '입 개발',
   remoteSlacker: '재택 빌런',
+  perfectionist: '완벽주의',
+  'crowd-pleaser': '인기인',
+  'over-thinker': '고민병',
 };
 
 export const RANK_LABEL: Readonly<Record<Rank, string>> = {
@@ -353,10 +395,11 @@ export const THEME_LABEL: Readonly<Record<ThemeId, { name: string; desc: string 
 };
 
 /** 사무실 단계별 표시 라벨. 도메인이 직접 단계 수를 다루진 않지만 UI 일관성 확보용. */
-export const OFFICE_STAGE_LABEL: Readonly<Record<1 | 2 | 3, string>> = {
+export const OFFICE_STAGE_LABEL: Readonly<Record<1 | 2 | 3 | 4, string>> = {
   1: '분당 셰어오피스',
   2: '판교 임대 사무실',
   3: '강남 자가 사옥',
+  4: '서울 캠퍼스',
 };
 
 /**
@@ -364,15 +407,17 @@ export const OFFICE_STAGE_LABEL: Readonly<Record<1 | 2 | 3, string>> = {
  *  - 1단계(분당): support 없음 (총 4명 배치 가능)
  *  - 2단계(판교): programming + graphics support 활성 (총 6명)
  *  - 3단계(강남): 모든 슬롯 support 활성 (총 8명)
+ *  - 4단계(서울): 모든 슬롯 support 활성 (총 8명, 고용 상한 10명)
  */
-export const SUPPORT_SLOTS_BY_OFFICE: Readonly<Record<1 | 2 | 3, ReadonlySet<SlotKind>>> = {
+export const SUPPORT_SLOTS_BY_OFFICE: Readonly<Record<1 | 2 | 3 | 4, ReadonlySet<SlotKind>>> = {
   1: new Set<SlotKind>(),
   2: new Set<SlotKind>(['programming', 'graphics']),
   3: new Set<SlotKind>(['planning', 'graphics', 'qa', 'programming']),
+  4: new Set<SlotKind>(['planning', 'graphics', 'qa', 'programming']),
 };
 
 /** 해당 사옥 단계에서 슬롯의 support 배치가 가능한지 여부. */
-export function isSupportSlotActive(officeLevel: 1 | 2 | 3, slot: SlotKind): boolean {
+export function isSupportSlotActive(officeLevel: 1 | 2 | 3 | 4, slot: SlotKind): boolean {
   return SUPPORT_SLOTS_BY_OFFICE[officeLevel].has(slot);
 }
 
@@ -383,7 +428,7 @@ export function newProject(opts: {
   theme: ThemeId;
   gold: number;
   employees: ReadonlyArray<Employee>;
-  officeLevel?: 1 | 2 | 3;
+  officeLevel?: 1 | 2 | 3 | 4;
   reputation?: number;
   appealEnabled?: boolean;
   policy?: CompanyPolicy;

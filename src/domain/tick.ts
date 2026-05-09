@@ -44,6 +44,8 @@ export function computeBurnRate(state: GameState): number {
   if (isRndPurchased(state.rnd, 'finance-automation')) burnMul = Math.min(burnMul, 0.85);
   if (isRndPurchased(state.rnd, 'cloud-migration'))    burnMul = Math.min(burnMul, 0.70);
   if (isRndPurchased(state.rnd, 'self-cloud-infra'))   burnMul = Math.min(burnMul, 0.60);
+  // R&D T4: 회사 운영체제 — 가장 강력한 비용 절감 ×0.4.
+  if (isRndPurchased(state.rnd, 'company-os'))         burnMul = Math.min(burnMul, 0.40);
   return burnMul < 1.0 ? Math.round(base * burnMul) : base;
 }
 
@@ -181,7 +183,9 @@ export function effectiveSkill(
   const baseSkill = emp.skill + eqBonus.skillBonus;
   // 시설: AI 코파일럿 — 모든 effective skill ×1.07. (밸런스 v2) 1.1 → 1.07.
   const aiMul = isFacilityBuilt(state.facilities, 'ai-copilot') ? 1.07 : 1.0;
-  const raw = baseSkill * m * s * rankMul * traitMul * trackMul * dressMul * remoteVillainMul * leadBonus * aiMul;
+  // R&D T4: NAS 도입 — 모든 직원 effective skill ×1.05.
+  const nasMul = isRndPurchased(state.rnd, 'neural-architecture') ? 1.05 : 1.0;
+  const raw = baseSkill * m * s * rankMul * traitMul * trackMul * dressMul * remoteVillainMul * leadBonus * aiMul * nasMul;
   // (밸런스 v2) 풀스펙 스택 남용 방지 — effective skill 최대 3.0.
   return Math.min(raw, BALANCE.maxEffectiveSkill);
 }
@@ -224,6 +228,8 @@ function tickCondition(emp: Employee, state: GameState, mode: 'work' | 'rest'): 
     }
     // 정배치 작업이 누적되면 자연 성장. 개인 성장률 곱수로 진급 타이밍 차등.
     if (matched) dSkill = SKILL_GROWTH.perWeekMatched * (emp.growthRate ?? 1.0);
+    // 트레이트: 완벽주의 — 정배치 시 morale 추가 -0.5/주 (완벽에 대한 스트레스).
+    if (matched && emp.trait === 'perfectionist') dMorale -= 0.5;
 
     // 출퇴근 / 재택 — 배치된 직원만 출근 또는 재택.
     if (state.policy.commute === 'office') {
@@ -339,6 +345,10 @@ export function advanceWeek(prev: GameState): GameState {
   if (isRndPurchased(prev.rnd, 'continuous-integration')) {
     progressDelta *= 1.05;
   }
+  // R&D T4: 양자 배포 시스템 — Progress 배수 ×1.15.
+  if (isRndPurchased(prev.rnd, 'quantum-deploy')) {
+    progressDelta *= 1.15;
+  }
 
   let bugDebtDelta =
     (BALANCE.baseBugDebtPerWeek + mismatchedCount * BALANCE.mismatchBugDebt) *
@@ -356,6 +366,20 @@ export function advanceWeek(prev: GameState): GameState {
   // R&D: AI 페어 프로그래밍 — BugDebt 추가 −1/주. (밸런스 v2) -2 → -1.
   if (isRndPurchased(prev.rnd, 'ai-pair-programming')) {
     bugDebtDelta -= 1;
+  }
+  // 트레이트: 완벽주의·고민병 — 정배치 직원에 한해 BugDebt 추가 감소.
+  for (const slot of SLOT_ORDER) {
+    const empId = prev.assignment[slot];
+    if (!empId) continue;
+    const emp = employeesById.get(empId);
+    if (!emp) continue;
+    const matched = isMatched(slot, emp.job);
+    if (!matched) continue;
+    if (emp.trait === 'perfectionist') bugDebtDelta -= 0.5;
+    if (emp.trait === 'over-thinker') {
+      bugDebtDelta -= 1;
+      progressDelta *= 0.9; // -10% progress
+    }
   }
   // 재택근무 — 협업 비용 (BugDebt +1/주)
   if (prev.policy.commute === 'remote') {
@@ -381,10 +405,17 @@ export function advanceWeek(prev: GameState): GameState {
   }
 
   // 2) 직원 컨디션 업데이트(다음 주를 위해) + lowMoraleStreak 갱신 + weeklyActionUsed 리셋.
+  const crowdPleaserCount = prev.employees.filter((e) => e.trait === 'crowd-pleaser').length;
   const nextEmployees = prev.employees
     .map((e) => tickCondition(e, prev, 'work'))
     .map(tickExitStreak)
-    .map((e) => ({ ...e, weeklyActionUsed: false }));
+    .map((e) => ({ ...e, weeklyActionUsed: false }))
+    // 트레이트: 인기인 — crowd-pleaser 1명당 다른 모든 직원 morale +0.5/주.
+    .map((e) =>
+      e.trait !== 'crowd-pleaser' && crowdPleaserCount > 0
+        ? { ...e, morale: clamp(e.morale + crowdPleaserCount * 0.5, 0, 100) }
+        : e,
+    );
 
   // 남는 인력(슬롯 미배치) 보조 효과 — 매주 직원 1명당:
   //  - 사이드 컨설팅 +2g

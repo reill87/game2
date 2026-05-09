@@ -128,7 +128,7 @@ export function isFacilityBuilt(fs: FacilityState | undefined, id: FacilityId): 
 export function isFacilityAvailable(
   fs: FacilityState | undefined,
   item: Facility,
-  officeLevel: 1 | 2 | 3,
+  officeLevel: 1 | 2 | 3 | 4,
 ): boolean {
   if (item.minOfficeLevel !== undefined && officeLevel < item.minOfficeLevel) return false;
   if (item.requires) {

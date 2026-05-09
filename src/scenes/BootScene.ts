@@ -50,7 +50,7 @@ export class BootScene extends Phaser.Scene {
     const saved = loadData();
     const productIndex = saved?.productCount ?? 0;
     const gold = saved?.gold ?? 0;
-    const officeLevel: 1 | 2 | 3 = saved?.officeLevel ?? 1;
+    const officeLevel: 1 | 2 | 3 | 4 = saved?.officeLevel ?? 1;
     const reputation = saved?.reputation ?? 0;
     const policy: CompanyPolicy = saved?.policy ?? DEFAULT_POLICY;
     // 트렌드 — saved 값이 없거나 만료(null)면 새로 결정.

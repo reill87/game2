@@ -21,7 +21,10 @@ export type Stance = 'progressive' | 'conservative';
 export type Trait =
   | 'oldTimer' // 고인물 — effective skill ×1.3
   | 'allTalk' // 입 개발 — 평소 기여 ×0.7 (해커톤 보너스 별도, PIVOT-3.5)
-  | 'remoteSlacker'; // 재택 빌런 — 재택 시 5% 발현 (PIVOT-5)
+  | 'remoteSlacker' // 재택 빌런 — 재택 시 5% 발현 (PIVOT-5)
+  | 'perfectionist' // 완벽주의 — 정배치 시 BugDebt -0.5/주, morale 더 빠르게 감소
+  | 'crowd-pleaser' // 인기인 — 다른 직원 사기 +0.5/주
+  | 'over-thinker'; // 고민병 — 정배치 progress -10%, BugDebt -1/주
 
 /** 직급 4단계. */
 export type Rank = 'newbie' | 'junior' | 'senior' | 'lead';
@@ -73,7 +76,11 @@ export type TrendId =
   | 'platform_consolidation'
   | 'remote_first'
   | 'data_governance'
-  | 'metaverse_thaw';
+  | 'metaverse_thaw'
+  | 'ai_ethics'
+  | 'web3_revival'
+  | 'sustainability_wave'
+  | 'super_app_merge';
 
 export interface TrendStatus {
   readonly id: TrendId;
@@ -150,8 +157,8 @@ export interface GameState {
   readonly crunch: boolean;
   /** 0 = 첫 작품 (튜토리얼). 출시 직후 +1. UI/도메인 분기에 사용. */
   readonly productIndex: number;
-  /** 사무실 단계 — 1: 분당 셰어, 2: 판교 임대, 3: 강남 자가. burn rate 계산에 사용. */
-  readonly officeLevel: 1 | 2 | 3;
+  /** 사무실 단계 — 1: 분당 셰어, 2: 판교 임대, 3: 강남 자가, 4: 서울 캠퍼스. burn rate 계산에 사용. */
+  readonly officeLevel: 1 | 2 | 3 | 4;
   /** 회사 누적 명성 (작품 사이 영구 누적). 매출 보너스에 사용. */
   readonly reputation: number;
   /** 회사 정책(출퇴근/복장/복지). 작품 사이 결정, 매주 효과. */

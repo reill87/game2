@@ -97,7 +97,7 @@ export class ResultScene extends Phaser.Scene {
 
   // mutable office-state — Result 내에서 업그레이드/채용/정책 변경 가능
   private liveGold = 0;
-  private officeLevel: 1 | 2 | 3 = 1;
+  private officeLevel: 1 | 2 | 3 | 4 = 1;
   private hiredEmployees: Employee[] = [];
   /** 전체 직원 풀(튜토리얼 3 + 채용). track 등 변경분 보존용. */
   private liveEmployees: ReadonlyArray<Employee> = [];
@@ -898,6 +898,12 @@ export class ResultScene extends Phaser.Scene {
       upgradeBtnLabel = canUpgrade
         ? `강남 자가로 (-${cost}g)`
         : `강남 자가 (${this.liveGold}/${cost}g)`;
+    } else if (this.officeLevel === 3) {
+      const cost = BALANCE.officeUpgradeCostBy[4];
+      canUpgrade = this.liveGold >= cost;
+      upgradeBtnLabel = canUpgrade
+        ? `서울 캠퍼스로 (-${cost}g)`
+        : `서울 캠퍼스 (${this.liveGold}/${cost}g)`;
     } else {
       canUpgrade = false;
       upgradeBtnLabel = '사옥 최대 단계 ✓';
@@ -1020,6 +1026,12 @@ export class ResultScene extends Phaser.Scene {
       this.liveGold -= cost;
       this.officeLevel = 3;
       this.crossfadeIllustration(OFFICE_ILLUSTRATION[3]);
+    } else if (this.officeLevel === 3) {
+      const cost = BALANCE.officeUpgradeCostBy[4];
+      if (this.liveGold < cost) return;
+      this.liveGold -= cost;
+      this.officeLevel = 4;
+      this.crossfadeIllustration(OFFICE_ILLUSTRATION[4]);
     } else {
       return;
     }
@@ -1448,7 +1460,7 @@ export class ResultScene extends Phaser.Scene {
 
   // ────────────────────────── R&D modal ──────────────────────────
   /** R&D 모달 — 현재 활성 tier(reopens마다 리셋). */
-  private rndActiveTier: 1 | 2 | 3 = 1;
+  private rndActiveTier: 1 | 2 | 3 | 4 = 1;
 
   private openRndModal(): void {
     this.rndActiveTier = 1;
@@ -1507,11 +1519,12 @@ export class ResultScene extends Phaser.Scene {
     // Tier 탭.
     const tabY = panelY + 76;
     const tabH = 40;
-    const tabW = (panelW - 48 - 16) / 3;
-    const tierLabels: Array<{ tier: 1 | 2 | 3; label: string; count: number }> = [
-      { tier: 1, label: 'Tier 1', count: RND_ITEMS.filter((i) => getRndTier(i.id) === 1).length },
-      { tier: 2, label: 'Tier 2', count: RND_ITEMS.filter((i) => getRndTier(i.id) === 2).length },
-      { tier: 3, label: 'Tier 3', count: RND_ITEMS.filter((i) => getRndTier(i.id) === 3).length },
+    const tabW = (panelW - 48 - 24) / 4;
+    const tierLabels: Array<{ tier: 1 | 2 | 3 | 4; label: string; count: number }> = [
+      { tier: 1, label: 'T1', count: RND_ITEMS.filter((i) => getRndTier(i.id) === 1).length },
+      { tier: 2, label: 'T2', count: RND_ITEMS.filter((i) => getRndTier(i.id) === 2).length },
+      { tier: 3, label: 'T3', count: RND_ITEMS.filter((i) => getRndTier(i.id) === 3).length },
+      { tier: 4, label: 'T4', count: RND_ITEMS.filter((i) => getRndTier(i.id) === 4).length },
     ];
     tierLabels.forEach((t, i) => {
       const tx = panelX + 24 + i * (tabW + 8);
@@ -1601,7 +1614,7 @@ export class ResultScene extends Phaser.Scene {
     // 티어 배지 — 좌상단 작은 T1/T2/T3 칩.
     const tier = getRndTier(item.id);
     const tierLabel = `T${tier}`;
-    const tierColor = tier === 3 ? TEXT_COLOR.ok : tier === 2 ? TEXT_COLOR.warn : TEXT_COLOR.primary;
+    const tierColor = tier === 4 ? '#ff5722' : tier === 3 ? TEXT_COLOR.ok : tier === 2 ? TEXT_COLOR.warn : TEXT_COLOR.primary;
     layer.add(
       this.add.text(x + 8, y + 8, tierLabel, {
         fontFamily: FONT_STACK,

@@ -156,12 +156,14 @@ export function shipProject(
   const marketMul = computeMarketRevenueMul(prev.markets);
   const baseCalculated = Math.round(baseRevenue * eff.revenueMul * reputationMul * trendMul * marketMul);
   // R&D: 다국어화 플랫폼 ×1.25 / 글로벌 진출 ×1.15 — 둘 다 보유 시 1.25 우선.
+  // R&D T4: 위성 네트워크 ×1.3 — i18n-platform과 중첩 곱.
   const globalRevMul = isRndPurchased(prev.rnd, 'i18n-platform')
     ? 1.25
     : isRndPurchased(prev.rnd, 'global-expansion')
       ? 1.15
       : 1.0;
-  const revenue = globalRevMul > 1.0 ? Math.round(baseCalculated * globalRevMul) : baseCalculated;
+  const satelliteMul = isRndPurchased(prev.rnd, 'satellite-network') ? 1.3 : 1.0;
+  const revenue = Math.round(baseCalculated * (globalRevMul > 1.0 ? globalRevMul : 1.0) * satelliteMul);
   // 시설: 회사 e스포츠팀 — 출시 시 명성 +1.
   const esportsBonus = isFacilityBuilt(prev.facilities, 'esports-team') ? 1 : 0;
   const reputationGain = stars * REPUTATION.perStarOnRelease + esportsBonus;

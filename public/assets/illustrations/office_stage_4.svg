@@ -1,0 +1,149 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 100" width="320" height="100">
+  <!-- Sky gradient -->
+  <defs>
+    <linearGradient id="sky4" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1a1a4e"/>
+      <stop offset="100%" stop-color="#3a3a8a"/>
+    </linearGradient>
+    <linearGradient id="glass4" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#b0d4f8" stop-opacity="0.85"/>
+      <stop offset="100%" stop-color="#6aabeb" stop-opacity="0.7"/>
+    </linearGradient>
+    <linearGradient id="tower4" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#e0e8f8"/>
+      <stop offset="100%" stop-color="#a0b4d8"/>
+    </linearGradient>
+    <linearGradient id="grass4" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#4caf50"/>
+      <stop offset="100%" stop-color="#2e7d32"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Sky -->
+  <rect width="320" height="100" fill="url(#sky4)"/>
+
+  <!-- Stars -->
+  <circle cx="20" cy="10" r="0.8" fill="#fff" opacity="0.8"/>
+  <circle cx="60" cy="6" r="0.6" fill="#fff" opacity="0.7"/>
+  <circle cx="100" cy="12" r="0.9" fill="#fff" opacity="0.9"/>
+  <circle cx="155" cy="5" r="0.7" fill="#fff" opacity="0.6"/>
+  <circle cx="200" cy="9" r="0.8" fill="#fff" opacity="0.8"/>
+  <circle cx="250" cy="4" r="0.6" fill="#fff" opacity="0.7"/>
+  <circle cx="295" cy="11" r="0.9" fill="#fff" opacity="0.9"/>
+
+  <!-- Ground / plaza -->
+  <rect x="0" y="82" width="320" height="18" fill="#c8c8d0"/>
+
+  <!-- Lawn strips -->
+  <rect x="0" y="82" width="45" height="18" fill="url(#grass4)"/>
+  <rect x="275" y="82" width="45" height="18" fill="url(#grass4)"/>
+  <rect x="130" y="85" width="60" height="15" fill="url(#grass4)"/>
+
+  <!-- Trees (left lawn) -->
+  <ellipse cx="12" cy="80" rx="8" ry="6" fill="#388e3c"/>
+  <rect x="10" y="82" width="4" height="6" fill="#5d4037"/>
+  <ellipse cx="32" cy="78" rx="9" ry="7" fill="#43a047"/>
+  <rect x="30" y="82" width="4" height="6" fill="#5d4037"/>
+
+  <!-- Trees (right lawn) -->
+  <ellipse cx="288" cy="80" rx="8" ry="6" fill="#388e3c"/>
+  <rect x="286" y="82" width="4" height="6" fill="#5d4037"/>
+  <ellipse cx="308" cy="78" rx="9" ry="7" fill="#43a047"/>
+  <rect x="306" y="82" width="4" height="6" fill="#5d4037"/>
+
+  <!-- Center plaza tree -->
+  <ellipse cx="160" cy="79" rx="10" ry="7" fill="#43a047"/>
+  <rect x="158" y="82" width="4" height="8" fill="#5d4037"/>
+
+  <!-- Main tower (center-left) — tallest -->
+  <rect x="95" y="10" width="52" height="72" fill="url(#tower4)" rx="2"/>
+  <!-- Glass windows grid on main tower -->
+  <rect x="99" y="14" width="8" height="5" fill="url(#glass4)" rx="1"/>
+  <rect x="110" y="14" width="8" height="5" fill="url(#glass4)" rx="1"/>
+  <rect x="121" y="14" width="8" height="5" fill="url(#glass4)" rx="1"/>
+  <rect x="132" y="14" width="8" height="5" fill="url(#glass4)" rx="1"/>
+  <rect x="99" y="22" width="8" height="5" fill="url(#glass4)" rx="1"/>
+  <rect x="110" y="22" width="8" height="5" fill="url(#glass4)" rx="1"/>
+  <rect x="121" y="22" width="8" height="5" fill="url(#glass4)" rx="1"/>
+  <rect x="132" y="22" width="8" height="5" fill="url(#glass4)" rx="1"/>
+  <rect x="99" y="30" width="8" height="5" fill="url(#glass4)" rx="1"/>
+  <rect x="110" y="30" width="8" height="5" fill="url(#glass4)" rx="1"/>
+  <rect x="121" y="30" width="8" height="5" fill="url(#glass4)" rx="1"/>
+  <rect x="132" y="30" width="8" height="5" fill="url(#glass4)" rx="1"/>
+  <rect x="99" y="38" width="8" height="5" fill="#ffd700" rx="1" opacity="0.7"/>
+  <rect x="110" y="38" width="8" height="5" fill="url(#glass4)" rx="1"/>
+  <rect x="121" y="38" width="8" height="5" fill="#ffd700" rx="1" opacity="0.7"/>
+  <rect x="132" y="38" width="8" height="5" fill="url(#glass4)" rx="1"/>
+  <rect x="99" y="46" width="8" height="5" fill="url(#glass4)" rx="1"/>
+  <rect x="110" y="46" width="8" height="5" fill="url(#glass4)" rx="1"/>
+  <rect x="121" y="46" width="8" height="5" fill="url(#glass4)" rx="1"/>
+  <rect x="132" y="46" width="8" height="5" fill="url(#glass4)" rx="1"/>
+  <!-- Rooftop logo bar -->
+  <rect x="95" y="6" width="52" height="6" fill="#1565c0" rx="1"/>
+  <text x="121" y="11" text-anchor="middle" font-size="4" fill="#fff" font-family="sans-serif" font-weight="bold">CAMPUS</text>
+  <!-- Antenna -->
+  <line x1="121" y1="6" x2="121" y2="0" stroke="#90caf9" stroke-width="1.5"/>
+  <circle cx="121" cy="0" r="1.5" fill="#ef5350"/>
+
+  <!-- Secondary tower (right) -->
+  <rect x="160" y="25" width="40" height="57" fill="#d0daf0" rx="2"/>
+  <!-- Windows -->
+  <rect x="164" y="29" width="7" height="4" fill="url(#glass4)" rx="1"/>
+  <rect x="174" y="29" width="7" height="4" fill="url(#glass4)" rx="1"/>
+  <rect x="184" y="29" width="7" height="4" fill="url(#glass4)" rx="1"/>
+  <rect x="164" y="36" width="7" height="4" fill="url(#glass4)" rx="1"/>
+  <rect x="174" y="36" width="7" height="4" fill="#ffd700" rx="1" opacity="0.7"/>
+  <rect x="184" y="36" width="7" height="4" fill="url(#glass4)" rx="1"/>
+  <rect x="164" y="43" width="7" height="4" fill="url(#glass4)" rx="1"/>
+  <rect x="174" y="43" width="7" height="4" fill="url(#glass4)" rx="1"/>
+  <rect x="184" y="43" width="7" height="4" fill="url(#glass4)" rx="1"/>
+  <rect x="164" y="50" width="7" height="4" fill="url(#glass4)" rx="1"/>
+  <rect x="174" y="50" width="7" height="4" fill="url(#glass4)" rx="1"/>
+  <rect x="184" y="50" width="7" height="4" fill="url(#glass4)" rx="1"/>
+  <rect x="160" y="21" width="40" height="5" fill="#1565c0" rx="1"/>
+
+  <!-- Third building (left) -->
+  <rect x="50" y="35" width="35" height="47" fill="#c8d4e8" rx="2"/>
+  <rect x="54" y="39" width="6" height="4" fill="url(#glass4)" rx="1"/>
+  <rect x="62" y="39" width="6" height="4" fill="url(#glass4)" rx="1"/>
+  <rect x="70" y="39" width="6" height="4" fill="url(#glass4)" rx="1"/>
+  <rect x="54" y="46" width="6" height="4" fill="#ffd700" rx="1" opacity="0.7"/>
+  <rect x="62" y="46" width="6" height="4" fill="url(#glass4)" rx="1"/>
+  <rect x="70" y="46" width="6" height="4" fill="url(#glass4)" rx="1"/>
+  <rect x="54" y="53" width="6" height="4" fill="url(#glass4)" rx="1"/>
+  <rect x="62" y="53" width="6" height="4" fill="url(#glass4)" rx="1"/>
+  <rect x="70" y="53" width="6" height="4" fill="url(#glass4)" rx="1"/>
+  <rect x="50" y="31" width="35" height="5" fill="#283593" rx="1"/>
+
+  <!-- Fourth building (far right) -->
+  <rect x="212" y="40" width="30" height="42" fill="#b8cce0" rx="2"/>
+  <rect x="216" y="44" width="5" height="4" fill="url(#glass4)" rx="1"/>
+  <rect x="224" y="44" width="5" height="4" fill="url(#glass4)" rx="1"/>
+  <rect x="232" y="44" width="5" height="4" fill="url(#glass4)" rx="1"/>
+  <rect x="216" y="51" width="5" height="4" fill="url(#glass4)" rx="1"/>
+  <rect x="224" y="51" width="5" height="4" fill="#ffd700" rx="1" opacity="0.7"/>
+  <rect x="232" y="51" width="5" height="4" fill="url(#glass4)" rx="1"/>
+  <rect x="212" y="36" width="30" height="5" fill="#283593" rx="1"/>
+
+  <!-- Connecting walkway/bridge between buildings -->
+  <rect x="85" y="55" width="10" height="4" fill="#90a4ae" rx="1"/>
+  <rect x="147" y="50" width="13" height="4" fill="#90a4ae" rx="1"/>
+
+  <!-- Company logos on facades -->
+  <!-- Main tower logo (simplified circle + text) -->
+  <circle cx="121" cy="67" r="6" fill="#1565c0" opacity="0.9"/>
+  <text x="121" y="69.5" text-anchor="middle" font-size="5" fill="#fff" font-family="sans-serif" font-weight="bold">K</text>
+
+  <!-- Road/path -->
+  <rect x="60" y="88" width="200" height="6" fill="#9e9e9e" rx="1"/>
+  <!-- Road markings -->
+  <rect x="100" y="90.5" width="12" height="1" fill="#fff" opacity="0.6"/>
+  <rect x="124" y="90.5" width="12" height="1" fill="#fff" opacity="0.6"/>
+  <rect x="148" y="90.5" width="12" height="1" fill="#fff" opacity="0.6"/>
+  <rect x="172" y="90.5" width="12" height="1" fill="#fff" opacity="0.6"/>
+  <rect x="196" y="90.5" width="12" height="1" fill="#fff" opacity="0.6"/>
+
+  <!-- Fountain in center plaza -->
+  <ellipse cx="160" cy="87" rx="8" ry="3" fill="#90caf9" opacity="0.6"/>
+  <circle cx="160" cy="85" r="1.5" fill="#b3e5fc" opacity="0.8"/>
+</svg>

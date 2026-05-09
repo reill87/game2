@@ -11,16 +11,18 @@ import Phaser from 'phaser';
 const ASSET_BASE = '/assets/illustrations';
 
 /** 사옥 단계 → 일러스트 텍스처 키. */
-export const OFFICE_ILLUSTRATION: Readonly<Record<1 | 2 | 3, string>> = {
+export const OFFICE_ILLUSTRATION: Readonly<Record<1 | 2 | 3 | 4, string>> = {
   1: 'illust-office-1',
   2: 'illust-office-2',
   3: 'illust-office-3',
+  4: 'illust-office-4',
 };
 
 const FILES: ReadonlyArray<readonly [string, string]> = [
   [OFFICE_ILLUSTRATION[1], 'office_stage_1.svg'],
   [OFFICE_ILLUSTRATION[2], 'office_stage_2.svg'],
   [OFFICE_ILLUSTRATION[3], 'office_stage_3.svg'],
+  [OFFICE_ILLUSTRATION[4], 'office_stage_4.svg'],
 ];
 
 /**

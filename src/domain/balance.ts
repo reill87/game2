@@ -43,9 +43,9 @@ export const BALANCE = {
   /** 사무실 1→2 업그레이드 비용 (골드). @deprecated officeUpgradeCostBy 사용 권장. */
   officeUpgradeCost: 300,
   /** 다음 단계 업그레이드 비용 — 키는 업그레이드 후 도달 단계. */
-  officeUpgradeCostBy: { 2: 300, 3: 900 } as Record<2 | 3, number>,
+  officeUpgradeCostBy: { 2: 300, 3: 900, 4: 4000 } as Record<2 | 3 | 4, number>,
   /** 사무실 단계별 고용 상한. */
-  officeHireCap: { 1: 3, 2: 4, 3: 6 } as Record<1 | 2 | 3, number>,
+  officeHireCap: { 1: 3, 2: 4, 3: 6, 4: 10 } as Record<1 | 2 | 3 | 4, number>,
 } as const;
 
 /**
@@ -70,7 +70,8 @@ export const BURN = {
     1: 0,
     2: 10,
     3: 24,
-  } as Record<1 | 2 | 3, number>,
+    4: 60,
+  } as Record<1 | 2 | 3 | 4, number>,
 } as const;
 
 /**
@@ -118,10 +119,11 @@ export const SIDE_PROJECT = {
  * - 복장: skillMul과 morale 매주 가산.
  * - 복지(perks): 영구 구매, 매주 작은 morale/stamina 보너스 누적.
  */
-export const COMMUTE_DRAIN_BY_OFFICE: Readonly<Record<1 | 2 | 3, number>> = {
+export const COMMUTE_DRAIN_BY_OFFICE: Readonly<Record<1 | 2 | 3 | 4, number>> = {
   1: 2,
   2: 4,
   3: 6,
+  4: 10,
 };
 
 export const REMOTE = {
@@ -203,6 +205,34 @@ export const TRENDS: Readonly<Record<TrendId, Trend>> = {
     desc: '몰입 콘텐츠 살짝 회복. 블록체인 훈풍',
     genreMul: { G1: 1.05, G2: 1.05, G3: 1.05, G5: 1.5 },
     themeMul: { T5: 1.2 },
+  },
+  ai_ethics: {
+    id: 'ai_ethics',
+    name: 'AI 윤리 규제',
+    desc: 'AI 신뢰 회의론 확산',
+    genreMul: { G3: 0.7 },
+    themeMul: { T2: 1.2 },
+  },
+  web3_revival: {
+    id: 'web3_revival',
+    name: 'Web3 부활',
+    desc: 'NFT·블록체인 다시 떠오름',
+    genreMul: { G5: 1.5, G2: 0.9 },
+    themeMul: {},
+  },
+  sustainability_wave: {
+    id: 'sustainability_wave',
+    name: 'ESG 의무화',
+    desc: '지속가능성 트렌드 강화',
+    genreMul: {},
+    themeMul: { T4: 1.3, T1: 0.8 },
+  },
+  super_app_merge: {
+    id: 'super_app_merge',
+    name: '슈퍼앱 시대',
+    desc: '플랫폼 통합 가속화',
+    genreMul: { G2: 1.3, G4: 1.2 },
+    themeMul: {},
   },
 };
 
@@ -303,6 +333,12 @@ export const TRAIT_EFFECT = {
   allTalk: { effectiveSkillMul: 0.7 },
   /** 재택 빌런 — PIVOT-5 재택 시스템과 함께. */
   remoteSlacker: { effectiveSkillMul: 1.0 }, // 평소엔 정상, 재택 발현 시 별도
+  /** 완벽주의 — 정배치 시 BugDebt 추가 감소, 하지만 seriousness로 morale 더 빠르게 떨어짐. */
+  perfectionist: { effectiveSkillMul: 1.0 },
+  /** 인기인 — 팀 사기에 기여. 개인 효율은 기본. */
+  'crowd-pleaser': { effectiveSkillMul: 1.0 },
+  /** 고민병 — 신중함으로 BugDebt 감소, 개인 progress -10%. */
+  'over-thinker': { effectiveSkillMul: 0.9 },
 } as const;
 
 /**

@@ -152,6 +152,37 @@ const EVENT_CATEGORY_BY_ID: Readonly<Record<string, EventCategory>> = {
   'dress-code-debate': 'K',
   'english-name': 'K',
   'friday-half-day': 'K',
+  // ── 30개 신규 이벤트 ──
+  'crisis-pr-instagram': 'A',
+  'k-twitter-x-rumor': 'A',
+  'open-banking': 'A',
+  'dev-internal-blog': 'A',
+  'bug-bounty': 'C',
+  'compliance-audit-eu': 'C',
+  'crashed-ec2': 'I',
+  'database-corruption': 'I',
+  'series-c-failed': 'F',
+  'patent-troll': 'F',
+  'github-star-50k': 'F',
+  'foreign-vc-visit': 'F',
+  'antitrust-investigation': 'F',
+  'ipo-roadshow': 'F',
+  'q4-bonus-cut': 'D',
+  'parental-leave-policy': 'D',
+  'unionization-talk': 'D',
+  'industry-poach-attempt': 'D',
+  'mentor-monday': 'K',
+  'pet-policy-vote': 'K',
+  'work-from-anywhere': 'E',
+  'side-project-policy': 'E',
+  'company-retreat-jeju': 'E',
+  'sxsw-keynote': 'F',
+  'dev-conf-keynote': 'C',
+  'ai-debate-summit': 'B',
+  'tech-magazine-cover': 'G',
+  'design-award': 'G',
+  'github-octocat-pin': 'H',
+  'former-employee-startup': 'H',
 };
 
 export function categoryOf(event: GameEvent): EventCategory {
@@ -2505,7 +2536,6 @@ export const EVENTS: ReadonlyArray<GameEvent> = [
     choices: [
       {
         label: '회식 강제 (-30g)',
-        // 비용+체력 손해 but 사기 큰 폭 상승
         summary: '−30g, 모두 체력 −5 / 모두 사기 +12',
         apply: (s) => {
           if (s.gold < 30) return s;
@@ -2521,7 +2551,6 @@ export const EVENTS: ReadonlyArray<GameEvent> = [
       },
       {
         label: '시간이 약',
-        // 사기 소폭 손해 but BugDebt 소폭 감소 (조용히 기술 부채 정리)
         summary: '모두 사기 −3 / BugDebt −4 (조용히 기술 부채 정리)',
         apply: (s) => {
           const next = applyToAll(s, (e) => ({
@@ -2535,6 +2564,809 @@ export const EVENTS: ReadonlyArray<GameEvent> = [
               bugDebt: clamp(next.project.bugDebt - jit(4), 0, 100),
             },
           };
+        },
+      },
+    ],
+  },
+
+  // ────────── A 신규 후반 ──────────
+  {
+    id: 'crisis-pr-instagram',
+    minProductCount: 5,
+    title: '인스타에 올라온 회사 욕설',
+    description:
+      '익명 인스타 계정에 "oo회사 다니면 이렇게 됩니다"는 폭로 게시물이 올라왔다. 좋아요 3만. 사무실이 술렁인다.',
+    choices: [
+      {
+        label: '공식 성명 발표 (+PR팀 투입)',
+        summary: '−50g (긴급 PR비) / 팀 사기 −3 (소동) / 명성 보전',
+        apply: (s) => ({
+          ...s,
+          gold: clamp(s.gold - jit(50), 0, MAX),
+          employees: s.employees.map((e) => ({ ...e, morale: clamp(e.morale - jit(3), 0, 100) })),
+        }),
+      },
+      {
+        label: '무대응 (묻힐 때까지)',
+        summary: '모두 사기 −6 (불안) / BugDebt +3 (집중력 저하)',
+        apply: (s) => {
+          const next = applyToAll(s, (e) => ({ ...e, morale: clamp(e.morale - jit(6), 0, 100) }));
+          return { ...next, project: { ...next.project, bugDebt: clamp(next.project.bugDebt + jit(3), 0, 100) } };
+        },
+      },
+    ],
+  },
+  {
+    id: 'k-twitter-x-rumor',
+    minProductCount: 8,
+    minReputation: 50,
+    title: 'X(트위터)에 퍼진 루머',
+    description:
+      '"oo 곧 인수된다" 트윗이 RT 5천을 넘겼다. 사실 무근이지만 직원들 메신저가 폭발했다.',
+    choices: [
+      {
+        label: '대표가 직접 X 라이브',
+        summary: 'PM 체력 −10 / 모두 사기 +8 (소문 진화) / +20g (화제성)',
+        apply: (s) => {
+          const next = applyToJob(s, 'planner', (e) => ({ ...e, stamina: clamp(e.stamina - jit(10), 0, 100) }));
+          return { ...applyToAll(next, (e) => ({ ...e, morale: clamp(e.morale + jit(8), 0, 100) })), gold: clamp(next.gold + jit(20), 0, MAX) };
+        },
+      },
+      {
+        label: '침묵 유지',
+        summary: '모두 사기 −5 (찝찝함) / Progress −3%',
+        apply: (s) => {
+          const next = applyToAll(s, (e) => ({ ...e, morale: clamp(e.morale - jit(5), 0, 100) }));
+          return { ...next, project: { ...next.project, progress: clamp(next.project.progress - jit(3), 0, 100) } };
+        },
+      },
+    ],
+  },
+  {
+    id: 'open-banking',
+    minProductCount: 10,
+    title: '오픈뱅킹 API 연동 제안',
+    description:
+      '금융 파트너사가 오픈뱅킹 API 연동을 제안해왔다. 구현 공수는 크지만 잠재 매출이 달콤하다.',
+    choices: [
+      {
+        label: '지금 당장 (스프린트 투입)',
+        summary: 'BugDebt +8 (급하게 붙이면) / +80g (계약금)',
+        apply: (s) => ({
+          ...s,
+          gold: clamp(s.gold + jit(80), 0, MAX),
+          project: { ...s.project, bugDebt: clamp(s.project.bugDebt + jit(8), 0, 100) },
+        }),
+      },
+      {
+        label: '다음 분기로 미룸',
+        summary: '모두 사기 +3 (여유) / Progress +2%',
+        apply: (s) => {
+          const next = applyToAll(s, (e) => ({ ...e, morale: clamp(e.morale + jit(3), 0, 100) }));
+          return { ...next, project: { ...next.project, progress: clamp(next.project.progress + jit(2), 0, 100) } };
+        },
+      },
+    ],
+  },
+  {
+    id: 'dev-internal-blog',
+    minProductCount: 6,
+    title: '개발 블로그 운영 제안',
+    description:
+      '개발자 중 한 명이 "기술 블로그 열면 채용 브랜딩에 좋아요"라고 했다. 운영 공수 vs 브랜드 가치.',
+    choices: [
+      {
+        label: '공식 블로그 개설 (개발자 주도)',
+        summary: '개발자 체력 −10 / +40g (브랜딩 효과) / 사기 +5',
+        apply: (s) => {
+          const next = applyToJob(s, 'programmer', (e) => ({ ...e, stamina: clamp(e.stamina - jit(10), 0, 100) }));
+          return { ...applyToAll(next, (e) => ({ ...e, morale: clamp(e.morale + jit(5), 0, 100) })), gold: clamp(next.gold + jit(40), 0, MAX) };
+        },
+      },
+      {
+        label: '개인 블로그로 (회사 지원 없음)',
+        summary: '개발자 사기 −3 (아쉬움) / BugDebt −2 (여유 시간 활용)',
+        apply: (s) => {
+          const next = applyToJob(s, 'programmer', (e) => ({ ...e, morale: clamp(e.morale - jit(3), 0, 100) }));
+          return { ...next, project: { ...next.project, bugDebt: clamp(next.project.bugDebt - jit(2), 0, 100) } };
+        },
+      },
+    ],
+  },
+
+  // ────────── B 신규 후반 ──────────
+  {
+    id: 'ai-debate-summit',
+    minProductCount: 10,
+    minReputation: 60,
+    title: 'AI 윤리 토론 참가 제안',
+    description:
+      '업계 AI 윤리 써밋에서 발표 요청이 왔다. 좋은 이미지이지만 스프린트 일정이 빠듯하다.',
+    choices: [
+      {
+        label: '발표 수락 (PM 파견)',
+        summary: 'PM 체력 −15 / +60g (네트워킹) / 모두 사기 +5',
+        apply: (s) => {
+          const next = applyToJob(s, 'planner', (e) => ({ ...e, stamina: clamp(e.stamina - jit(15), 0, 100) }));
+          return { ...applyToAll(next, (e) => ({ ...e, morale: clamp(e.morale + jit(5), 0, 100) })), gold: clamp(next.gold + jit(60), 0, MAX) };
+        },
+      },
+      {
+        label: '서면 의견서만 제출',
+        summary: '모두 체력 +2 (여유) / Progress +3%',
+        apply: (s) => {
+          const next = applyToAll(s, (e) => ({ ...e, stamina: clamp(e.stamina + jit(2), 0, 100) }));
+          return { ...next, project: { ...next.project, progress: clamp(next.project.progress + jit(3), 0, 100) } };
+        },
+      },
+    ],
+  },
+
+  // ────────── C 신규 후반 ──────────
+  {
+    id: 'bug-bounty',
+    minProductCount: 8,
+    title: '버그 바운티 프로그램 제안',
+    description:
+      '외부 보안 연구자가 심각한 취약점을 제보하며 버그 바운티를 요청해왔다. 지금 없으면 만들어야 한다.',
+    choices: [
+      {
+        label: '바운티 지급 후 공식 프로그램 운영',
+        summary: '−80g (현재 취약점 보상) / BugDebt −8 (즉시 수정)',
+        apply: (s) => ({
+          ...s,
+          gold: clamp(s.gold - jit(80), 0, MAX),
+          project: { ...s.project, bugDebt: clamp(s.project.bugDebt - jit(8), 0, 100) },
+        }),
+      },
+      {
+        label: '내부 패치만 (바운티 거절)',
+        summary: 'BugDebt −4 / 모두 사기 −3 (불편한 결정)',
+        apply: (s) => {
+          const next = applyToAll(s, (e) => ({ ...e, morale: clamp(e.morale - jit(3), 0, 100) }));
+          return { ...next, project: { ...next.project, bugDebt: clamp(next.project.bugDebt - jit(4), 0, 100) } };
+        },
+      },
+    ],
+  },
+  {
+    id: 'compliance-audit-eu',
+    minProductCount: 12,
+    minReputation: 80,
+    title: 'EU 규정 준수 감사',
+    description:
+      'EU GDPR 준수 여부 감사 통보가 왔다. 준비가 안 되어 있다면 과징금이 나올 수 있다.',
+    choices: [
+      {
+        label: '법무팀 긴급 투입',
+        summary: '−100g (컨설팅 비용) / BugDebt −5 (코드 정리) / 모두 체력 −5',
+        apply: (s) => {
+          const next = applyToAll(s, (e) => ({ ...e, stamina: clamp(e.stamina - jit(5), 0, 100) }));
+          return { ...next, gold: clamp(next.gold - jit(100), 0, MAX), project: { ...next.project, bugDebt: clamp(next.project.bugDebt - jit(5), 0, 100) } };
+        },
+      },
+      {
+        label: '기존 문서로 대응',
+        summary: 'PM 체력 −20 (서류 작업) / +30g (과징금 회피 인센티브)',
+        apply: (s) => {
+          const next = applyToJob(s, 'planner', (e) => ({ ...e, stamina: clamp(e.stamina - jit(20), 0, 100) }));
+          return { ...next, gold: clamp(next.gold + jit(30), 0, MAX) };
+        },
+      },
+    ],
+  },
+  {
+    id: 'dev-conf-keynote',
+    minProductCount: 15,
+    minReputation: 100,
+    title: '개발자 컨퍼런스 키노트 제안',
+    description:
+      '국내 최대 개발자 행사 키노트 발표 제안이 왔다. 회사 기술 스택과 문화를 공개할 기회다.',
+    choices: [
+      {
+        label: '수락 (개발자 대표 파견)',
+        summary: '개발자 체력 −15 / 모두 사기 +10 (자부심) / +80g (홍보 효과)',
+        apply: (s) => {
+          const next = applyToJob(s, 'programmer', (e) => ({ ...e, stamina: clamp(e.stamina - jit(15), 0, 100) }));
+          return { ...applyToAll(next, (e) => ({ ...e, morale: clamp(e.morale + jit(10), 0, 100) })), gold: clamp(next.gold + jit(80), 0, MAX) };
+        },
+      },
+      {
+        label: '거절 (바쁘다)',
+        summary: '모두 사기 −2 (아쉬움) / Progress +4% (집중)',
+        apply: (s) => {
+          const next = applyToAll(s, (e) => ({ ...e, morale: clamp(e.morale - jit(2), 0, 100) }));
+          return { ...next, project: { ...next.project, progress: clamp(next.project.progress + jit(4), 0, 100) } };
+        },
+      },
+    ],
+  },
+
+  // ────────── D 신규 후반 ──────────
+  {
+    id: 'q4-bonus-cut',
+    minProductCount: 6,
+    title: '연말 보너스 삭감 통보',
+    description:
+      '"올해 실적이 아쉬워 연말 보너스를 축소합니다." CFO 이메일 한 줄이 사무실을 얼어붙혔다.',
+    choices: [
+      {
+        label: '팀장이 위에 강하게 항의',
+        summary: 'PM 사기 −10 (소모) / 팀원 사기 +5 (PM이 싸워줌)',
+        apply: (s) => {
+          const next = applyToJob(s, 'planner', (e) => ({ ...e, morale: clamp(e.morale - jit(10), 0, 100) }));
+          return { ...next, employees: next.employees.map((e) => e.job !== 'planner' ? { ...e, morale: clamp(e.morale + jit(5), 0, 100) } : e) };
+        },
+      },
+      {
+        label: '조용히 수용 (현실이다)',
+        summary: '모두 사기 −8 (낙심) / BugDebt +4 (의욕 저하)',
+        apply: (s) => {
+          const next = applyToAll(s, (e) => ({ ...e, morale: clamp(e.morale - jit(8), 0, 100) }));
+          return { ...next, project: { ...next.project, bugDebt: clamp(next.project.bugDebt + jit(4), 0, 100) } };
+        },
+      },
+    ],
+  },
+  {
+    id: 'parental-leave-policy',
+    minProductCount: 8,
+    title: '육아휴직 확대 정책 도입',
+    description:
+      'HR이 육아휴직을 최대 2년으로 확대하는 안을 들고 왔다. 좋은 문화지만 단기 인력 공백이 생긴다.',
+    choices: [
+      {
+        label: '전격 도입 공표',
+        summary: '모두 사기 +8 (문화 자부심) / Progress −5% (일부 인력 공백)',
+        apply: (s) => {
+          const next = applyToAll(s, (e) => ({ ...e, morale: clamp(e.morale + jit(8), 0, 100) }));
+          return { ...next, project: { ...next.project, progress: clamp(next.project.progress - jit(5), 0, 100) } };
+        },
+      },
+      {
+        label: '단계적 검토 (내년부터)',
+        summary: '모두 사기 −2 (실망) / BugDebt −2 (안정적 스프린트)',
+        apply: (s) => {
+          const next = applyToAll(s, (e) => ({ ...e, morale: clamp(e.morale - jit(2), 0, 100) }));
+          return { ...next, project: { ...next.project, bugDebt: clamp(next.project.bugDebt - jit(2), 0, 100) } };
+        },
+      },
+    ],
+  },
+  {
+    id: 'unionization-talk',
+    minProductCount: 10,
+    title: '노조 결성 논의',
+    description:
+      '직원 일부가 조합 결성을 논의 중이라는 소문이 돌고 있다. 경영진은 긴장하고 있다.',
+    choices: [
+      {
+        label: '열린 대화 채널 제공',
+        summary: '모두 사기 +6 (신뢰) / +30g (갈등 예방)',
+        apply: (s) => ({
+          ...applyToAll(s, (e) => ({ ...e, morale: clamp(e.morale + jit(6), 0, 100) })),
+          gold: clamp(s.gold + jit(30), 0, MAX),
+        }),
+      },
+      {
+        label: '모른 척 (알아서 꺼지겠지)',
+        summary: '모두 사기 −5 / BugDebt +4 (긴장감)',
+        apply: (s) => {
+          const next = applyToAll(s, (e) => ({ ...e, morale: clamp(e.morale - jit(5), 0, 100) }));
+          return { ...next, project: { ...next.project, bugDebt: clamp(next.project.bugDebt + jit(4), 0, 100) } };
+        },
+      },
+    ],
+  },
+  {
+    id: 'industry-poach-attempt',
+    minProductCount: 12,
+    minReputation: 90,
+    title: '대기업 인재 스카웃 시도',
+    description:
+      '경쟁사 대기업이 우리 핵심 시니어 개발자에게 연봉 2배를 제시했다는 얘기가 들어왔다.',
+    choices: [
+      {
+        label: '리텐션 패키지 제공 (-200g)',
+        summary: '−200g / 해당 개발자 사기 +20 / 모두 사기 +5',
+        apply: (s) => {
+          if (s.gold < 200) return s;
+          return {
+            ...applyToAll({ ...s, gold: clamp(s.gold - 200, 0, MAX) }, (e) =>
+              e.job === 'programmer' ? { ...e, morale: clamp(e.morale + jit(20), 0, 100) } : { ...e, morale: clamp(e.morale + jit(5), 0, 100) },
+            ),
+          };
+        },
+      },
+      {
+        label: '개인 결정에 맡긴다',
+        summary: '개발자 사기 −15 (배신감?) / BugDebt +6',
+        apply: (s) => {
+          const next = applyToJob(s, 'programmer', (e) => ({ ...e, morale: clamp(e.morale - jit(15), 0, 100) }));
+          return { ...next, project: { ...next.project, bugDebt: clamp(next.project.bugDebt + jit(6), 0, 100) } };
+        },
+      },
+    ],
+  },
+
+  // ────────── E 신규 후반 ──────────
+  {
+    id: 'work-from-anywhere',
+    minProductCount: 10,
+    title: '원격 근무 어디서나 정책 도입',
+    description:
+      '"제주, 강원, 심지어 발리에서도 일할 수 있게 해달라"는 요청이 설문에 65%로 올라왔다.',
+    choices: [
+      {
+        label: '워크프롬애니웨어 공식 허용',
+        summary: '모두 사기 +10 / BugDebt +4 (협업 지연) / 개발자 사기 +8',
+        apply: (s) => {
+          const next = applyToAll(s, (e) => ({ ...e, morale: clamp(e.morale + jit(10), 0, 100) }));
+          return { ...next, project: { ...next.project, bugDebt: clamp(next.project.bugDebt + jit(4), 0, 100) } };
+        },
+      },
+      {
+        label: '국내 한정 유지',
+        summary: '모두 사기 −3 (기대 못 맞춤) / Progress +2%',
+        apply: (s) => {
+          const next = applyToAll(s, (e) => ({ ...e, morale: clamp(e.morale - jit(3), 0, 100) }));
+          return { ...next, project: { ...next.project, progress: clamp(next.project.progress + jit(2), 0, 100) } };
+        },
+      },
+    ],
+  },
+  {
+    id: 'side-project-policy',
+    minProductCount: 8,
+    title: '사이드 프로젝트 허용 정책',
+    description:
+      '"개인 프로젝트를 업무 시간 20%에서 해도 됩니까?" 구글 20% 룰 논쟁이 다시 터졌다.',
+    choices: [
+      {
+        label: '20% 타임 공식 인정',
+        summary: '모두 사기 +7 / Progress −5% (집중 분산)',
+        apply: (s) => {
+          const next = applyToAll(s, (e) => ({ ...e, morale: clamp(e.morale + jit(7), 0, 100) }));
+          return { ...next, project: { ...next.project, progress: clamp(next.project.progress - jit(5), 0, 100) } };
+        },
+      },
+      {
+        label: '업무 시간은 업무만',
+        summary: '모두 사기 −4 / BugDebt −3 (집중)',
+        apply: (s) => {
+          const next = applyToAll(s, (e) => ({ ...e, morale: clamp(e.morale - jit(4), 0, 100) }));
+          return { ...next, project: { ...next.project, bugDebt: clamp(next.project.bugDebt - jit(3), 0, 100) } };
+        },
+      },
+    ],
+  },
+  {
+    id: 'company-retreat-jeju',
+    minProductCount: 7,
+    title: '제주 워크숍 개최',
+    description:
+      '분기 목표 달성 기념 제주 워크숍 안건이 올라왔다. 비용은 크지만 팀 결속력 회복에 효과적이다.',
+    choices: [
+      {
+        label: '다 같이 제주 가자 (-120g)',
+        summary: '−120g / 모두 사기 +15, 체력 +10 (재충전)',
+        apply: (s) => {
+          if (s.gold < 120) return s;
+          return applyToAll({ ...s, gold: clamp(s.gold - 120, 0, MAX) }, (e) => ({
+            ...e,
+            morale: clamp(e.morale + jit(15), 0, 100),
+            stamina: clamp(e.stamina + jit(10), 0, 100),
+          }));
+        },
+      },
+      {
+        label: '온라인 화상 회식으로 대체',
+        summary: '−20g (배달 쿠폰) / 모두 사기 +4',
+        apply: (s) => ({
+          ...applyToAll(s, (e) => ({ ...e, morale: clamp(e.morale + jit(4), 0, 100) })),
+          gold: clamp(s.gold - jit(20), 0, MAX),
+        }),
+      },
+    ],
+  },
+
+  // ────────── F 신규 후반 ──────────
+  {
+    id: 'series-c-failed',
+    minProductCount: 10,
+    minReputation: 60,
+    title: '시리즈 C 투자 협상 결렬',
+    description:
+      '"valuation 협의 불발"이라는 메시지와 함께 VC가 텀시트를 거둬들였다. 런웨이 압박이 실감된다.',
+    choices: [
+      {
+        label: '브릿지 파이낸싱 추진',
+        summary: '모두 사기 −5 (불안) / BugDebt +3 (긴급 출시 압박)',
+        apply: (s) => {
+          const next = applyToAll(s, (e) => ({ ...e, morale: clamp(e.morale - jit(5), 0, 100) }));
+          return { ...next, project: { ...next.project, bugDebt: clamp(next.project.bugDebt + jit(3), 0, 100) } };
+        },
+      },
+      {
+        label: '자력갱생 (비용 절감 모드)',
+        summary: '모두 체력 −5 (긴축) / BugDebt −3 (불필요한 피처 제거)',
+        apply: (s) => {
+          const next = applyToAll(s, (e) => ({ ...e, stamina: clamp(e.stamina - jit(5), 0, 100) }));
+          return { ...next, project: { ...next.project, bugDebt: clamp(next.project.bugDebt - jit(3), 0, 100) } };
+        },
+      },
+    ],
+  },
+  {
+    id: 'patent-troll',
+    minProductCount: 12,
+    minReputation: 80,
+    title: '특허 괴물 침략',
+    description:
+      '"귀사의 제품이 우리 특허를 침해합니다." 내용증명이 도착했다. 실체 없는 특허 회사다.',
+    choices: [
+      {
+        label: '법무법인에 의뢰 (맞소)',
+        summary: '−150g (법무비) / 모두 사기 −3 (스트레스) / BugDebt −2 (코드 리뷰 기회)',
+        apply: (s) => {
+          const next = applyToAll({ ...s, gold: clamp(s.gold - jit(150), 0, MAX) }, (e) => ({ ...e, morale: clamp(e.morale - jit(3), 0, 100) }));
+          return { ...next, project: { ...next.project, bugDebt: clamp(next.project.bugDebt - jit(2), 0, 100) } };
+        },
+      },
+      {
+        label: '합의금 지불 (조용히 해결)',
+        summary: '−80g / 모두 사기 −6 (굴복감)',
+        apply: (s) => ({
+          ...applyToAll(s, (e) => ({ ...e, morale: clamp(e.morale - jit(6), 0, 100) })),
+          gold: clamp(s.gold - jit(80), 0, MAX),
+        }),
+      },
+    ],
+  },
+  {
+    id: 'github-star-50k',
+    minProductCount: 8,
+    minReputation: 70,
+    title: 'GitHub 스타 5만 돌파',
+    description:
+      '오픈소스 연동 라이브러리가 GitHub 스타 5만을 넘었다. 해외 개발자들의 PR과 이슈가 쏟아진다.',
+    choices: [
+      {
+        label: '컨트리뷰터 웰컴 이벤트 개최',
+        summary: '−30g / 모두 사기 +12 (자부심) / +60g (후원 및 스폰십)',
+        apply: (s) => ({
+          ...applyToAll(s, (e) => ({ ...e, morale: clamp(e.morale + jit(12), 0, 100) })),
+          gold: clamp(s.gold - 30 + jit(60), 0, MAX),
+        }),
+      },
+      {
+        label: '조용히 유지 (관리 부담 최소화)',
+        summary: '모두 사기 +5 / Progress +3%',
+        apply: (s) => {
+          const next = applyToAll(s, (e) => ({ ...e, morale: clamp(e.morale + jit(5), 0, 100) }));
+          return { ...next, project: { ...next.project, progress: clamp(next.project.progress + jit(3), 0, 100) } };
+        },
+      },
+    ],
+  },
+  {
+    id: 'foreign-vc-visit',
+    minProductCount: 10,
+    minReputation: 100,
+    title: '해외 VC 방문 실사',
+    description:
+      '실리콘밸리 VC가 실사 방문을 예고했다. 사무실 청소부터 데모 준비까지 주말이 없다.',
+    choices: [
+      {
+        label: '완벽 준비 (전력 투구)',
+        summary: '모두 체력 −15 / +200g (투자 의향서) / 모두 사기 +5',
+        apply: (s) => {
+          const next = applyToAll(s, (e) => ({ ...e, stamina: clamp(e.stamina - jit(15), 0, 100), morale: clamp(e.morale + jit(5), 0, 100) }));
+          return { ...next, gold: clamp(next.gold + jit(200), 0, MAX) };
+        },
+      },
+      {
+        label: '있는 그대로 보여주기',
+        summary: '모두 사기 +8 (진정성) / +50g',
+        apply: (s) => ({
+          ...applyToAll(s, (e) => ({ ...e, morale: clamp(e.morale + jit(8), 0, 100) })),
+          gold: clamp(s.gold + jit(50), 0, MAX),
+        }),
+      },
+    ],
+  },
+  {
+    id: 'antitrust-investigation',
+    minProductCount: 20,
+    minReputation: 150,
+    title: '공정거래위원회 조사',
+    description:
+      '"귀사의 시장 지배적 지위 남용 혐의로 조사를 개시합니다." 당신의 회사가 커졌다는 뜻이기도 하다.',
+    choices: [
+      {
+        label: '전면 협조 (법무팀 풀가동)',
+        summary: '−200g / 모두 사기 −5 / BugDebt −4 (코드 감사 기회)',
+        apply: (s) => {
+          const next = applyToAll({ ...s, gold: clamp(s.gold - jit(200), 0, MAX) }, (e) => ({ ...e, morale: clamp(e.morale - jit(5), 0, 100) }));
+          return { ...next, project: { ...next.project, bugDebt: clamp(next.project.bugDebt - jit(4), 0, 100) } };
+        },
+      },
+      {
+        label: '최소 대응 (진술만)',
+        summary: '모두 사기 −8 (불안) / BugDebt +5',
+        apply: (s) => {
+          const next = applyToAll(s, (e) => ({ ...e, morale: clamp(e.morale - jit(8), 0, 100) }));
+          return { ...next, project: { ...next.project, bugDebt: clamp(next.project.bugDebt + jit(5), 0, 100) } };
+        },
+      },
+    ],
+  },
+  {
+    id: 'ipo-roadshow',
+    minProductCount: 18,
+    minReputation: 200,
+    title: 'IPO 로드쇼 준비',
+    description:
+      'IB 팀이 기관투자자 대상 로드쇼 일정을 잡았다. 창업 이후 최대 이벤트가 코앞이다.',
+    choices: [
+      {
+        label: 'CEO + CFO 풀타임 투입',
+        summary: 'PM 체력 −20 / +300g (사전 청약 프리미엄) / 모두 사기 +10',
+        apply: (s) => {
+          const next = applyToJob(s, 'planner', (e) => ({ ...e, stamina: clamp(e.stamina - jit(20), 0, 100) }));
+          return { ...applyToAll(next, (e) => ({ ...e, morale: clamp(e.morale + jit(10), 0, 100) })), gold: clamp(next.gold + jit(300), 0, MAX) };
+        },
+      },
+      {
+        label: '분산 대응 (부서별 담당)',
+        summary: '모두 체력 −8 / +120g / Progress −4%',
+        apply: (s) => {
+          const next = applyToAll(s, (e) => ({ ...e, stamina: clamp(e.stamina - jit(8), 0, 100) }));
+          return { ...next, gold: clamp(next.gold + jit(120), 0, MAX), project: { ...next.project, progress: clamp(next.project.progress - jit(4), 0, 100) } };
+        },
+      },
+    ],
+  },
+  {
+    id: 'sxsw-keynote',
+    minProductCount: 15,
+    minReputation: 120,
+    title: 'SXSW 키노트 초청',
+    description:
+      '오스틴 SXSW에서 키노트 발표 초청장이 왔다. 글로벌 무대에 이름을 알릴 찬스.',
+    choices: [
+      {
+        label: '대표 직접 참가 (해외 출장)',
+        summary: '−100g (출장비) / 모두 사기 +12 / +150g (파트너십)',
+        apply: (s) => ({
+          ...applyToAll(s, (e) => ({ ...e, morale: clamp(e.morale + jit(12), 0, 100) })),
+          gold: clamp(s.gold - 100 + jit(150), 0, MAX),
+        }),
+      },
+      {
+        label: '영상 메시지 대체 (비용 절감)',
+        summary: '모두 사기 +4 / Progress +2%',
+        apply: (s) => {
+          const next = applyToAll(s, (e) => ({ ...e, morale: clamp(e.morale + jit(4), 0, 100) }));
+          return { ...next, project: { ...next.project, progress: clamp(next.project.progress + jit(2), 0, 100) } };
+        },
+      },
+    ],
+  },
+
+  // ────────── G 신규 후반 ──────────
+  {
+    id: 'tech-magazine-cover',
+    minProductCount: 12,
+    minReputation: 100,
+    title: '테크 매거진 표지 모델',
+    description:
+      '"이달의 혁신 기업"으로 선정돼 국내 테크 매거진 표지에 팀 단체 사진을 요청받았다.',
+    choices: [
+      {
+        label: '촬영 수락 (반차 소진)',
+        summary: '모두 체력 −5 / 모두 사기 +12 (자부심) / +50g',
+        apply: (s) => ({
+          ...applyToAll(s, (e) => ({ ...e, morale: clamp(e.morale + jit(12), 0, 100), stamina: clamp(e.stamina - jit(5), 0, 100) })),
+          gold: clamp(s.gold + jit(50), 0, MAX),
+        }),
+      },
+      {
+        label: '대표만 촬영',
+        summary: '모두 사기 −2 (소외감) / BugDebt −2',
+        apply: (s) => {
+          const next = applyToAll(s, (e) => ({ ...e, morale: clamp(e.morale - jit(2), 0, 100) }));
+          return { ...next, project: { ...next.project, bugDebt: clamp(next.project.bugDebt - jit(2), 0, 100) } };
+        },
+      },
+    ],
+  },
+  {
+    id: 'design-award',
+    minProductCount: 8,
+    minReputation: 60,
+    title: '디자인 어워드 수상',
+    description:
+      '국내 앱 디자인 어워드 수상 소식이 전해졌다. 디자이너가 환호성을 질렀다.',
+    choices: [
+      {
+        label: '수상 기념 팀 디너 (-50g)',
+        summary: '−50g / 디자이너 사기 +15 / 모두 사기 +8',
+        apply: (s) => ({
+          ...applyToAll({ ...s, gold: clamp(s.gold - 50, 0, MAX) }, (e) =>
+            e.job === 'designer' ? { ...e, morale: clamp(e.morale + jit(15), 0, 100) } : { ...e, morale: clamp(e.morale + jit(8), 0, 100) },
+          ),
+        }),
+      },
+      {
+        label: '슬랙 공지로 마무리',
+        summary: '디자이너 사기 +8 / 모두 사기 +3',
+        apply: (s) =>
+          applyToAll(s, (e) => ({
+            ...e,
+            morale: clamp(e.morale + (e.job === 'designer' ? jit(8) : jit(3)), 0, 100),
+          })),
+      },
+    ],
+  },
+
+  // ────────── H 신규 후반 ──────────
+  {
+    id: 'github-octocat-pin',
+    minProductCount: 5,
+    title: 'GitHub Octocat 선물 도착',
+    description:
+      'GitHub 파트너십 기념으로 옥토캣 굿즈 박스가 회사에 배달됐다. 누가 가져갈지 정해야 한다.',
+    choices: [
+      {
+        label: '추첨으로 공정하게',
+        summary: '모두 사기 +4 (공정한 과정) / BugDebt −1',
+        apply: (s) => {
+          const next = applyToAll(s, (e) => ({ ...e, morale: clamp(e.morale + jit(4), 0, 100) }));
+          return { ...next, project: { ...next.project, bugDebt: clamp(next.project.bugDebt - jit(1), 0, 100) } };
+        },
+      },
+      {
+        label: '커밋 가장 많은 개발자에게',
+        summary: '개발자 사기 +10 / 다른 직군 사기 −2',
+        apply: (s) =>
+          applyToAll(s, (e) => ({
+            ...e,
+            morale: clamp(e.morale + (e.job === 'programmer' ? jit(10) : -jit(2)), 0, 100),
+          })),
+      },
+    ],
+  },
+  {
+    id: 'former-employee-startup',
+    minProductCount: 8,
+    title: '퇴사자의 경쟁 스타트업 창업',
+    description:
+      '6개월 전 퇴사한 팀원이 비슷한 서비스로 창업해 시드 투자를 받았다는 뉴스가 올라왔다.',
+    choices: [
+      {
+        label: '무시하고 우리 길을 간다',
+        summary: '모두 사기 +3 (집중) / Progress +2%',
+        apply: (s) => {
+          const next = applyToAll(s, (e) => ({ ...e, morale: clamp(e.morale + jit(3), 0, 100) }));
+          return { ...next, project: { ...next.project, progress: clamp(next.project.progress + jit(2), 0, 100) } };
+        },
+      },
+      {
+        label: '법무 검토 (비밀유지 계약 위반 여부)',
+        summary: '−40g (법무 검토비) / 모두 사기 −4 (불쾌한 기억)',
+        apply: (s) => ({
+          ...applyToAll(s, (e) => ({ ...e, morale: clamp(e.morale - jit(4), 0, 100) })),
+          gold: clamp(s.gold - jit(40), 0, MAX),
+        }),
+      },
+    ],
+  },
+
+  // ────────── I 신규 후반 ──────────
+  {
+    id: 'crashed-ec2',
+    minProductCount: 5,
+    title: 'EC2 인스턴스 전체 다운',
+    description:
+      '새벽 2시, 프로덕션 EC2 인스턴스가 전부 내려갔다. 슬랙에 불이 났다. 누가 살려낼 수 있나.',
+    choices: [
+      {
+        label: '밤새 복구 (개발자 전원 콜)',
+        summary: '개발자 체력 −20 (밤샘) / BugDebt −10 (근본 원인 제거) / −30g',
+        apply: (s) => {
+          const next = applyToJob({ ...s, gold: clamp(s.gold - jit(30), 0, MAX) }, 'programmer', (e) => ({ ...e, stamina: clamp(e.stamina - jit(20), 0, 100) }));
+          return { ...next, project: { ...next.project, bugDebt: clamp(next.project.bugDebt - jit(10), 0, 100) } };
+        },
+      },
+      {
+        label: '롤백 후 내일 분석',
+        summary: 'BugDebt +6 (임시방편) / 개발자 체력 −5 / Progress −4%',
+        apply: (s) => {
+          const next = applyToJob(s, 'programmer', (e) => ({ ...e, stamina: clamp(e.stamina - jit(5), 0, 100) }));
+          return { ...next, project: { ...next.project, bugDebt: clamp(next.project.bugDebt + jit(6), 0, 100), progress: clamp(next.project.progress - jit(4), 0, 100) } };
+        },
+      },
+    ],
+  },
+  {
+    id: 'database-corruption',
+    minProductCount: 8,
+    title: 'DB 데이터 손상 발생',
+    description:
+      '운영 DB 일부 테이블 데이터가 손상됐다. 백업은… 3일 전 것이 마지막이다.',
+    choices: [
+      {
+        label: '3일치 손실 감수 후 복구',
+        summary: 'BugDebt +8 (긴급 패치) / Progress −8% / 모두 사기 −8',
+        apply: (s) => {
+          const next = applyToAll(s, (e) => ({ ...e, morale: clamp(e.morale - jit(8), 0, 100) }));
+          return { ...next, project: { ...next.project, bugDebt: clamp(next.project.bugDebt + jit(8), 0, 100), progress: clamp(next.project.progress - jit(8), 0, 100) } };
+        },
+      },
+      {
+        label: '데이터 복구 전문업체 의뢰 (-200g)',
+        summary: '−200g / BugDebt −5 / 모두 사기 −4',
+        apply: (s) => {
+          if (s.gold < 200) return s;
+          const next = applyToAll({ ...s, gold: clamp(s.gold - 200, 0, MAX) }, (e) => ({ ...e, morale: clamp(e.morale - jit(4), 0, 100) }));
+          return { ...next, project: { ...next.project, bugDebt: clamp(next.project.bugDebt - jit(5), 0, 100) } };
+        },
+      },
+    ],
+  },
+
+  // ────────── K 신규 후반 ──────────
+  {
+    id: 'mentor-monday',
+    minProductCount: 6,
+    title: '멘토 먼데이 프로그램',
+    description:
+      '매주 월요일 시니어가 주니어를 1:1 멘토링하는 사내 프로그램 제안이 올라왔다.',
+    choices: [
+      {
+        label: '공식 운영 (시니어 주도)',
+        summary: '시니어 체력 −8 / 주니어 사기 +10 / BugDebt −2',
+        apply: (s) => {
+          const next = applyToAll(s, (e) =>
+            e.rank === 'senior' || e.rank === 'lead'
+              ? { ...e, stamina: clamp(e.stamina - jit(8), 0, 100) }
+              : { ...e, morale: clamp(e.morale + jit(10), 0, 100) },
+          );
+          return { ...next, project: { ...next.project, bugDebt: clamp(next.project.bugDebt - jit(2), 0, 100) } };
+        },
+      },
+      {
+        label: '자율 신청으로만',
+        summary: '모두 사기 +3 (자율성) / Progress +1%',
+        apply: (s) => {
+          const next = applyToAll(s, (e) => ({ ...e, morale: clamp(e.morale + jit(3), 0, 100) }));
+          return { ...next, project: { ...next.project, progress: clamp(next.project.progress + jit(1), 0, 100) } };
+        },
+      },
+    ],
+  },
+  {
+    id: 'pet-policy-vote',
+    minProductCount: 5,
+    title: '반려동물 출근 허용 투표',
+    description:
+      '"반려견·반려묘 출근 가능하게 해달라"는 요청이 사내 익명 게시판에 올라와 투표가 시작됐다. 찬반이 팽팽하다.',
+    choices: [
+      {
+        label: '허용 (규칙 만들고)',
+        summary: '모두 사기 +6 / BugDebt +2 (분위기 산만)',
+        apply: (s) => {
+          const next = applyToAll(s, (e) => ({ ...e, morale: clamp(e.morale + jit(6), 0, 100) }));
+          return { ...next, project: { ...next.project, bugDebt: clamp(next.project.bugDebt + jit(2), 0, 100) } };
+        },
+      },
+      {
+        label: '불허 (알러지 배려)',
+        summary: '모두 사기 −2 (아쉬움) / Progress +1%',
+        apply: (s) => {
+          const next = applyToAll(s, (e) => ({ ...e, morale: clamp(e.morale - jit(2), 0, 100) }));
+          return { ...next, project: { ...next.project, progress: clamp(next.project.progress + jit(1), 0, 100) } };
         },
       },
     ],
