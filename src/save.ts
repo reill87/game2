@@ -48,6 +48,8 @@ import type { NpcId } from './domain/npcs';
 const KEY = 'game2.save';
 const LEGACY_KEY_V1 = 'game2.save.v1';
 const UNKNOWN_BACKUP_KEY = 'game2.save.unknown';
+/** 프레스티지 회수 전용 키 — clearData(메인 키 삭제)와 독립적으로 보존. */
+const PRESTIGE_KEY = 'game2.prestige';
 
 export interface SavedResult {
   readonly genre: string;
@@ -101,10 +103,10 @@ export interface SaveData {
   readonly markets?: MarketState;
   /** 자회사 인수 상태. 옛 데이터엔 없으므로 옵셔널. */
   readonly acquisitions?: AcquisitionState;
-  /** 직전 프로젝트 슬롯 배정 — 새 프로젝트 시작 시 자동 복원용. */
-  readonly lastAssignment?: Partial<Record<'planning' | 'graphics' | 'qa' | 'programming', string>>;
-  /** 직전 프로젝트 support 배정 — 새 프로젝트 시작 시 자동 복원용. */
-  readonly lastSupport?: Partial<Record<'planning' | 'graphics' | 'qa' | 'programming', string>>;
+  /** 직전 프로젝트 슬롯 배정 — 새 프로젝트 시작 시 자동 복원용. 6 슬롯 (marketing/data 신규). */
+  readonly lastAssignment?: Partial<Record<'planning' | 'graphics' | 'qa' | 'programming' | 'marketing' | 'data', string>>;
+  /** 직전 프로젝트 support 배정 — 새 프로젝트 시작 시 자동 복원용. 6 슬롯. */
+  readonly lastSupport?: Partial<Record<'planning' | 'graphics' | 'qa' | 'programming' | 'marketing' | 'data', string>>;
   /** 회사명. 미설정 시 DEFAULT_COMPANY_NAME 사용. */
   readonly companyName?: string;
   /** 수신 메일 목록 — cap 30. 옛 데이터엔 없으므로 옵셔널. */
@@ -237,8 +239,8 @@ export function saveData(input: {
   facilities?: FacilityState;
   markets?: MarketState;
   acquisitions?: AcquisitionState;
-  lastAssignment?: Partial<Record<'planning' | 'graphics' | 'qa' | 'programming', string>>;
-  lastSupport?: Partial<Record<'planning' | 'graphics' | 'qa' | 'programming', string>>;
+  lastAssignment?: Partial<Record<'planning' | 'graphics' | 'qa' | 'programming' | 'marketing' | 'data', string>>;
+  lastSupport?: Partial<Record<'planning' | 'graphics' | 'qa' | 'programming' | 'marketing' | 'data', string>>;
   companyName?: string;
   mails?: ReadonlyArray<MailMessage>;
 }): SaveData | null {
@@ -295,9 +297,40 @@ export function clearData(): void {
   try {
     storage.removeItem(KEY);
     storage.removeItem(LEGACY_KEY_V1);
+    // PRESTIGE_KEY는 의도적으로 삭제하지 않는다 — 프레스티지 회수는 영구 누적.
   } catch {
     /* noop */
   }
+}
+
+/**
+ * 프레스티지 회수 로드. 0이면 아직 프레스티지 없음.
+ * clearData()로 메인 세이브를 지워도 이 값은 보존된다.
+ */
+export function loadPrestigeCount(): number {
+  try {
+    const storage = getStorage();
+    if (!storage) return 0;
+    const raw = storage.getItem(PRESTIGE_KEY);
+    return raw ? (parseInt(raw, 10) || 0) : 0;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * 프레스티지 1회 증가 후 새 회수 반환.
+ * 유니콘 엔딩에서 [프레스티지 시작] 확인 후 호출.
+ */
+export function incrementPrestige(): number {
+  const next = loadPrestigeCount() + 1;
+  try {
+    const storage = getStorage();
+    if (storage) storage.setItem(PRESTIGE_KEY, String(next));
+  } catch {
+    /* noop */
+  }
+  return next;
 }
 
 function readAndParse(storage: Storage, key: string): unknown {
@@ -398,24 +431,24 @@ function sanitizeMarkets(raw: unknown): MarketState | undefined {
   return { entered };
 }
 
-/** 직전 슬롯 배정 sanitize — 4 슬롯 string 값만 보존. */
+/** 직전 슬롯 배정 sanitize — 6 슬롯 string 값만 보존 (marketing/data 신규 포함). */
 function sanitizeAssignment(raw: unknown): SaveData['lastAssignment'] | undefined {
   if (!raw || typeof raw !== 'object') return undefined;
   const r = raw as Record<string, unknown>;
   const out: NonNullable<SaveData['lastAssignment']> = {};
-  for (const slot of ['planning', 'graphics', 'qa', 'programming'] as const) {
+  for (const slot of ['planning', 'graphics', 'qa', 'programming', 'marketing', 'data'] as const) {
     const v = r[slot];
     if (typeof v === 'string') out[slot] = v;
   }
   return Object.keys(out).length > 0 ? out : undefined;
 }
 
-/** support 배정 sanitize — lastAssignment와 동일 구조. */
+/** support 배정 sanitize — lastAssignment와 동일 구조 (6 슬롯). */
 function sanitizeSupport(raw: unknown): SaveData['lastSupport'] | undefined {
   if (!raw || typeof raw !== 'object') return undefined;
   const r = raw as Record<string, unknown>;
   const out: NonNullable<SaveData['lastSupport']> = {};
-  for (const slot of ['planning', 'graphics', 'qa', 'programming'] as const) {
+  for (const slot of ['planning', 'graphics', 'qa', 'programming', 'marketing', 'data'] as const) {
     const v = r[slot];
     if (typeof v === 'string') out[slot] = v;
   }

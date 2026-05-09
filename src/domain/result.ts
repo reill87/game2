@@ -8,6 +8,7 @@ import { isRndPurchased } from './rnd';
 import { isFacilityBuilt } from './facilities';
 import { computeMarketRevenueMul } from './markets';
 import { release } from './tick';
+import { NO_PRESTIGE } from './prestige';
 import type { Employee, GameState, PromoTier, Rank } from './types';
 
 function clamp(n: number, lo: number, hi: number): number {
@@ -154,7 +155,9 @@ export function shipProject(
   }
   // 글로벌 시장 진출 — 진출한 시장 매출 곱연산.
   const marketMul = computeMarketRevenueMul(prev.markets);
-  const baseCalculated = Math.round(baseRevenue * eff.revenueMul * reputationMul * trendMul * marketMul);
+  // 프레스티지 매출 보너스 — 프레스티지 N회: 매출 × (1 + N×0.05).
+  const prestigeRevenueMul = (prev.prestigeBonus ?? NO_PRESTIGE).revenueMul;
+  const baseCalculated = Math.round(baseRevenue * eff.revenueMul * reputationMul * trendMul * marketMul * prestigeRevenueMul);
   // R&D: 다국어화 플랫폼 ×1.25 / 글로벌 진출 ×1.15 — 둘 다 보유 시 1.25 우선.
   // R&D T4: 위성 네트워크 ×1.3 — i18n-platform과 중첩 곱.
   const globalRevMul = isRndPurchased(prev.rnd, 'i18n-platform')

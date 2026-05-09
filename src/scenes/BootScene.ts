@@ -4,13 +4,14 @@ import { EMPTY_RND, type RndState } from '@/domain/rnd';
 import { EMPTY_FACILITIES, type FacilityState } from '@/domain/facilities';
 import { EMPTY_MARKETS, type MarketState } from '@/domain/markets';
 import { EMPTY_ACQUISITIONS, type AcquisitionState } from '@/domain/acquisitions';
+import { computePrestigeBonus } from '@/domain/prestige';
 import type { CompanyPolicy, Employee, TrendStatus } from '@/domain/types';
 import { preloadAvatars } from '@/avatars';
 import { BGM } from '@/bgm';
 import { preloadEventCategories } from '@/eventCategoryAssets';
 import { ICON_DIR, ICONS } from '@/icons';
 import { preloadIllustrations } from '@/illustrations';
-import { loadData, saveData, loadSettings, DEFAULT_COMPANY_NAME, type SavedResult } from '@/save';
+import { loadData, loadPrestigeCount, saveData, loadSettings, DEFAULT_COMPANY_NAME, type SavedResult } from '@/save';
 import { setSfxVolume, preloadSfx } from '@/sounds';
 import { preloadUITextures } from '@/util/ui';
 import { SCENE_KEYS } from './keys';
@@ -63,6 +64,9 @@ export class BootScene extends Phaser.Scene {
     const markets: MarketState = saved?.markets ?? EMPTY_MARKETS;
     // 자회사 인수 상태.
     const acquisitions: AcquisitionState = saved?.acquisitions ?? EMPTY_ACQUISITIONS;
+    // 프레스티지 보너스 — 별도 키에서 로드, clearData와 독립.
+    const prestigeCount = loadPrestigeCount();
+    const prestigeBonus = computePrestigeBonus(prestigeCount);
     // 신규 데이터(employees 필드 보유) → 튜토리얼+채용 직원 모두 포함된 풀 리스트.
     // 옛 데이터 → TUTORIAL_EMPLOYEES + hiredEmployees 머지로 폴백.
     const employees: ReadonlyArray<Employee> = saved?.employees?.length
@@ -72,20 +76,20 @@ export class BootScene extends Phaser.Scene {
         : TUTORIAL_EMPLOYEES;
     const lastResult: SavedResult | null = saved?.lastResult ?? null;
 
-    // 직전 슬롯 배정 — 현재 직원 id가 여전히 존재하는 항목만 필터링.
+    // 직전 슬롯 배정 — 현재 직원 id가 여전히 존재하는 항목만 필터링 (6 슬롯 포함).
     const empIds = new Set(employees.map((e) => e.id));
     const filteredAssignment: NonNullable<typeof saved>['lastAssignment'] = {};
     if (saved?.lastAssignment) {
-      for (const slot of ['planning', 'graphics', 'qa', 'programming'] as const) {
+      for (const slot of ['planning', 'graphics', 'qa', 'programming', 'marketing', 'data'] as const) {
         const id = saved.lastAssignment[slot];
         if (id && empIds.has(id)) filteredAssignment[slot] = id;
       }
     }
 
-    // 직전 support 배정 — 현재 직원 id가 여전히 존재하는 항목만 필터링.
+    // 직전 support 배정 — 현재 직원 id가 여전히 존재하는 항목만 필터링 (6 슬롯 포함).
     const filteredSupport: NonNullable<typeof saved>['lastSupport'] = {};
     if (saved?.lastSupport) {
-      for (const slot of ['planning', 'graphics', 'qa', 'programming'] as const) {
+      for (const slot of ['planning', 'graphics', 'qa', 'programming', 'marketing', 'data'] as const) {
         const id = saved.lastSupport[slot];
         if (id && empIds.has(id)) filteredSupport[slot] = id;
       }
@@ -93,8 +97,22 @@ export class BootScene extends Phaser.Scene {
     const hasFilteredSupport = Object.keys(filteredSupport).length > 0;
 
     if (productIndex === 0) {
-      const fresh = newTutorialGame(rnd);
-      const state = { ...fresh, employees, gold, officeLevel, reputation, policy, trend, rnd, facilities, markets, acquisitions };
+      // 프레스티지 보너스를 newTutorialGame에 전달 — 시작 골드 + 직원 skill 가산.
+      const fresh = newTutorialGame(rnd, prestigeCount > 0 ? prestigeBonus : undefined);
+      const state = {
+        ...fresh,
+        employees,
+        gold: fresh.gold + gold, // fresh.gold 이미 startingGoldBonus 포함, saved gold 이월 추가.
+        officeLevel,
+        reputation,
+        policy,
+        trend,
+        rnd,
+        facilities,
+        markets,
+        acquisitions,
+        ...(prestigeCount > 0 ? { prestigeBonus } : {}),
+      };
       const carry: { lastResult?: SavedResult } = {};
       if (lastResult) carry.lastResult = lastResult;
 
@@ -124,6 +142,7 @@ export class BootScene extends Phaser.Scene {
       markets,
       lastAssignment: filteredAssignment,
       ...(hasFilteredSupport ? { lastSupport: filteredSupport } : {}),
+      ...(prestigeCount > 0 ? { prestigeBonus } : {}),
     });
   }
 

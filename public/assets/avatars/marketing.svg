@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" width="80" height="80">
+  <!-- 마케터 — 메가폰 들고 활기찬 모습 -->
+  <circle cx="40" cy="44" r="36" fill="#3a3a48"/>
+  <path d="M16 76 Q40 56 64 76 Z" fill="#e04f4f" opacity="0.85"/>
+  <!-- 셔츠 -->
+  <path d="M32 64 L40 56 L48 64 Z" fill="#f2f2f7"/>
+  <!-- 목 -->
+  <rect x="35" y="40" width="10" height="8" fill="#e0c8a8"/>
+  <!-- 머리 -->
+  <circle cx="40" cy="32" r="18" fill="#f0d4b0"/>
+  <!-- 짧은 머리 -->
+  <path d="M22 30 Q22 12 40 12 Q58 12 58 30 L56 26 Q40 20 24 26 Z" fill="#4a3828"/>
+  <!-- 눈 (활기) -->
+  <circle cx="34" cy="32" r="2" fill="#1a1a22"/>
+  <circle cx="46" cy="32" r="2" fill="#1a1a22"/>
+  <!-- 입 (미소) -->
+  <path d="M35 39 Q40 43 45 39" fill="none" stroke="#1a1a22" stroke-width="1.5" stroke-linecap="round"/>
+  <!-- 메가폰 -->
+  <path d="M55 44 L62 40 L62 56 L55 52 Z" fill="#f2c94c" stroke="#1a1a22" stroke-width="1.5"/>
+  <rect x="48" y="45" width="8" height="7" rx="1" fill="#9b9bb0"/>
+  <path d="M62 45 L72 39 L72 57 L62 51" fill="#f2c94c" stroke="#1a1a22" stroke-width="1.5"/>
+</svg>

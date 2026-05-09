@@ -25,12 +25,18 @@ export const BALANCE = {
   tutorialWeeksTarget: 10,
   /** Effective skill 상한 — (밸런스 v2) 풀스펙 스택 남용 방지. */
   maxEffectiveSkill: 3.0,
-  /** Appeal — 정배치 슬롯별 주당 기여(점). 오배치는 mismatchContribFactor=0.5 곱. */
+  /**
+   * Appeal — 정배치 슬롯별 주당 기여(점). 오배치는 mismatchContribFactor 곱.
+   * marketing: 사용자 접점 직군 — 평균(1.0).
+   * data: 백엔드 데이터 직군 — 간접 기여(0.5).
+   */
   appealBySlot: {
     planning: 0.6,
     graphics: 1.5,
     qa: 1.2,
     programming: 0.2,
+    marketing: 1.0,
+    data: 0.5,
   },
   /** QA 슬롯이 비어 있을 때 매 주 Appeal 페널티 (테스트 부족 → 마감 디테일 ↓). */
   appealSoundEmpty: -0.3,

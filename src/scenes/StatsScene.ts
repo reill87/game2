@@ -11,7 +11,7 @@ import { calendarFor } from '@/domain/calendar';
 import { GENRE_LABEL, THEME_LABEL } from '@/domain/seed';
 import { BGM } from '@/bgm';
 import { ICONS } from '@/icons';
-import { loadData, DEFAULT_COMPANY_NAME, type SavedResult } from '@/save';
+import { loadData, loadPrestigeCount, DEFAULT_COMPANY_NAME, type SavedResult } from '@/save';
 import { playSfx, SFX } from '@/sounds';
 import { COLOR, FONT_STACK, TEXT_COLOR, TINT } from '@/theme';
 import { applyHiDPI } from '@/util/hidpi';
@@ -45,12 +45,13 @@ export class StatsScene extends Phaser.Scene {
     this.contentX = 0;
     const saved = loadData();
     const history: ReadonlyArray<SavedResult> = saved?.history ?? [];
+    const prestigeCount = loadPrestigeCount();
 
     BGM.resume();
     BGM.setMood('calm');
     addMuteToggle(this);
     const companyName = saved?.companyName ?? DEFAULT_COMPANY_NAME;
-    this.buildHeader(history.length, companyName);
+    this.buildHeader(history.length, companyName, prestigeCount);
     this.buildSummary(history);
     this.buildHistoryList(history);
     this.buildCloseButton();
@@ -58,8 +59,8 @@ export class StatsScene extends Phaser.Scene {
     onResize(this, () => { this.scene.restart(); });
   }
 
-  // ────────────────────────── header ──────────────────────────
-  private buildHeader(count: number, companyName: string): void {
+  // ──────���─────────────────── header ──��───────────────────────
+  private buildHeader(count: number, companyName: string, prestigeCount: number): void {
     this.add
       .text(this.cx, 60, `${companyName} 누적 통계`, {
         fontFamily: FONT_STACK,
@@ -68,11 +69,15 @@ export class StatsScene extends Phaser.Scene {
         color: TEXT_COLOR.primary,
       })
       .setOrigin(0.5);
+    // 출시 작품 수 + 프레스티지 회수 (프레스티지 있을 때만 표시).
+    const subText = prestigeCount > 0
+      ? `${count}개 작품 출시  ·  🏆 프레스티지 ${prestigeCount}회`
+      : `${count}개 작품 출시`;
     this.add
-      .text(this.cx, 92, `${count}개 작품 출시`, {
+      .text(this.cx, 92, subText, {
         fontFamily: FONT_STACK,
         fontSize: '23px',
-        color: TEXT_COLOR.dim,
+        color: prestigeCount > 0 ? TEXT_COLOR.warn : TEXT_COLOR.dim,
       })
       .setOrigin(0.5);
   }

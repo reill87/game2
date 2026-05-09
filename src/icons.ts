@@ -45,6 +45,10 @@ export const ICONS = {
   star: { key: 'icon-star', file: 'star.svg' },
   /** 빈 별 (테두리만). */
   starOutline: { key: 'icon-star-outline', file: 'star-outline.svg' },
+  /** 마케터/마케팅 슬롯 (메가폰). */
+  megaphone: { key: 'icon-megaphone', file: 'megaphone.svg' },
+  /** 데이터 분석가/데이터 슬롯 (꺾은선 차트). */
+  chartLine: { key: 'icon-chart-line', file: 'chart-line.svg' },
 } as const;
 
 export type IconName = keyof typeof ICONS;

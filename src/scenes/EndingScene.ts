@@ -14,7 +14,7 @@ import Phaser from 'phaser';
 
 import { BGM } from '@/bgm';
 import { ENDING } from '@/domain/balance';
-import { clearData, loadData, DEFAULT_COMPANY_NAME } from '@/save';
+import { clearData, incrementPrestige, loadData, loadPrestigeCount, DEFAULT_COMPANY_NAME } from '@/save';
 import { playSfx, SFX } from '@/sounds';
 import { COLOR, FONT_STACK, TEXT_COLOR } from '@/theme';
 import { applyHiDPI } from '@/util/hidpi';
@@ -272,16 +272,197 @@ export class EndingScene extends Phaser.Scene {
 
   // ────────────────────────── 유니콘 엔딩 (1조원) ──────────────────────────
   private buildUnicornEnding(totalRevenue: number, productCount: number, companyName: string): void {
-    this.buildContinueEnding({
-      titleText: '유니콘 등극',
-      titleColor: TEXT_COLOR.ok,
-      headline: `${companyName} — 시가총액 1조 돌파`,
-      sub: '뉴스에 회사 이름이 매일 오른다.\n과거 분당 셰어오피스 시절을 기억하는 사람도 적어졌다.',
-      footer: '게임 명전. 그래도 회사는 계속 굴러간다.',
-      threshold: ENDING.unicornRevenueThreshold,
+    const prestigeCount = loadPrestigeCount();
+    const title = this.add
+      .text(this.cx, 220, '유니콘 등극', {
+        fontFamily: FONT_STACK,
+        fontSize: '24px',
+        fontStyle: 'bold',
+        color: TEXT_COLOR.ok,
+      })
+      .setOrigin(0.5)
+      .setAlpha(0);
+
+    const headline = this.add
+      .text(this.cx, 270, `${companyName} — 시가총액 1조 돌파`, {
+        fontFamily: FONT_STACK,
+        fontSize: '48px',
+        fontStyle: 'bold',
+        color: TEXT_COLOR.primary,
+      })
+      .setOrigin(0.5)
+      .setAlpha(0);
+
+    const sub = this.add
+      .text(this.cx, 320, '뉴스에 회사 이름이 매일 오른다.\n과거 분당 셰어오피스 시절을 기억하는 사람도 적어졌다.', {
+        fontFamily: FONT_STACK,
+        fontSize: '24px',
+        color: TEXT_COLOR.dim,
+        align: 'center',
+        wordWrap: { width: 600 },
+      })
+      .setOrigin(0.5)
+      .setAlpha(0);
+
+    const { panel, rowEls } = this.buildStatsPanel(
       totalRevenue,
+      ENDING.unicornRevenueThreshold,
       productCount,
+    );
+
+    const footer = this.add
+      .text(this.cx, 750, '게임 명전. 그래도 회사는 계속 굴러간다.\n프레스티지를 시작하면 영구 보너스를 누적해 새 회차로.', {
+        fontFamily: FONT_STACK,
+        fontSize: '23px',
+        color: TEXT_COLOR.dim,
+        align: 'center',
+        wordWrap: { width: 580 },
+      })
+      .setOrigin(0.5)
+      .setAlpha(0);
+
+    // 4 버튼: 통계 / 계속 운영 / 처음부터 / 프레스티지 시작
+    const btnGap = 10;
+    const btnH = 56;
+    const wStats = 130;
+    const wContinue = 180;
+    const wReset = 150;
+    const wPrestige = 210;
+    const totalW = wStats + wContinue + wReset + wPrestige + btnGap * 3;
+    const startX = this.cx - totalW / 2;
+    this.makeBtn({
+      x: startX, y: 1100, w: wStats, h: btnH,
+      label: '통계', primary: false,
+      onTap: () => this.scene.start(SCENE_KEYS.Stats, { returnTo: SCENE_KEYS.Boot }),
     });
+    this.makeBtn({
+      x: startX + wStats + btnGap, y: 1100, w: wContinue, h: btnH,
+      label: '계속 운영', primary: true,
+      onTap: () => this.scene.start(SCENE_KEYS.Boot),
+    });
+    this.makeBtn({
+      x: startX + wStats + btnGap + wContinue + btnGap, y: 1100, w: wReset, h: btnH,
+      label: '처음부터', primary: false,
+      onTap: () => this.showResetConfirm(),
+    });
+    this.makeBtn({
+      x: startX + wStats + btnGap + wContinue + btnGap + wReset + btnGap, y: 1100, w: wPrestige, h: btnH,
+      label: `🏆 프레스티지 시작 (${prestigeCount + 1}회)`,
+      primary: true,
+      onTap: () => this.showPrestigeConfirm(),
+    });
+
+    this.animateIn([title, headline, sub, panel, ...rowEls, footer]);
+  }
+
+  /**
+   * 프레스티지 시작 확인 모달.
+   * 확인 시 clearData() + incrementPrestige() 후 Boot 이동.
+   */
+  private showPrestigeConfirm(): void {
+    const nextCount = loadPrestigeCount() + 1;
+    const layer = this.add.container(0, 0).setDepth(200);
+    const overlay = this.add
+      .rectangle(0, 0, 720, 1280, 0x000000, 0.85)
+      .setOrigin(0, 0)
+      .setInteractive();
+    layer.add(overlay);
+
+    const panelW = 540;
+    const panelH = 380;
+    const panelX = (720 - panelW) / 2;
+    const panelY = (1280 - panelH) / 2;
+    layer.add(makePanel(this, panelX, panelY, panelW, panelH, COLOR.panel));
+
+    layer.add(
+      this.add
+        .text(this.cx, panelY + 32, `🏆 프레스티지 ${nextCount}회 시작`, {
+          fontFamily: FONT_STACK,
+          fontSize: '26px',
+          fontStyle: 'bold',
+          color: TEXT_COLOR.ok,
+          align: 'center',
+        })
+        .setOrigin(0.5, 0),
+    );
+    layer.add(
+      this.add
+        .text(
+          this.cx,
+          panelY + 90,
+          `회사 진행 데이터를 초기화하고\n영구 보너스를 누적해 새 회차를 시작합니다.\n\n` +
+          `⬡ 시작 골드 +${nextCount * 500}g\n` +
+          `⬡ 전체 매출 ×${(1 + nextCount * 0.05).toFixed(2)}\n` +
+          `⬡ 직원 skill +${(nextCount * 0.05).toFixed(2)}\n` +
+          `⬡ burn rate ×${Math.max(0.5, 1 - nextCount * 0.05).toFixed(2)}`,
+          {
+            fontFamily: FONT_STACK,
+            fontSize: '18px',
+            color: TEXT_COLOR.dim,
+            align: 'center',
+            wordWrap: { width: panelW - 40 },
+          },
+        )
+        .setOrigin(0.5, 0),
+    );
+
+    const cancelW = 200;
+    const confirmW = 240;
+    const btnH = 56;
+    const cancelX = panelX + 30;
+    const confirmX = panelX + panelW - 30 - confirmW;
+    const btnY = panelY + panelH - 80;
+
+    // 취소
+    const cancelBg = this.add.graphics();
+    cancelBg.fillStyle(COLOR.btnSecondary, 1);
+    cancelBg.fillRoundedRect(cancelX, btnY, cancelW, btnH, 12);
+    layer.add(cancelBg);
+    layer.add(
+      this.add
+        .text(cancelX + cancelW / 2, btnY + btnH / 2, '취소', {
+          fontFamily: FONT_STACK,
+          fontSize: '21px',
+          fontStyle: 'bold',
+          color: TEXT_COLOR.primary,
+        })
+        .setOrigin(0.5),
+    );
+    const cancelHit = this.add
+      .zone(cancelX + cancelW / 2, btnY + btnH / 2, cancelW, btnH)
+      .setInteractive({ useHandCursor: true });
+    cancelHit.on('pointerup', () => {
+      playSfx(this, SFX.tap);
+      layer.destroy();
+    });
+    layer.add(cancelHit);
+
+    // 확인
+    const confirmBg = this.add.graphics();
+    confirmBg.fillStyle(COLOR.matchOk, 1);
+    confirmBg.fillRoundedRect(confirmX, btnY, confirmW, btnH, 12);
+    layer.add(confirmBg);
+    layer.add(
+      this.add
+        .text(confirmX + confirmW / 2, btnY + btnH / 2, '프레스티지 시작', {
+          fontFamily: FONT_STACK,
+          fontSize: '21px',
+          fontStyle: 'bold',
+          color: TEXT_COLOR.primary,
+        })
+        .setOrigin(0.5),
+    );
+    const confirmHit = this.add
+      .zone(confirmX + confirmW / 2, btnY + btnH / 2, confirmW, btnH)
+      .setInteractive({ useHandCursor: true });
+    confirmHit.on('pointerup', () => {
+      playSfx(this, SFX.click);
+      // 메인 세이브 삭제 후 프레스티지 카운터 증가 → Boot로.
+      clearData();
+      incrementPrestige();
+      this.scene.start(SCENE_KEYS.Boot);
+    });
+    layer.add(confirmHit);
   }
 
   /** IPO 이후 엔딩들에서 공유하는 빌더 — 통계 + 계속 운영 + 처음부터 3 버튼. */

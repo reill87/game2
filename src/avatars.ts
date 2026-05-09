@@ -13,6 +13,8 @@ export const AVATAR_KEY: Readonly<Record<Job, string>> = {
   designer: 'avatar-designer',
   programmer: 'avatar-programmer',
   qa: 'avatar-qa',
+  marketing: 'avatar-marketing',
+  data: 'avatar-data',
 };
 
 const FILES: ReadonlyArray<readonly [string, string]> = [
@@ -20,6 +22,8 @@ const FILES: ReadonlyArray<readonly [string, string]> = [
   [AVATAR_KEY.designer, 'designer.svg'],
   [AVATAR_KEY.programmer, 'programmer.svg'],
   [AVATAR_KEY.qa, 'qa.svg'],
+  [AVATAR_KEY.marketing, 'marketing.svg'],
+  [AVATAR_KEY.data, 'data.svg'],
 ];
 
 /** SVG는 80×80 native — 카드는 보통 48~64로 표시. preload는 native 그대로. */

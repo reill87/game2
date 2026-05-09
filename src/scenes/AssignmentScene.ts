@@ -4,6 +4,7 @@ import type { Types } from 'phaser';
 import { isMatched, SLOT_ORDER } from '@/domain/match';
 import {
   GENRE_LABEL,
+  isSlotActive,
   isSupportSlotActive,
   JOB_ICON,
   JOB_LABEL,
@@ -216,17 +217,23 @@ export class AssignmentScene extends Phaser.Scene {
   }
 
   // ────────────────────────── slots ──────────────────────────
+  /**
+   * 슬롯 그리드 — 3열 × 2행 (총 6 슬롯).
+   * 비활성 슬롯(사옥 단계 미달)도 렌더링하되 잠금 상태로 표시.
+   */
   private buildSlots(): void {
-    const tileW = 290;
-    const tileH = 180;
-    const gapX = 20;
-    const gapY = 14;
-    const startX = this.contentX + (720 - (tileW * 2 + gapX)) / 2;
-    const startY = 150;
+    const cols = 3;
+    const tileW = 218;
+    const tileH = 168;
+    const gapX = 13;
+    const gapY = 12;
+    const totalGridW = tileW * cols + gapX * (cols - 1);
+    const startX = this.contentX + (720 - totalGridW) / 2;
+    const startY = 148;
 
     SLOT_ORDER.forEach((slot, i) => {
-      const col = i % 2;
-      const row = Math.floor(i / 2);
+      const col = i % cols;
+      const row = Math.floor(i / cols);
       const x = startX + col * (tileW + gapX);
       const y = startY + row * (tileH + gapY);
       this.slotViews.set(slot, this.makeSlotView(slot, x, y, tileW, tileH));
@@ -508,8 +515,10 @@ export class AssignmentScene extends Phaser.Scene {
 
   private onSlotTap(slot: SlotKind, area: 'primary' | 'support'): void {
     const officeLevel = this.state.officeLevel;
+    const primaryActive = isSlotActive(officeLevel, slot);
     const supportActive = isSupportSlotActive(officeLevel, slot);
 
+    if (!primaryActive) return; // 비활성 primary 슬롯 무시.
     if (area === 'support' && !supportActive) return; // 비활성 support 영역 무시.
 
     if (this.selectedEmpId) {
@@ -564,6 +573,24 @@ export class AssignmentScene extends Phaser.Scene {
     for (const slot of SLOT_ORDER) {
       const view = this.slotViews.get(slot);
       if (!view) continue;
+
+      // primary 슬롯 활성 여부 — 비활성이면 잠금 표시.
+      const primaryActive = isSlotActive(officeLevel, slot);
+
+      if (!primaryActive) {
+        // 잠금 슬롯 — 어두운 배경 + 잠금 텍스트.
+        view.bg.clear();
+        view.bg.fillStyle(0x14141e, 0.85);
+        view.bg.lineStyle(2, 0x2a2a40, 1);
+        view.bg.fillRoundedRect(view.rect.x, view.rect.y, view.rect.width, view.rect.height, 14);
+        view.bg.strokeRoundedRect(view.rect.x, view.rect.y, view.rect.width, view.rect.height, 14);
+        view.empNameText.setText(`🔒 ${SLOT_LABEL[slot]}`).setColor(TEXT_COLOR.disabled);
+        view.matchHint.setVisible(false);
+        view.supportBg.clear();
+        view.supportText.setText('').setVisible(false);
+        continue;
+      }
+
       const empId = this.state.assignment[slot];
       const emp = empId ? empById.get(empId) : undefined;
       const matched = emp ? isMatched(slot, emp.job) : null;

@@ -18,6 +18,7 @@ import {
   TRACK_EFFECT,
   TRAIT_EFFECT,
 } from './balance';
+import { NO_PRESTIGE } from './prestige';
 import { AP_CAP, AP_PER_WEEK } from './weeklyActions';
 import { isMatched, SLOT_ORDER } from './match';
 import { tickExitStreak } from './retention';
@@ -46,6 +47,9 @@ export function computeBurnRate(state: GameState): number {
   if (isRndPurchased(state.rnd, 'self-cloud-infra'))   burnMul = Math.min(burnMul, 0.60);
   // R&D T4: 회사 운영체제 — 가장 강력한 비용 절감 ×0.4.
   if (isRndPurchased(state.rnd, 'company-os'))         burnMul = Math.min(burnMul, 0.40);
+  // 프레스티지: burnRateMul (기본 1.0, N회 누적 시 최대 0.5까지 감소).
+  const prestigeBurnMul = (state.prestigeBonus ?? NO_PRESTIGE).burnRateMul;
+  burnMul = Math.min(burnMul, prestigeBurnMul);
   return burnMul < 1.0 ? Math.round(base * burnMul) : base;
 }
 
@@ -180,7 +184,9 @@ export function effectiveSkill(
       : 1.0;
   // 장비 skill 보너스 — 4슬롯 합산.
   const eqBonus = computeEquipmentBonuses(emp.equipment);
-  const baseSkill = emp.skill + eqBonus.skillBonus;
+  // 프레스티지 skillBonus — 매 회차 누적 적용 (별도 가산이라 직원 base에 추가).
+  const prestigeSkill = (state.prestigeBonus ?? NO_PRESTIGE).skillBonus;
+  const baseSkill = emp.skill + eqBonus.skillBonus + prestigeSkill;
   // 시설: AI 코파일럿 — 모든 effective skill ×1.07. (밸런스 v2) 1.1 → 1.07.
   const aiMul = isFacilityBuilt(state.facilities, 'ai-copilot') ? 1.07 : 1.0;
   // R&D T4: NAS 도입 — 모든 직원 effective skill ×1.05.
@@ -421,10 +427,11 @@ export function advanceWeek(prev: GameState): GameState {
   //  - 사이드 컨설팅 +2g
   //  - 백그라운드 유지 BugDebt −0.4
   // primary + support 모두 배치 인원으로 간주한다.
+  // 배치된 직원 ID 수집 — SLOT_ORDER 순회로 6 슬롯 모두 포함.
   const assignedIds = new Set(
     [
-      prev.assignment.planning, prev.assignment.graphics, prev.assignment.qa, prev.assignment.programming,
-      prev.support?.planning, prev.support?.graphics, prev.support?.qa, prev.support?.programming,
+      ...SLOT_ORDER.map((s) => prev.assignment[s]),
+      ...SLOT_ORDER.map((s) => prev.support?.[s]),
     ].filter((v): v is string => typeof v === 'string'),
   );
   const idleCount = prev.employees.filter((e) => !assignedIds.has(e.id)).length;

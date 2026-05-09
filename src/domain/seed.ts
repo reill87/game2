@@ -1,5 +1,6 @@
 import { BALANCE, CONDITION, TRENDS, TREND_DURATION } from './balance';
 import { EMPTY_RND, type RndState } from './rnd';
+import { type PrestigeBonus, NO_PRESTIGE } from './prestige';
 import type {
   CompanyPolicy,
   Employee,
@@ -260,6 +261,106 @@ const CANDIDATE_POOL: ReadonlyArray<Omit<HireCandidate, 'id'>> = [
     tagline: '버그 있나 없나 3번씩 생각',
     hireCost: 95,
   },
+  // ── 마케팅 직군 후보 ──
+  {
+    name: '마케터 조바이럴',
+    job: 'marketing' as const,
+    skill: 1.1,
+    morale: M0,
+    stamina: S0,
+    stance: 'progressive',
+    rank: 'junior',
+    shippedProjects: 0,
+    tagline: 'SNS 팔로워 10만. 콘텐츠는 단거리',
+    hireCost: 110,
+  },
+  {
+    name: '마케터 강캠페인',
+    job: 'marketing' as const,
+    skill: 1.3,
+    morale: M0,
+    stamina: S0,
+    stance: 'conservative',
+    rank: 'senior',
+    shippedProjects: 5,
+    tagline: '전략 기반 마케팅, ROI 집착',
+    hireCost: 200,
+  },
+  {
+    name: '마케터 유그로스',
+    job: 'marketing' as const,
+    skill: 1.0,
+    morale: M0,
+    stamina: S0,
+    stance: 'progressive',
+    rank: 'newbie',
+    shippedProjects: 0,
+    trait: 'crowd-pleaser',
+    tagline: '팬덤 만들기 좋아함',
+    hireCost: 70,
+  },
+  {
+    name: '마케터 임퍼포먼스',
+    job: 'marketing' as const,
+    skill: 1.2,
+    morale: M0,
+    stamina: S0,
+    stance: 'conservative',
+    rank: 'junior',
+    shippedProjects: 2,
+    tagline: '퍼포먼스 마케팅 전문, ROAS 철학',
+    hireCost: 130,
+  },
+  // ── 데이터 분석 직군 후보 ──
+  {
+    name: '데이터 분석가 최쿼리',
+    job: 'data' as const,
+    skill: 1.2,
+    morale: M0,
+    stamina: S0,
+    stance: 'conservative',
+    rank: 'junior',
+    shippedProjects: 1,
+    tagline: 'SQL 장인, 대시보드 달인',
+    hireCost: 130,
+  },
+  {
+    name: '데이터 분석가 박인사이트',
+    job: 'data' as const,
+    skill: 1.4,
+    morale: M0,
+    stamina: S0,
+    stance: 'conservative',
+    rank: 'senior',
+    shippedProjects: 7,
+    tagline: '데이터 기반 의사결정 전도사',
+    hireCost: 220,
+  },
+  {
+    name: '데이터 분석가 허신입',
+    job: 'data' as const,
+    skill: 1.0,
+    morale: M0,
+    stamina: S0,
+    stance: 'progressive',
+    rank: 'newbie',
+    shippedProjects: 0,
+    tagline: '파이썬 배우는 중, 열정 충만',
+    hireCost: 55,
+  },
+  {
+    name: '데이터 분석가 권모델',
+    job: 'data' as const,
+    skill: 1.3,
+    morale: M0,
+    stamina: S0,
+    stance: 'progressive',
+    rank: 'junior',
+    shippedProjects: 3,
+    trait: 'over-thinker',
+    tagline: 'A/B 테스트 없이는 못 움직임',
+    hireCost: 150,
+  },
 ];
 
 /** 0.7~1.3 범위에서 무작위 성장률 — 채용마다 개인차 부여. */
@@ -305,6 +406,8 @@ export const SLOT_LABEL: Readonly<Record<SlotKind, string>> = {
   graphics: '디자인',
   qa: 'QA',
   programming: '개발',
+  marketing: '마케팅',
+  data: '데이터',
 };
 
 export const JOB_LABEL: Readonly<Record<Job, string>> = {
@@ -312,6 +415,8 @@ export const JOB_LABEL: Readonly<Record<Job, string>> = {
   designer: '디자이너',
   programmer: '개발자',
   qa: 'QA',
+  marketing: '마케터',
+  data: '데이터',
 };
 
 export const STANCE_LABEL: Readonly<Record<Stance, string>> = {
@@ -344,18 +449,22 @@ export const RANK_SHORT: Readonly<Record<Rank, string>> = {
 };
 
 /** 슬롯/직군 아이콘 매핑 — src/icons.ts ICONS의 키. */
-export const SLOT_ICON: Readonly<Record<SlotKind, 'lightbulb' | 'brush' | 'check' | 'code'>> = {
+export const SLOT_ICON: Readonly<Record<SlotKind, 'lightbulb' | 'brush' | 'check' | 'code' | 'megaphone' | 'chartLine'>> = {
   planning: 'lightbulb',
   graphics: 'brush',
   qa: 'check',
   programming: 'code',
+  marketing: 'megaphone',
+  data: 'chartLine',
 };
 
-export const JOB_ICON: Readonly<Record<Job, 'lightbulb' | 'brush' | 'check' | 'code'>> = {
+export const JOB_ICON: Readonly<Record<Job, 'lightbulb' | 'brush' | 'check' | 'code' | 'megaphone' | 'chartLine'>> = {
   planner: 'lightbulb',
   designer: 'brush',
   programmer: 'code',
   qa: 'check',
+  marketing: 'megaphone',
+  data: 'chartLine',
 };
 
 export const GENRE_ICON: Readonly<Record<GenreId, 'pointer' | 'dice' | 'chat' | 'coins' | 'sparkle'>> = {
@@ -406,19 +515,38 @@ export const OFFICE_STAGE_LABEL: Readonly<Record<1 | 2 | 3 | 4, string>> = {
  * 사옥 단계별 support 슬롯 활성 여부.
  *  - 1단계(분당): support 없음 (총 4명 배치 가능)
  *  - 2단계(판교): programming + graphics support 활성 (총 6명)
- *  - 3단계(강남): 모든 슬롯 support 활성 (총 8명)
- *  - 4단계(서울): 모든 슬롯 support 활성 (총 8명, 고용 상한 10명)
+ *  - 3단계(강남): 기존 4 슬롯 support 활성 (총 8명)
+ *  - 4단계(서울): 모든 슬롯(marketing/data 포함) support 활성 (총 8명, 고용 상한 10명)
  */
 export const SUPPORT_SLOTS_BY_OFFICE: Readonly<Record<1 | 2 | 3 | 4, ReadonlySet<SlotKind>>> = {
   1: new Set<SlotKind>(),
   2: new Set<SlotKind>(['programming', 'graphics']),
   3: new Set<SlotKind>(['planning', 'graphics', 'qa', 'programming']),
-  4: new Set<SlotKind>(['planning', 'graphics', 'qa', 'programming']),
+  4: new Set<SlotKind>(['planning', 'graphics', 'qa', 'programming', 'marketing', 'data']),
 };
 
 /** 해당 사옥 단계에서 슬롯의 support 배치가 가능한지 여부. */
 export function isSupportSlotActive(officeLevel: 1 | 2 | 3 | 4, slot: SlotKind): boolean {
   return SUPPORT_SLOTS_BY_OFFICE[officeLevel].has(slot);
+}
+
+/**
+ * 사옥 단계별 활성 primary 슬롯 목록.
+ *  - 1단계: 기본 4 슬롯 (planning/graphics/qa/programming)
+ *  - 2단계: + marketing (총 5)
+ *  - 3단계: + data (총 6)
+ *  - 4단계: 6 슬롯 모두 (총 6)
+ */
+export const ACTIVE_SLOTS_BY_OFFICE: Readonly<Record<1 | 2 | 3 | 4, ReadonlyArray<SlotKind>>> = {
+  1: ['planning', 'graphics', 'qa', 'programming'],
+  2: ['planning', 'graphics', 'qa', 'programming', 'marketing'],
+  3: ['planning', 'graphics', 'qa', 'programming', 'marketing', 'data'],
+  4: ['planning', 'graphics', 'qa', 'programming', 'marketing', 'data'],
+};
+
+/** 해당 사옥 단계에서 슬롯이 활성(primary 배치 가능)인지 여부. */
+export function isSlotActive(officeLevel: 1 | 2 | 3 | 4, slot: SlotKind): boolean {
+  return (ACTIVE_SLOTS_BY_OFFICE[officeLevel] as ReadonlyArray<string>).includes(slot);
 }
 
 /** 새 프로젝트 시작 시 GameState 생성. */
@@ -471,14 +599,23 @@ export function newProject(opts: {
   };
 }
 
-/** G1 + T1 고정 튜토리얼 시작 상태. */
-export function newTutorialGame(rnd?: RndState): GameState {
+/**
+ * G1 + T1 고정 튜토리얼 시작 상태.
+ * prestige 보너스가 있으면 시작 골드와 직원 skill에 반영한다.
+ */
+export function newTutorialGame(rnd?: RndState, prestige?: PrestigeBonus): GameState {
+  const pb = prestige ?? NO_PRESTIGE;
+  // 프레스티지 skillBonus를 튜토리얼 직원 base skill에 가산.
+  const employees: ReadonlyArray<Employee> =
+    pb.skillBonus > 0
+      ? TUTORIAL_EMPLOYEES.map((e) => ({ ...e, skill: e.skill + pb.skillBonus }))
+      : TUTORIAL_EMPLOYEES;
   return newProject({
     productIndex: 0,
     genre: 'G1',
     theme: 'T1',
-    gold: 0,
-    employees: TUTORIAL_EMPLOYEES,
+    gold: pb.startingGoldBonus,
+    employees,
     appealEnabled: false,
     officeLevel: 1,
     reputation: 0,

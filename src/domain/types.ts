@@ -7,12 +7,13 @@ import type { EmployeeEquipment } from './equipment';
 import type { FacilityState } from './facilities';
 import type { MarketState } from './markets';
 import type { AcquisitionState } from './acquisitions';
+import type { PrestigeBonus } from './prestige';
 
-/** 직원 직무. 1단계 사무실에서는 QA 직군 없음 (2단계 채용). */
-export type Job = 'planner' | 'designer' | 'programmer' | 'qa';
+/** 직원 직무. 1단계 사무실에서는 QA 직군 없음 (2단계 채용). marketing/data는 3단계 이상. */
+export type Job = 'planner' | 'designer' | 'programmer' | 'qa' | 'marketing' | 'data';
 
-/** 프로젝트 담당 슬롯. 4종 고정. */
-export type SlotKind = 'planning' | 'graphics' | 'qa' | 'programming';
+/** 프로젝트 담당 슬롯. 4종 기본, 사옥 2단계~에서 marketing/data 추가 (총 6종). */
+export type SlotKind = 'planning' | 'graphics' | 'qa' | 'programming' | 'marketing' | 'data';
 
 /** 직원 성향 — 모든 직원이 둘 중 하나를 보유. 일부 이벤트의 사기 영향을 좌우. */
 export type Stance = 'progressive' | 'conservative';
@@ -180,4 +181,9 @@ export interface GameState {
   readonly acquisitions?: AcquisitionState;
   /** 슬롯별 지원 인력 배정 — 옵셔널 (옛 데이터 호환). */
   readonly support?: SupportAssignment;
+  /**
+   * 프레스티지 누적 보너스 — 옵셔널 (0회차 기본값 없음).
+   * 옛 데이터 호환: undefined면 보너스 없음으로 처리.
+   */
+  readonly prestigeBonus?: PrestigeBonus;
 }

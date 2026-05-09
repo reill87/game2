@@ -18,12 +18,13 @@ export const SPRINT_PHASE_LABEL: Readonly<Record<SprintPhase, string>> = {
 /**
  * 단계별 슬롯 효율 배수.
  * effectiveSkill 계산 후 추가 곱연산.
+ * marketing/data는 모든 단계에서 1.0(중립)으로 설정.
  */
 export const SPRINT_SLOT_WEIGHT: Readonly<Record<SprintPhase, Readonly<Record<SlotKind, number>>>> = {
-  planning: { planning: 1.5, graphics: 0.7, programming: 0.7, qa: 0.7 },
-  design:   { planning: 0.85, graphics: 1.5, programming: 0.85, qa: 0.85 },
-  build:    { planning: 0.85, graphics: 0.7, programming: 1.5, qa: 1.0 },
-  qa:       { planning: 0.7, graphics: 0.7, programming: 1.1, qa: 1.5 },
+  planning: { planning: 1.5, graphics: 0.7, programming: 0.7, qa: 0.7, marketing: 1.0, data: 1.0 },
+  design:   { planning: 0.85, graphics: 1.5, programming: 0.85, qa: 0.85, marketing: 1.0, data: 1.0 },
+  build:    { planning: 0.85, graphics: 0.7, programming: 1.5, qa: 1.0, marketing: 1.0, data: 1.0 },
+  qa:       { planning: 0.7, graphics: 0.7, programming: 1.1, qa: 1.5, marketing: 1.0, data: 1.0 },
 };
 
 /**

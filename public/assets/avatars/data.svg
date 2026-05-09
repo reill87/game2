@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" width="80" height="80">
+  <!-- 데이터 분석가 — 안경 + 침착한 모습 -->
+  <circle cx="40" cy="44" r="36" fill="#3a3a48"/>
+  <path d="M16 76 Q40 56 64 76 Z" fill="#4f9de0" opacity="0.85"/>
+  <!-- 셔츠 -->
+  <path d="M32 64 L40 56 L48 64 Z" fill="#d4e4f7"/>
+  <!-- 목 -->
+  <rect x="35" y="40" width="10" height="8" fill="#e0c8a8"/>
+  <!-- 머리 -->
+  <circle cx="40" cy="32" r="18" fill="#f0d4b0"/>
+  <!-- 머리카락 (단정) -->
+  <path d="M22 26 Q22 12 40 12 Q58 12 58 26 L58 22 Q40 16 22 22 Z" fill="#2a2018"/>
+  <!-- 안경 -->
+  <circle cx="34" cy="33" r="5" fill="none" stroke="#1a1a22" stroke-width="1.8"/>
+  <circle cx="46" cy="33" r="5" fill="none" stroke="#1a1a22" stroke-width="1.8"/>
+  <line x1="39" y1="33" x2="41" y2="33" stroke="#1a1a22" stroke-width="1.8"/>
+  <line x1="22" y1="31" x2="29" y2="33" stroke="#1a1a22" stroke-width="1.8"/>
+  <line x1="51" y1="33" x2="58" y2="31" stroke="#1a1a22" stroke-width="1.8"/>
+  <!-- 눈 -->
+  <circle cx="34" cy="33" r="1.2" fill="#1a1a22"/>
+  <circle cx="46" cy="33" r="1.2" fill="#1a1a22"/>
+  <!-- 입 (잔잔) -->
+  <line x1="37" y1="40" x2="43" y2="40" stroke="#1a1a22" stroke-width="1.5" stroke-linecap="round"/>
+  <!-- 미니 차트 -->
+  <polyline points="12,68 18,60 24,64 30,54" fill="none" stroke="#4f9de0" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
