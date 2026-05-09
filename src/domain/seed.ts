@@ -403,8 +403,8 @@ export function newProject(opts: {
     project: {
       genre: opts.genre,
       theme: opts.theme,
-      // 후반부 난이도 ↑: 3작마다 +1주 (0~2작=10주, 3~5작=11주 …).
-      weeksTarget: BALANCE.tutorialWeeksTarget + Math.floor(opts.productIndex / 3),
+      // (밸런스 v2) 후반부 난이도 ↑: 2작마다 +1주 (0~1작=10주, 2~3작=11주, 4~5작=12주 …).
+      weeksTarget: BALANCE.tutorialWeeksTarget + Math.floor(opts.productIndex / 2),
       weeksElapsed: 0,
       progress: 0,
       bugDebt: 0,

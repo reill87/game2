@@ -114,7 +114,7 @@ export const RND_ITEMS: ReadonlyArray<RndItem> = [
     name: 'AI 페어 프로그래밍',
     desc: 'AI가 코드 리뷰와 자동완성을 지원. BugDebt 주간 감소량 추가 +2.',
     cost: 3000,
-    effectLabel: 'BugDebt /주 −2 추가 (합 −3)',
+    effectLabel: 'BugDebt /주 −1 추가 (합 −2)', // (밸런스 v2)
     requires: ['test-automation', 'ci-cd'],
     minProductCount: 8,
   },
@@ -132,7 +132,7 @@ export const RND_ITEMS: ReadonlyArray<RndItem> = [
     name: '지속 통합 강화',
     desc: '통합 파이프라인 추가 강화. Progress 배수 추가 ×1.08.',
     cost: 1800,
-    effectLabel: 'Progress 배수 ×1.08 추가',
+    effectLabel: 'Progress 배수 ×1.05 추가', // (밸런스 v2)
     requires: ['ci-cd'],
     minProductCount: 6,
   },
@@ -214,7 +214,7 @@ export const RND_ITEMS: ReadonlyArray<RndItem> = [
     name: 'AI PM 어시스턴트',
     desc: 'AI가 스프린트 계획을 최적화. 모든 sprint phase 슬롯 가중치 ×1.1.',
     cost: 30000,
-    effectLabel: 'Sprint 슬롯 가중치 ×1.1',
+    effectLabel: 'Sprint 슬롯 가중치 ×1.05', // (밸런스 v2)
     requires: ['continuous-integration', 'analytics-platform'],
     minProductCount: 22,
   },

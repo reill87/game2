@@ -190,8 +190,8 @@ export const CRISES: ReadonlyArray<Crisis> = [
   },
 ];
 
-/** 매주 위기 발동 확률. */
-export const CRISIS_TRIGGER_PROBABILITY = 0.05;
+/** 매주 위기 발동 확률. (밸런스 v2) 0.05 → 0.10 (2배). */
+export const CRISIS_TRIGGER_PROBABILITY = 0.10;
 /** 위기 발동 최소 작품 수(이 이상부터 발동). */
 export const CRISIS_MIN_PRODUCT_COUNT = 3;
 /** 마지막 위기 이후 발동 금지 주차. */

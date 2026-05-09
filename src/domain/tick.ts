@@ -85,16 +85,16 @@ export function computeSlotContributions(state: GameState): SlotContribution[] {
     const teamUnitsForOthers = totalUnits - teamWeight(emp);
     const eff = effectiveSkill(emp, state, teamUnitsForOthers);
 
-    // Sprint 가중치 적용 — ai-pm-assistant 보유 시 ×1.1 추가.
-    const aiPmMul = isRndPurchased(state.rnd, 'ai-pm-assistant') ? 1.1 : 1.0;
+    // Sprint 가중치 적용 — ai-pm-assistant 보유 시 ×1.05 추가. (밸런스 v2) 1.1 → 1.05.
+    const aiPmMul = isRndPurchased(state.rnd, 'ai-pm-assistant') ? 1.05 : 1.0;
     const phaseWeight = phaseWeights[slot] * aiPmMul;
     let progressDelta = BALANCE.matchedProgressPerWeek * eff * factor;
     progressDelta *= gMod.progressMul * tMod.progressMul;
     progressDelta *= phaseWeight;
     // R&D: CI/CD 파이프라인 — Progress 배수 ×1.05.
     if (isRndPurchased(state.rnd, 'ci-cd')) progressDelta *= 1.05;
-    // R&D: 지속 통합 강화 — Progress 배수 추가 ×1.08.
-    if (isRndPurchased(state.rnd, 'continuous-integration')) progressDelta *= 1.08;
+    // R&D: 지속 통합 강화 — Progress 배수 추가 ×1.05. (밸런스 v2) 1.08 → 1.05.
+    if (isRndPurchased(state.rnd, 'continuous-integration')) progressDelta *= 1.05;
     if (state.crunch) progressDelta *= BALANCE.crunchProgressMul;
 
     let appealDelta = state.project.appealEnabled
@@ -179,9 +179,11 @@ export function effectiveSkill(
   // 장비 skill 보너스 — 4슬롯 합산.
   const eqBonus = computeEquipmentBonuses(emp.equipment);
   const baseSkill = emp.skill + eqBonus.skillBonus;
-  // 시설: AI 코파일럿 — 모든 effective skill ×1.1.
-  const aiMul = isFacilityBuilt(state.facilities, 'ai-copilot') ? 1.1 : 1.0;
-  return baseSkill * m * s * rankMul * traitMul * trackMul * dressMul * remoteVillainMul * leadBonus * aiMul;
+  // 시설: AI 코파일럿 — 모든 effective skill ×1.07. (밸런스 v2) 1.1 → 1.07.
+  const aiMul = isFacilityBuilt(state.facilities, 'ai-copilot') ? 1.07 : 1.0;
+  const raw = baseSkill * m * s * rankMul * traitMul * trackMul * dressMul * remoteVillainMul * leadBonus * aiMul;
+  // (밸런스 v2) 풀스펙 스택 남용 방지 — effective skill 최대 3.0.
+  return Math.min(raw, BALANCE.maxEffectiveSkill);
 }
 
 interface AssignedSlotResult {
@@ -297,8 +299,8 @@ export function advanceWeek(prev: GameState): GameState {
     // 자기 자신의 팀 가중을 빼서 lead bonus 대상에서 제외.
     const teamUnitsForOthers = totalUnits - teamWeight(emp);
     const eff = effectiveSkill(emp, prev, teamUnitsForOthers);
-    // Sprint 단계 슬롯 가중치 적용 — ai-pm-assistant 보유 시 ×1.1 추가.
-    const aiPmMul = isRndPurchased(prev.rnd, 'ai-pm-assistant') ? 1.1 : 1.0;
+    // Sprint 단계 슬롯 가중치 적용 — ai-pm-assistant 보유 시 ×1.05 추가. (밸런스 v2) 1.1 → 1.05.
+    const aiPmMul = isRndPurchased(prev.rnd, 'ai-pm-assistant') ? 1.05 : 1.0;
     const phaseWeight = phaseWeights[slot] * aiPmMul;
     progressDelta += BALANCE.matchedProgressPerWeek * eff * factor * phaseWeight;
     if (appealEnabled) {
@@ -333,9 +335,9 @@ export function advanceWeek(prev: GameState): GameState {
   if (isRndPurchased(prev.rnd, 'ci-cd')) {
     progressDelta *= 1.05;
   }
-  // R&D: 지속 통합 강화 — Progress 배수 추가 ×1.08.
+  // R&D: 지속 통합 강화 — Progress 배수 추가 ×1.05. (밸런스 v2) 1.08 → 1.05.
   if (isRndPurchased(prev.rnd, 'continuous-integration')) {
-    progressDelta *= 1.08;
+    progressDelta *= 1.05;
   }
 
   let bugDebtDelta =
@@ -351,9 +353,9 @@ export function advanceWeek(prev: GameState): GameState {
   if (isRndPurchased(prev.rnd, 'test-automation')) {
     bugDebtDelta -= 1;
   }
-  // R&D: AI 페어 프로그래밍 — BugDebt 추가 −2/주.
+  // R&D: AI 페어 프로그래밍 — BugDebt 추가 −1/주. (밸런스 v2) -2 → -1.
   if (isRndPurchased(prev.rnd, 'ai-pair-programming')) {
-    bugDebtDelta -= 2;
+    bugDebtDelta -= 1;
   }
   // 재택근무 — 협업 비용 (BugDebt +1/주)
   if (prev.policy.commute === 'remote') {

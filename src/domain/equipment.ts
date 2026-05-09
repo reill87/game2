@@ -16,12 +16,13 @@ export interface EquipmentTier {
   readonly staminaBonus: number;     // 매주 stamina 회복에 추가
 }
 
+// (밸런스 v2) 장비 효과 약화 — skillBonus 절반(0.03/0.06/0.10/0.14/0.20), morale/staminaBonus 절반.
 export const EQUIPMENT_TIERS: ReadonlyArray<EquipmentTier> = [
-  { tier: 1, name: '기본',     cost: 100,  skillBonus: 0.05, moraleBonus: 0,   staminaBonus: 0   },
-  { tier: 2, name: '준수',     cost: 300,  skillBonus: 0.1,  moraleBonus: 0.5, staminaBonus: 0.5 },
-  { tier: 3, name: '고급',     cost: 800,  skillBonus: 0.15, moraleBonus: 1,   staminaBonus: 1   },
-  { tier: 4, name: '프리미엄', cost: 2000, skillBonus: 0.2,  moraleBonus: 1.5, staminaBonus: 1.5 },
-  { tier: 5, name: '플래그십', cost: 5000, skillBonus: 0.3,  moraleBonus: 2,   staminaBonus: 2   },
+  { tier: 1, name: '기본',     cost: 100,  skillBonus: 0.03, moraleBonus: 0,    staminaBonus: 0    },
+  { tier: 2, name: '준수',     cost: 300,  skillBonus: 0.06, moraleBonus: 0.25, staminaBonus: 0.25 },
+  { tier: 3, name: '고급',     cost: 800,  skillBonus: 0.10, moraleBonus: 0.5,  staminaBonus: 0.5  },
+  { tier: 4, name: '프리미엄', cost: 2000, skillBonus: 0.14, moraleBonus: 0.75, staminaBonus: 0.75 },
+  { tier: 5, name: '플래그십', cost: 5000, skillBonus: 0.20, moraleBonus: 1,    staminaBonus: 1    },
 ];
 
 export const SLOT_LABEL: Readonly<Record<EquipmentSlot, string>> = {

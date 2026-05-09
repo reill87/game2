@@ -1003,8 +1003,8 @@ export class DevelopmentScene extends Phaser.Scene {
     this.weekTimer?.remove();
     this.weekTimer = null;
     if (this.paused || canRelease(this.state)) return;
-    // 1×=2000ms, 2×=1200ms, 4×=750ms (기존 4×=375ms 대비 2배 느림)
-    const delayBySpeed: Readonly<Record<1 | 2 | 4, number>> = { 1: 2000, 2: 1200, 4: 750 };
+    // (밸런스 v2) 1×=2200ms, 2×=1400ms, 4×=900ms — 전 속도 살짝 더 느리게.
+    const delayBySpeed: Readonly<Record<1 | 2 | 4, number>> = { 1: 2200, 2: 1400, 4: 900 };
     const delay = delayBySpeed[this.speed];
     this.weekTimer = this.time.addEvent({
       delay,

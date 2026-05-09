@@ -5,24 +5,26 @@
 import type { DressCode, GenreId, PromoTier, Rank, ThemeId, TrendId } from './types';
 
 export const BALANCE = {
-  /** 정배치 직원 1명이 1주에 내는 진행도(%) — 3명 정배치 시 약 +10.5%/주 (목표 +9~11%). */
-  matchedProgressPerWeek: 3.5,
-  /** 오배치 시 진행 기여 배수. */
-  mismatchContribFactor: 0.5,
-  /** 오배치 직원 1명당 추가 BugDebt. */
-  mismatchBugDebt: 2,
-  /** 매주 기본 BugDebt 증가. */
-  baseBugDebtPerWeek: 6,
-  /** 야근 ON 시 BugDebt 가산(+4). */
-  crunchBugDebtBonus: 4,
-  /** 야근 ON 시 Progress 배수. */
-  crunchProgressMul: 1.18,
+  /** 정배치 직원 1명이 1주에 내는 진행도(%) — (밸런스 v2) 3.5 → 2.5 (~30% 느려짐). */
+  matchedProgressPerWeek: 2.5,
+  /** 오배치 시 진행 기여 배수. (밸런스 v2) 0.5 → 0.4. */
+  mismatchContribFactor: 0.4,
+  /** 오배치 직원 1명당 추가 BugDebt. (밸런스 v2) 2 → 3. */
+  mismatchBugDebt: 3,
+  /** 매주 기본 BugDebt 증가. (밸런스 v2) 6 → 8. */
+  baseBugDebtPerWeek: 8,
+  /** 야근 ON 시 BugDebt 가산. (밸런스 v2) 4 → 6. */
+  crunchBugDebtBonus: 6,
+  /** 야근 ON 시 Progress 배수. (밸런스 v2) 1.18 → 1.12 (좀 덜 강력). */
+  crunchProgressMul: 1.12,
   /** 폴리싱 1주당 BugDebt 변화량(음수). */
   polishBugDebtDelta: -12,
-  /** 연체 1주당 골드 페널티(음수). */
-  overrunGoldPenalty: -8,
+  /** 연체 1주당 골드 페널티(음수). (밸런스 v2) -8 → -15. */
+  overrunGoldPenalty: -15,
   /** G1 튜토리얼 목표 주 수. */
   tutorialWeeksTarget: 10,
+  /** Effective skill 상한 — (밸런스 v2) 풀스펙 스택 남용 방지. */
+  maxEffectiveSkill: 3.0,
   /** Appeal — 정배치 슬롯별 주당 기여(점). 오배치는 mismatchContribFactor=0.5 곱. */
   appealBySlot: {
     planning: 0.6,
@@ -104,8 +106,8 @@ export const SIDE_PROJECT = {
   gold: 120,
   weeksDelta: 1,
   moralePenalty: 5,
-  /** 사용 후 다음 외주까지 쿨다운(주). */
-  cooldownWeeks: 8,
+  /** 사용 후 다음 외주까지 쿨다운(주). (밸런스 v2) 8 → 12 (덜 자주 받기). */
+  cooldownWeeks: 12,
 } as const;
 
 /**
@@ -219,17 +221,17 @@ export const TREND_DURATION = 2;
  *  - 폴리싱·미배치 1주: stamina +12 (1주 휴식이면 거의 회복)
  */
 export const CONDITION = {
-  /** 정배치 시 매주 stamina 변화. */
-  staminaMatched: -3,
-  /** 오배치 시 매주 stamina 변화 (더 빠른 소모). */
-  staminaMismatch: -5,
-  /** 미배치/폴리싱 시 매주 stamina 변화 (회복). */
-  staminaRest: 12,
+  /** 정배치 시 매주 stamina 변화. (밸런스 v2) -2 → -3. */
+  staminaMatched: -4,
+  /** 오배치 시 매주 stamina 변화 (더 빠른 소모). (밸런스 v2) -3 → -5. */
+  staminaMismatch: -7,
+  /** 미배치/폴리싱 시 매주 stamina 변화 (회복). (밸런스 v2) 12 → 8 (회복 느려짐). */
+  staminaRest: 8,
   /** 야근 ON 시 stamina 추가 가산(음수). */
   staminaCrunchExtra: -3,
 
-  /** 야근 ON 시 매주 morale 변화. */
-  moraleCrunch: -1,
+  /** 야근 ON 시 매주 morale 변화. (밸런스 v2) -1 → -4 (야근 부담 ↑). */
+  moraleCrunch: -4,
   /** BugDebt가 임계 초과면 morale 추가 감소. */
   moraleBugDebtThreshold: 70,
   moraleBugDebtPenalty: -1,
