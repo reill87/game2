@@ -103,8 +103,8 @@ export class ResultScene extends Phaser.Scene {
   private liveAcquisitions: AcquisitionState = EMPTY_ACQUISITIONS;
   /** 출시 이력 — 매 init마다 새 entry 한 건 append 후 cap. */
   private history: ReadonlyArray<SavedResult> = [];
-  /** 이미 본 엔딩 목록 — 'acquisition' | 'ipo'. */
-  private liveEndingsShown: ReadonlyArray<'acquisition' | 'ipo'> = [];
+  /** 이미 본 엔딩 목록 — 'acquisition' | 'ipo' | 'global-no1' | 'unicorn'. */
+  private liveEndingsShown: ReadonlyArray<'acquisition' | 'ipo' | 'global-no1' | 'unicorn'> = [];
   /** 누적 달성 마일스톤 ID. */
   private liveMilestones: ReadonlyArray<MilestoneId> = [];
   /** 연말 결산 달성 시 reputation 보너스 — persistResult에서 합산. */
@@ -166,7 +166,9 @@ export class ResultScene extends Phaser.Scene {
     this.liveMarkets = existing?.markets ?? EMPTY_MARKETS;
     this.liveAcquisitions = existing?.acquisitions ?? EMPTY_ACQUISITIONS;
     // endingsShown 로드 — 옛 endingShown 필드 호환(sanitize에서 마이그레이트됨).
-    const initialEndingsShown = existing?.endingsShown ?? (existing?.endingShown ? (['acquisition'] as const) : []);
+    type EndingId = 'acquisition' | 'ipo' | 'global-no1' | 'unicorn';
+    const initialEndingsShown: ReadonlyArray<EndingId> =
+      existing?.endingsShown ?? (existing?.endingShown ? ['acquisition' as EndingId] : []);
     this.liveEndingsShown = initialEndingsShown;
     this.liveMilestones = existing?.milestones ?? [];
     this.yearEndReputationBonus = 0;
@@ -220,20 +222,23 @@ export class ResultScene extends Phaser.Scene {
     BGM.setMood('celebrate');
     addMuteToggle(this);
     this.persistResult();
-    // 엔딩 분기 — IPO(2회차)를 인수합병보다 먼저 체크.
+    // 엔딩 분기 — 가장 높은 미달성 임계 우선.
     const totalRevenue = this.history.reduce((s, r) => s + r.revenue, 0);
     const shownSet = new Set(this.liveEndingsShown);
-    if (!shownSet.has('ipo') && totalRevenue >= ENDING.ipoRevenueThreshold) {
-      this.liveEndingsShown = [...this.liveEndingsShown, 'ipo'];
-      this.persistResult();
-      this.scene.start(SCENE_KEYS.Ending, { ending: 'ipo' });
-      return;
-    }
-    if (!shownSet.has('acquisition') && totalRevenue >= ENDING.acquisitionRevenueThreshold) {
-      this.liveEndingsShown = [...this.liveEndingsShown, 'acquisition'];
-      this.persistResult();
-      this.scene.start(SCENE_KEYS.Ending, { ending: 'acquisition' });
-      return;
+    type EndingTier = 'acquisition' | 'ipo' | 'global-no1' | 'unicorn';
+    const endingChecks: ReadonlyArray<{ id: EndingTier; threshold: number }> = [
+      { id: 'unicorn',     threshold: ENDING.unicornRevenueThreshold },
+      { id: 'global-no1',  threshold: ENDING.globalNo1RevenueThreshold },
+      { id: 'ipo',         threshold: ENDING.ipoRevenueThreshold },
+      { id: 'acquisition', threshold: ENDING.acquisitionRevenueThreshold },
+    ];
+    for (const check of endingChecks) {
+      if (!shownSet.has(check.id) && totalRevenue >= check.threshold) {
+        this.liveEndingsShown = [...this.liveEndingsShown, check.id];
+        this.persistResult();
+        this.scene.start(SCENE_KEYS.Ending, { ending: check.id });
+        return;
+      }
     }
     // 연말 결산 — productCount가 4의 배수일 때 평가.
     const productCount = this.outcome.state.productIndex + 1;

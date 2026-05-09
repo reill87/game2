@@ -28,7 +28,7 @@ import { SCENE_KEYS } from './keys';
 export class EndingScene extends Phaser.Scene {
   static readonly KEY = SCENE_KEYS.Ending;
 
-  private endingType: 'acquisition' | 'ipo' = 'acquisition';
+  private endingType: 'acquisition' | 'ipo' | 'global-no1' | 'unicorn' = 'acquisition';
   /** logical 720×1280 고정 좌표. */
   private cx = 360;
   private contentX = 0;
@@ -37,7 +37,7 @@ export class EndingScene extends Phaser.Scene {
     super({ key: SCENE_KEYS.Ending });
   }
 
-  init(data: { ending?: 'acquisition' | 'ipo' }): void {
+  init(data: { ending?: 'acquisition' | 'ipo' | 'global-no1' | 'unicorn' }): void {
     this.endingType = data?.ending ?? 'acquisition';
   }
 
@@ -59,7 +59,11 @@ export class EndingScene extends Phaser.Scene {
     bg.fillStyle(0x0e0e12, 1);
     bg.fillRect(0, 0, 720, 1280);
 
-    if (this.endingType === 'ipo') {
+    if (this.endingType === 'unicorn') {
+      this.buildUnicornEnding(totalRevenue, productCount);
+    } else if (this.endingType === 'global-no1') {
+      this.buildGlobalNo1Ending(totalRevenue, productCount);
+    } else if (this.endingType === 'ipo') {
       this.buildIpoEnding(totalRevenue, productCount);
     } else {
       this.buildAcquisitionEnding(totalRevenue, productCount);
@@ -199,7 +203,7 @@ export class EndingScene extends Phaser.Scene {
       .text(
         this.cx,
         750,
-        '이 사이클은 이로써 마무리. 그러나 다음 회사가 또 시작될 수 있다.',
+        '주식회사가 되어도 회사는 계속 굴러간다.\n자산은 그대로, 다음 마일스톤(글로벌 1위, 유니콘)도 노려볼 수 있다.',
         {
           fontFamily: FONT_STACK,
           fontSize: '23px',
@@ -211,22 +215,154 @@ export class EndingScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setAlpha(0);
 
+    // 3 버튼: 통계 / 계속 운영 / 처음부터 (다시)
+    const btnGap = 12;
+    const btnH = 56;
+    const wStats = 160;
+    const wContinue = 220;
+    const wReset = 200;
+    const totalW = wStats + wContinue + wReset + btnGap * 2;
+    const startX = this.cx - totalW / 2;
+
     this.makeBtn({
-      x: this.cx - 320 / 2 - 88,
+      x: startX,
       y: 1170,
-      w: 200,
-      h: 56,
-      label: '통계 보기',
+      w: wStats,
+      h: btnH,
+      label: '통계',
       primary: false,
       onTap: () => this.scene.start(SCENE_KEYS.Stats, { returnTo: SCENE_KEYS.Boot }),
     });
     this.makeBtn({
-      x: this.cx - 200 / 2 + 124,
+      x: startX + wStats + btnGap,
       y: 1170,
-      w: 320,
-      h: 56,
-      label: '처음부터 다시',
+      w: wContinue,
+      h: btnH,
+      label: '계속 운영하기',
       primary: true,
+      onTap: () => this.scene.start(SCENE_KEYS.Boot),
+    });
+    this.makeBtn({
+      x: startX + wStats + btnGap + wContinue + btnGap,
+      y: 1170,
+      w: wReset,
+      h: btnH,
+      label: '처음부터',
+      primary: false,
+      onTap: () => this.showResetConfirm(),
+    });
+
+    this.animateIn([title, headline, sub, panel, ...rowEls, footer]);
+  }
+
+  // ────────────────────────── 글로벌 1위 엔딩 ──────────────────────────
+  private buildGlobalNo1Ending(totalRevenue: number, productCount: number): void {
+    this.buildContinueEnding({
+      titleText: '글로벌 1위',
+      titleColor: TEXT_COLOR.warn,
+      headline: '시장 점유율 1위',
+      sub: '국내를 넘어 해외 거점에서 매출이 더 크다.\n경쟁사들이 따라잡으려 자료를 모으고 있다.',
+      footer: '회사 가치는 계속 오른다. 다음은 유니콘.',
+      threshold: ENDING.globalNo1RevenueThreshold,
+      totalRevenue,
+      productCount,
+    });
+  }
+
+  // ────────────────────────── 유니콘 엔딩 (1조원) ──────────────────────────
+  private buildUnicornEnding(totalRevenue: number, productCount: number): void {
+    this.buildContinueEnding({
+      titleText: '유니콘 등극',
+      titleColor: TEXT_COLOR.ok,
+      headline: '시가총액 1조 돌파',
+      sub: '뉴스에 회사 이름이 매일 오른다.\n과거 분당 셰어오피스 시절을 기억하는 사람도 적어졌다.',
+      footer: '게임 명전. 그래도 회사는 계속 굴러간다.',
+      threshold: ENDING.unicornRevenueThreshold,
+      totalRevenue,
+      productCount,
+    });
+  }
+
+  /** IPO 이후 엔딩들에서 공유하는 빌더 — 통계 + 계속 운영 + 처음부터 3 버튼. */
+  private buildContinueEnding(opts: {
+    titleText: string;
+    titleColor: string;
+    headline: string;
+    sub: string;
+    footer: string;
+    threshold: number;
+    totalRevenue: number;
+    productCount: number;
+  }): void {
+    const title = this.add
+      .text(this.cx, 220, opts.titleText, {
+        fontFamily: FONT_STACK,
+        fontSize: '24px',
+        fontStyle: 'bold',
+        color: opts.titleColor,
+      })
+      .setOrigin(0.5)
+      .setAlpha(0);
+
+    const headline = this.add
+      .text(this.cx, 270, opts.headline, {
+        fontFamily: FONT_STACK,
+        fontSize: '48px',
+        fontStyle: 'bold',
+        color: TEXT_COLOR.primary,
+      })
+      .setOrigin(0.5)
+      .setAlpha(0);
+
+    const sub = this.add
+      .text(this.cx, 320, opts.sub, {
+        fontFamily: FONT_STACK,
+        fontSize: '24px',
+        color: TEXT_COLOR.dim,
+        align: 'center',
+        wordWrap: { width: 600 },
+      })
+      .setOrigin(0.5)
+      .setAlpha(0);
+
+    const { panel, rowEls } = this.buildStatsPanel(
+      opts.totalRevenue,
+      opts.threshold,
+      opts.productCount,
+    );
+
+    const footer = this.add
+      .text(this.cx, 750, opts.footer, {
+        fontFamily: FONT_STACK,
+        fontSize: '23px',
+        color: TEXT_COLOR.dim,
+        align: 'center',
+        wordWrap: { width: 580 },
+      })
+      .setOrigin(0.5)
+      .setAlpha(0);
+
+    // 3 버튼: 통계 / 계속 운영 / 처음부터
+    const btnGap = 12;
+    const btnH = 56;
+    const wStats = 160;
+    const wContinue = 220;
+    const wReset = 200;
+    const totalW = wStats + wContinue + wReset + btnGap * 2;
+    const startX = this.cx - totalW / 2;
+    this.makeBtn({
+      x: startX, y: 1170, w: wStats, h: btnH,
+      label: '통계', primary: false,
+      onTap: () => this.scene.start(SCENE_KEYS.Stats, { returnTo: SCENE_KEYS.Boot }),
+    });
+    this.makeBtn({
+      x: startX + wStats + btnGap, y: 1170, w: wContinue, h: btnH,
+      label: '계속 운영하기', primary: true,
+      onTap: () => this.scene.start(SCENE_KEYS.Boot),
+    });
+    this.makeBtn({
+      x: startX + wStats + btnGap + wContinue + btnGap, y: 1170, w: wReset, h: btnH,
+      label: '처음부터', primary: false,
       onTap: () => this.showResetConfirm(),
     });
 

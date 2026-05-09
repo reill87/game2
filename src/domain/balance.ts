@@ -83,15 +83,17 @@ export const REPUTATION = {
 } as const;
 
 /**
- * 엔딩 임계 — 누적 매출 기준.
- * 첫 작품 약 200~400g, 중반 600~1500g 가정 시:
- *  - 인수합병: 30000g ≈ 30~50작품 정도의 장기 목표.
- *  - IPO: 인수합병 거절 후 계속 운영해 50000g 도달 시 상장 엔딩.
+ * 엔딩 임계 — 누적 매출 기준. 각 엔딩은 한 번만 표시되고 게임은 계속 가능.
+ *  - acquisition(30k): 인수합병 제안
+ *  - ipo(50k):         IPO 상장
+ *  - global(200k):     글로벌 1위
+ *  - unicorn(1M):      유니콘 등극 (시총 1조)
  */
 export const ENDING = {
   acquisitionRevenueThreshold: 30000,
-  /** 2회차: 인수합병 거절 후 계속 운영. 누적 50000g 도달 시 IPO 엔딩. */
   ipoRevenueThreshold: 50000,
+  globalNo1RevenueThreshold: 200000,
+  unicornRevenueThreshold: 1000000,
 } as const;
 
 /**

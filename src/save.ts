@@ -80,10 +80,10 @@ export interface SaveData {
   /** 인수합병 엔딩 표시 여부 — @deprecated endingsShown 으로 대체. 옛 데이터 호환용. */
   readonly endingShown?: boolean;
   /**
-   * 본 엔딩 목록 — 'acquisition' | 'ipo'. 옛 데이터 호환:
+   * 본 엔딩 목록 — 'acquisition' | 'ipo' | 'global-no1' | 'unicorn'. 옛 데이터 호환:
    * endingShown===true 이면 ['acquisition']으로 마이그레이트.
    */
-  readonly endingsShown?: ReadonlyArray<'acquisition' | 'ipo'>;
+  readonly endingsShown?: ReadonlyArray<'acquisition' | 'ipo' | 'global-no1' | 'unicorn'>;
   /** 누적 달성 마일스톤 ID 목록. 옛 데이터엔 없으므로 옵셔널. */
   readonly milestones?: ReadonlyArray<MilestoneId>;
   /**
@@ -134,7 +134,7 @@ export function saveData(input: {
   policy: CompanyPolicy;
   trend: TrendStatus | null;
   history?: ReadonlyArray<SavedResult>;
-  endingsShown?: ReadonlyArray<'acquisition' | 'ipo'>;
+  endingsShown?: ReadonlyArray<'acquisition' | 'ipo' | 'global-no1' | 'unicorn'>;
   employees?: ReadonlyArray<Employee>;
   rnd?: RndState;
   milestones?: ReadonlyArray<MilestoneId>;
@@ -243,11 +243,16 @@ const VALID_ACQUISITION_IDS: ReadonlyArray<AcquisitionId> = ACQUISITIONS.map((a)
 function sanitizeEndingsShown(
   raw: unknown,
   legacyEndingShown: boolean | undefined,
-): ReadonlyArray<'acquisition' | 'ipo'> {
-  const valid: Array<'acquisition' | 'ipo'> = ['acquisition', 'ipo'];
+): ReadonlyArray<'acquisition' | 'ipo' | 'global-no1' | 'unicorn'> {
+  const valid: Array<'acquisition' | 'ipo' | 'global-no1' | 'unicorn'> = [
+    'acquisition',
+    'ipo',
+    'global-no1',
+    'unicorn',
+  ];
   if (Array.isArray(raw)) {
     return (raw as unknown[]).filter(
-      (v): v is 'acquisition' | 'ipo' => typeof v === 'string' && valid.includes(v as 'acquisition' | 'ipo'),
+      (v): v is 'acquisition' | 'ipo' | 'global-no1' | 'unicorn' => typeof v === 'string' && valid.includes(v as 'acquisition' | 'ipo' | 'global-no1' | 'unicorn'),
     );
   }
   // 옛 데이터: endingShown===true 이면 acquisition을 한 번 본 것으로 마이그레이트.
