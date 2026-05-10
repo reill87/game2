@@ -193,32 +193,47 @@ export class BootScene extends Phaser.Scene {
       color: '#9b9bb0',
     }).setOrigin(0.5);
 
-    // DOM input
-    const inputStyle = [
-      'width: 460px',
-      'height: 60px',
-      'padding: 0 18px',
+    // Native HTML input — Phaser DOM은 모바일에서 위치/가시성 불안정해 직접 body에 attach.
+    // 캔버스 위에 절대 좌표로 띄우고 onDone 시 제거.
+    const node = document.createElement('input');
+    node.type = 'text';
+    node.placeholder = DEFAULT_COMPANY_NAME;
+    node.maxLength = 20;
+    node.autocomplete = 'off';
+    node.autocapitalize = 'off';
+    node.spellcheck = false;
+    node.style.cssText = [
+      'position: fixed',
+      'left: 50%',
+      'top: 50%',
+      'transform: translate(-50%, -50%)',
+      'width: min(80vw, 360px)',
+      'height: 48px',
+      'padding: 0 14px',
       'border: 2px solid #4a4a62',
       'border-radius: 12px',
       'background: #20202a',
       'color: #f2f2f7',
-      'font-size: 26px',
+      'font-size: 18px',
       'font-family: "Apple SD Gothic Neo","Malgun Gothic",sans-serif',
       'outline: none',
       'box-sizing: border-box',
       'text-align: center',
+      'z-index: 9999',
     ].join('; ');
-    const inputEl = this.add.dom(360, 590, 'input', inputStyle);
-    const node = inputEl.node as HTMLInputElement;
-    node.type = 'text';
-    node.placeholder = DEFAULT_COMPANY_NAME;
-    node.maxLength = 20;
+    document.body.appendChild(node);
+    // 자동 포커스 — 모바일은 키보드 자동 펼침은 막혀있을 수 있음.
+    setTimeout(() => node.focus(), 100);
+
+    // 씬이 떠날 때 input 제거 보장.
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => node.remove());
+    this.events.once(Phaser.Scenes.Events.DESTROY, () => node.remove());
 
     // 시작 버튼
     const btnW = 280;
     const btnH = 60;
     const btnX = 360 - btnW / 2;
-    const btnY = 660;
+    const btnY = 820;
     const btnBg = this.add.graphics();
     btnBg.fillStyle(0x4f6fff, 1);
     btnBg.fillRoundedRect(btnX, btnY, btnW, btnH, 14);
@@ -261,7 +276,7 @@ export class BootScene extends Phaser.Scene {
           companyName: name,
         });
       }
-      inputEl.destroy();
+      node.remove();
       onDone();
     });
   }
