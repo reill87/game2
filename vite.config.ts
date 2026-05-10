@@ -22,14 +22,8 @@ export default defineConfig({
     commonjsOptions: {
       transformMixedEsModules: true,
     },
-    rollupOptions: {
-      output: {
-        // phaser + rex-ui를 한 vendor chunk로 묶음. 분리하면 rex가 Phaser 글로벌 못 찾음.
-        // 메인 앱 코드만 별도 chunk로 분리해 캐시 활용.
-        manualChunks: {
-          vendor: ['phaser', 'phaser3-rex-plugins/templates/ui/ui-plugin.js'],
-        },
-      },
-    },
+    // manualChunks 사용 안 함 — phaser3-rex-plugins가 Phaser 전역 의존이라
+    // chunk 분리하면 import 순서 문제로 ReferenceError 발생.
+    // 단일 bundle로 두되 chunkSizeWarningLimit만 늘려 경고 회피.
   },
 });
