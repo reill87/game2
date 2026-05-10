@@ -13,7 +13,36 @@ async function boot(): Promise<void> {
       /* 폰트 API 없거나 실패 시에도 부팅은 진행 */
     }
   }
+  // 부팅 실패 시에도 사용자가 빈 화면 안 보도록 폴백:
+  // 5초 안에 Phaser ready 안 떨어지면 스피너 강제 제거 + 에러 메시지 표시.
+  const removeSpinner = (): void => {
+    document.getElementById('initial-loader')?.remove();
+  };
+  const fallbackTimer = setTimeout(() => {
+    removeSpinner();
+    const div = document.createElement('div');
+    div.style.cssText =
+      'position:fixed;inset:0;display:flex;align-items:center;justify-content:center;color:#e55f5f;font-size:14px;text-align:center;padding:20px;';
+    div.innerHTML =
+      '게임 부팅 실패 — 새로고침 시도.<br><br>지속되면 브라우저 콘솔(F12)에서 에러 확인.';
+    document.body.appendChild(div);
+  }, 5000);
+
+  // 글로벌 에러 핸들러 — 부팅 중 throw 시 콘솔에 명확히 표시.
+  window.addEventListener('error', (e) => {
+    console.error('[boot error]', e.message, e.filename, e.lineno);
+  });
+  window.addEventListener('unhandledrejection', (e) => {
+    console.error('[unhandled rejection]', e.reason);
+  });
+
   const game = new Phaser.Game(gameConfig);
+
+  // Phaser ready 시 스피너 제거 + 폴백 타이머 취소.
+  game.events.once('ready', () => {
+    clearTimeout(fallbackTimer);
+    removeSpinner();
+  });
 
   /**
    * HiDPI 리사이즈 — Phaser scale=NONE이라 모든 사이즈 조정을 직접 처리.
