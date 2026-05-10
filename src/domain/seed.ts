@@ -568,6 +568,14 @@ export function newProject(opts: {
   assignment?: import('./types').Assignment;
   /** 직전 프로젝트 support 배정 — 자동 복원용. */
   support?: import('./types').SupportAssignment;
+  /** 파산 상태 — 옵셔널 (옛 데이터 호환). */
+  bankruptcy?: import('./bankruptcy').BankruptcyState;
+  /** 임원 압박 상태 — 옵셔널 (옛 데이터 호환). */
+  exec?: import('./exec').ExecState;
+  /** 경기 사이클 상태 — 옵셔널 (옛 데이터 호환). */
+  economy?: import('./economy').EconomyState;
+  /** 경쟁사 출시 이력 — 옵셔널 (옛 데이터 호환). */
+  rivals?: import('./rivals').RivalState;
 }): GameState {
   return {
     employees: opts.employees,
@@ -596,6 +604,10 @@ export function newProject(opts: {
     availableAp: 0,
     ...(opts.facilities ? { facilities: opts.facilities } : {}),
     ...(opts.markets ? { markets: opts.markets } : {}),
+    ...(opts.bankruptcy ? { bankruptcy: opts.bankruptcy } : {}),
+    ...(opts.exec ? { exec: opts.exec } : {}),
+    ...(opts.economy ? { economy: opts.economy } : {}),
+    ...(opts.rivals ? { rivals: opts.rivals } : {}),
   };
 }
 

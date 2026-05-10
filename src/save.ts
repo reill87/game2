@@ -14,7 +14,8 @@
  */
 import { CONDITION } from './domain/balance';
 import { MILESTONES, type MilestoneId } from './domain/milestones';
-import { EMPTY_RND, type RndId, type RndState } from './domain/rnd';
+import { EMPTY_RND, type RndId, type RndState, type RndProgress } from './domain/rnd';
+import type { EconomyState } from './domain/economy';
 import {
   EMPTY_FACILITIES,
   VALID_FACILITY_IDS,
@@ -44,6 +45,10 @@ import type {
 } from './domain/types';
 import type { MailMessage } from './domain/mail';
 import type { NpcId } from './domain/npcs';
+import type { BankruptcyState } from './domain/bankruptcy';
+import type { ExecState } from './domain/exec';
+import { EMPTY_RIVALS, type RivalState, type RivalRelease, RIVALS } from './domain/rivals';
+import type { RivalId } from './domain/rivals';
 
 const KEY = 'game2.save';
 const LEGACY_KEY_V1 = 'game2.save.v1';
@@ -111,6 +116,14 @@ export interface SaveData {
   readonly companyName?: string;
   /** 수신 메일 목록 — cap 30. 옛 데이터엔 없으므로 옵셔널. */
   readonly mails?: ReadonlyArray<MailMessage>;
+  /** 파산 상태 — 옵셔널 (옛 데이터 호환). */
+  readonly bankruptcy?: BankruptcyState;
+  /** 임원 압박 상태 — 옵셔널 (옛 데이터 호환). */
+  readonly exec?: ExecState;
+  /** 외부 경기 사이클 상태 — 옵셔널 (옛 데이터 호환). */
+  readonly economy?: EconomyState;
+  /** 경쟁사 출시 이력 — 옵셔널 (옛 데이터 호환). */
+  readonly rivals?: RivalState;
 }
 
 /** 회사명 기본값. */
@@ -243,6 +256,10 @@ export function saveData(input: {
   lastSupport?: Partial<Record<'planning' | 'graphics' | 'qa' | 'programming' | 'marketing' | 'data', string>>;
   companyName?: string;
   mails?: ReadonlyArray<MailMessage>;
+  bankruptcy?: BankruptcyState;
+  exec?: ExecState;
+  economy?: EconomyState;
+  rivals?: RivalState;
 }): SaveData | null {
   const storage = getStorage();
   if (!storage) return null;
@@ -269,6 +286,10 @@ export function saveData(input: {
     ...(input.lastSupport ? { lastSupport: input.lastSupport } : {}),
     ...(input.companyName ? { companyName: input.companyName.slice(0, 20) } : {}),
     ...(input.mails ? { mails: sanitizeMailsForSave(input.mails) } : {}),
+    ...(input.bankruptcy ? { bankruptcy: input.bankruptcy } : {}),
+    ...(input.exec ? { exec: input.exec } : {}),
+    ...(input.economy ? { economy: input.economy } : {}),
+    ...(input.rivals ? { rivals: input.rivals } : {}),
   };
   try {
     storage.setItem(KEY, JSON.stringify(full));
@@ -480,14 +501,85 @@ function sanitizeEquipment(raw: unknown): EmployeeEquipment | undefined {
   return safe as EmployeeEquipment;
 }
 
+/** 파산 상태 sanitize. */
+function sanitizeBankruptcy(raw: unknown): BankruptcyState | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const obj = raw as Record<string, unknown>;
+  if (typeof obj['lowGoldStreak'] !== 'number') return undefined;
+  return { lowGoldStreak: Math.max(0, Math.floor(obj['lowGoldStreak'])) };
+}
+
+/** 임원 압박 상태 sanitize. */
+function sanitizeExec(raw: unknown): ExecState | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const obj = raw as Record<string, unknown>;
+  if (typeof obj['poorPerformanceStreak'] !== 'number') return undefined;
+  return { poorPerformanceStreak: Math.max(0, Math.floor(obj['poorPerformanceStreak'])) };
+}
+
+function sanitizeRndProgress(raw: unknown): RndProgress | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const obj = raw as Record<string, unknown>;
+  if (typeof obj['weeksRemaining'] !== 'number') return undefined;
+  const inProgress = typeof obj['inProgress'] === 'string' && (VALID_RND_IDS as string[]).includes(obj['inProgress'])
+    ? (obj['inProgress'] as RndId)
+    : null;
+  return { inProgress, weeksRemaining: Math.max(0, Math.floor(obj['weeksRemaining'])) };
+}
+
 function sanitizeRnd(raw: unknown): RndState {
   if (!raw || typeof raw !== 'object') return EMPTY_RND;
-  const obj = raw as { purchased?: unknown };
+  const obj = raw as { purchased?: unknown; progress?: unknown };
   if (!Array.isArray(obj.purchased)) return EMPTY_RND;
   const purchased = (obj.purchased as unknown[]).filter(
     (id): id is RndId => typeof id === 'string' && (VALID_RND_IDS as string[]).includes(id),
   );
-  return { purchased };
+  const progress = sanitizeRndProgress(obj.progress);
+  return progress ? { purchased, progress } : { purchased };
+}
+
+/** 경쟁사 출시 이력 sanitize — rivalId 화이트리스트 + 필수 필드 검증. */
+function sanitizeRivals(raw: unknown): RivalState | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const obj = raw as { recentReleases?: unknown };
+  if (!Array.isArray(obj.recentReleases)) return undefined;
+  const validRivalIds: ReadonlyArray<RivalId> = RIVALS.map((r) => r.id);
+  const validIds = new Set<string>(validRivalIds);
+  const result: RivalRelease[] = [];
+  for (const item of obj.recentReleases as unknown[]) {
+    if (!item || typeof item !== 'object') continue;
+    const r = item as Record<string, unknown>;
+    if (
+      typeof r['rivalId'] !== 'string' ||
+      !validIds.has(r['rivalId']) ||
+      typeof r['genre'] !== 'string' ||
+      typeof r['theme'] !== 'string' ||
+      typeof r['stars'] !== 'number' ||
+      typeof r['revenue'] !== 'number' ||
+      typeof r['quarter'] !== 'number'
+    ) continue;
+    result.push({
+      rivalId: r['rivalId'] as RivalId,
+      genre: r['genre'] as import('./domain/types').GenreId,
+      theme: r['theme'] as import('./domain/types').ThemeId,
+      stars: r['stars'],
+      revenue: r['revenue'],
+      quarter: r['quarter'],
+    });
+  }
+  if (result.length === 0) return EMPTY_RIVALS;
+  return { recentReleases: result };
+}
+
+/** 경기 사이클 상태 sanitize. */
+function sanitizeEconomy(raw: unknown): EconomyState | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const obj = raw as Record<string, unknown>;
+  if (typeof obj['index'] !== 'number' || typeof obj['cyclesElapsed'] !== 'number') return undefined;
+  return {
+    index: Math.max(0, Math.min(100, Math.round(obj['index']))),
+    cyclesElapsed: Math.max(0, Math.floor(obj['cyclesElapsed'])),
+  };
 }
 
 const VALID_STANCES: ReadonlyArray<Stance> = ['progressive', 'conservative'];
@@ -582,6 +674,10 @@ function interpret(storage: Storage, parsed: unknown, fromLegacy: boolean): Save
       ...(obj.lastAssignment ? { lastAssignment: sanitizeAssignment(obj.lastAssignment) } : {}),
       ...(obj.lastSupport ? { lastSupport: sanitizeSupport(obj.lastSupport) } : {}),
       ...(obj.mails ? { mails: sanitizeMails(obj.mails) } : {}),
+      ...(obj.bankruptcy ? { bankruptcy: sanitizeBankruptcy(obj.bankruptcy) } : {}),
+      ...(obj.exec ? { exec: sanitizeExec(obj.exec) } : {}),
+      ...(obj.economy ? { economy: sanitizeEconomy(obj.economy) } : {}),
+      ...(obj.rivals ? { rivals: sanitizeRivals(obj.rivals) } : {}),
     };
     if (fromLegacy) {
       saveDataDirect(storage, sanitized);

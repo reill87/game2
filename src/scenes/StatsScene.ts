@@ -9,6 +9,7 @@ import Phaser from 'phaser';
 import type { GenreId, ThemeId } from '@/domain/types';
 import { calendarFor } from '@/domain/calendar';
 import { GENRE_LABEL, THEME_LABEL } from '@/domain/seed';
+import { RIVALS, type RivalState } from '@/domain/rivals';
 import { BGM } from '@/bgm';
 import { ICONS } from '@/icons';
 import { loadData, loadPrestigeCount, DEFAULT_COMPANY_NAME, type SavedResult } from '@/save';
@@ -51,9 +52,11 @@ export class StatsScene extends Phaser.Scene {
     BGM.setMood('calm');
     addMuteToggle(this);
     const companyName = saved?.companyName ?? DEFAULT_COMPANY_NAME;
+    const rivals = saved?.rivals;
     this.buildHeader(history.length, companyName, prestigeCount);
     this.buildSummary(history);
     this.buildHistoryList(history);
+    this.buildRivalsSection(rivals, history);
     this.buildCloseButton();
     applyHiDPI(this);
     onResize(this, () => { this.scene.restart(); });
@@ -238,12 +241,107 @@ export class StatsScene extends Phaser.Scene {
       .setOrigin(1, 0);
   }
 
+  // ────────────────────────── rivals section ──────────────────────────
+  private buildRivalsSection(rivals: RivalState | undefined, history: ReadonlyArray<SavedResult>): void {
+    // 출시 이력 패널이 panelY=380, panelH=720 → 끝나는 y=1100.
+    // 라이벌 섹션은 그 아래에 배치.
+    const panelX = this.contentX + (720 - 660) / 2;
+    const panelY = 1120;
+    const panelW = 660;
+    const rowH = 52;
+    const panelH = RIVALS.length * rowH + 56;
+
+    makePanel(this, panelX, panelY, panelW, panelH, COLOR.panel);
+
+    this.add.text(panelX + 20, panelY + 14, '경쟁사 동향', {
+      fontFamily: FONT_STACK,
+      fontSize: '23px',
+      fontStyle: 'bold',
+      color: TEXT_COLOR.dim,
+    });
+
+    // 우리 평균 별점·매출 — 비교 기준.
+    const ourAvgStars = history.length > 0
+      ? history.reduce((s, r) => s + r.stars, 0) / history.length
+      : 0;
+    const ourAvgRevenue = history.length > 0
+      ? Math.round(history.reduce((s, r) => s + r.revenue, 0) / history.length)
+      : 0;
+
+    RIVALS.forEach((rival, i) => {
+      const y = panelY + 44 + i * rowH;
+      // 이 라이벌의 최근 출시 목록.
+      const releases = (rivals?.recentReleases ?? []).filter((r) => r.rivalId === rival.id);
+      const lastRelease = releases.length > 0 ? releases[releases.length - 1] : null;
+      const rivalAvgStars = releases.length > 0
+        ? releases.reduce((s, r) => s + r.stars, 0) / releases.length
+        : rival.avgStars;
+      const rivalAvgRevenue = releases.length > 0
+        ? Math.round(releases.reduce((s, r) => s + r.revenue, 0) / releases.length)
+        : rival.avgRevenue;
+
+      makePanel(this, panelX + 10, y, panelW - 20, rowH - 4, COLOR.panelEmpty, false);
+
+      // 좌: 이름 + 강점
+      this.add.text(panelX + 24, y + 6, rival.name, {
+        fontFamily: FONT_STACK,
+        fontSize: '20px',
+        fontStyle: 'bold',
+        color: TEXT_COLOR.primary,
+      });
+      const strengthLabel = { design: '디자인', tech: '기술', marketing: '마케팅', data: '데이터', operations: '운영' }[rival.strength];
+      this.add.text(panelX + 24, y + 26, `[${strengthLabel}]  최근 ★${rivalAvgStars.toFixed(1)}  ${rivalAvgRevenue}g`, {
+        fontFamily: FONT_STACK,
+        fontSize: '17px',
+        color: TEXT_COLOR.dim,
+      });
+
+      // 우: 우리 대비 별점·매출 차이
+      const starsDiff = rivalAvgStars - ourAvgStars;
+      const revDiff = rivalAvgRevenue - ourAvgRevenue;
+      const starsColor = starsDiff > 0.1 ? TEXT_COLOR.bad : starsDiff < -0.1 ? TEXT_COLOR.ok : TEXT_COLOR.dim;
+      const revColor = revDiff > 0 ? TEXT_COLOR.bad : revDiff < 0 ? TEXT_COLOR.ok : TEXT_COLOR.dim;
+      const starsSign = starsDiff >= 0 ? '+' : '';
+      const revSign = revDiff >= 0 ? '+' : '';
+
+      this.add.text(panelX + panelW - 24, y + 8, `${starsSign}${starsDiff.toFixed(1)}★`, {
+        fontFamily: FONT_STACK,
+        fontSize: '19px',
+        color: starsColor,
+      }).setOrigin(1, 0);
+      this.add.text(panelX + panelW - 24, y + 28, `${revSign}${revDiff}g`, {
+        fontFamily: FONT_STACK,
+        fontSize: '18px',
+        color: revColor,
+      }).setOrigin(1, 0);
+
+      // 최근 출시 마크 — 있으면 장르×테마 표시.
+      if (lastRelease) {
+        const genreName = GENRE_LABEL[lastRelease.genre as GenreId]?.name ?? lastRelease.genre;
+        const themeName = THEME_LABEL[lastRelease.theme as ThemeId]?.name ?? lastRelease.theme;
+        this.add.text(panelX + panelW / 2, y + 6, `최근: ${genreName}×${themeName} ★${lastRelease.stars}`, {
+          fontFamily: FONT_STACK,
+          fontSize: '17px',
+          color: TEXT_COLOR.dim,
+        }).setOrigin(0.5, 0);
+      }
+    });
+
+    // 범례 — 우측 값은 우리 평균 대비 차이
+    this.add.text(this.cx, panelY + panelH - 14, `우리 평균 ★${ourAvgStars.toFixed(1)} · ${ourAvgRevenue}g 기준`, {
+      fontFamily: FONT_STACK,
+      fontSize: '19px',
+      color: TEXT_COLOR.dim,
+    }).setOrigin(0.5, 1);
+  }
+
   // ────────────────────────── close button ──────────────────────────
   private buildCloseButton(): void {
     const w = 320;
     const h = 56;
     const x = this.cx - w / 2;
-    const y = 1190;
+    // 라이벌 섹션(y=1120, h=5*52+56=316) 끝이 y=1436 → 여유 두고 1454.
+    const y = 1454;
     const rect = new Phaser.Geom.Rectangle(x, y, w, h);
     const bg = this.add.graphics();
     const draw = (pressed: boolean): void => {

@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import type { Types } from 'phaser';
 
 import { TRENDS } from '@/domain/balance';
+import { saturationHint } from '@/domain/saturation';
 import {
   DEFAULT_POLICY,
   GENRE_ICON,
@@ -19,6 +20,8 @@ import {
 import { EMPTY_RND, type RndState } from '@/domain/rnd';
 import { EMPTY_FACILITIES, type FacilityState } from '@/domain/facilities';
 import { EMPTY_MARKETS, type MarketState } from '@/domain/markets';
+import type { EconomyState } from '@/domain/economy';
+import type { RivalState } from '@/domain/rivals';
 import type {
   Assignment,
   CompanyPolicy,
@@ -71,6 +74,16 @@ export class GenreSelectScene extends Phaser.Scene {
   private lastAssignment: Assignment = {};
   /** 직전 프로젝트 support 배정 — newProject로 전달해 자동 복원. */
   private lastSupport: import('@/domain/types').SupportAssignment = {};
+  /** 출시 이력 — 시장 포화 힌트 표시에 사용. */
+  private history: ReadonlyArray<SavedResult> = [];
+  /** 파산 상태 — newProject로 전달. */
+  private bankruptcy: import('@/domain/bankruptcy').BankruptcyState | undefined = undefined;
+  /** 임원 압박 상태 — newProject로 전달. */
+  private exec: import('@/domain/exec').ExecState | undefined = undefined;
+  /** 경기 사이클 상태 — newProject로 전달. */
+  private economy: EconomyState | undefined = undefined;
+  /** 경쟁사 출시 이력 — newProject로 전달. */
+  private rivals: RivalState | undefined = undefined;
 
   private selectedGenre: GenreId | null = null;
   private selectedTheme: ThemeId | null = null;
@@ -105,6 +118,11 @@ export class GenreSelectScene extends Phaser.Scene {
     markets?: MarketState;
     lastAssignment?: Assignment;
     lastSupport?: import('@/domain/types').SupportAssignment;
+    history?: ReadonlyArray<SavedResult>;
+    bankruptcy?: import('@/domain/bankruptcy').BankruptcyState;
+    exec?: import('@/domain/exec').ExecState;
+    economy?: EconomyState;
+    rivals?: RivalState;
   }): void {
     this.productIndex = data.productIndex;
     this.gold = data.gold;
@@ -119,6 +137,11 @@ export class GenreSelectScene extends Phaser.Scene {
     this.markets = data.markets ?? EMPTY_MARKETS;
     this.lastAssignment = data.lastAssignment ?? {};
     this.lastSupport = data.lastSupport ?? {};
+    this.history = data.history ?? [];
+    this.bankruptcy = data.bankruptcy;
+    this.exec = data.exec;
+    this.economy = data.economy;
+    this.rivals = data.rivals;
     this.selectedGenre = null;
     this.selectedTheme = null;
   }
@@ -436,6 +459,10 @@ export class GenreSelectScene extends Phaser.Scene {
       markets: this.markets,
       assignment: this.lastAssignment,
       support: Object.keys(this.lastSupport).length > 0 ? this.lastSupport : undefined,
+      ...(this.bankruptcy ? { bankruptcy: this.bankruptcy } : {}),
+      ...(this.exec ? { exec: this.exec } : {}),
+      ...(this.economy ? { economy: this.economy } : {}),
+      ...(this.rivals ? { rivals: this.rivals } : {}),
     });
     this.scene.start(SCENE_KEYS.Assignment, { state, lastResult: this.lastResult });
   }
@@ -469,9 +496,13 @@ export class GenreSelectScene extends Phaser.Scene {
     if (this.selectedGenre && this.selectedTheme) {
       const g = GENRE_LABEL[this.selectedGenre];
       const t = THEME_LABEL[this.selectedTheme];
-      this.statusText
-        .setText(`선택: ${g.name} × ${t.name}`)
-        .setColor(TEXT_COLOR.ok);
+      const hint = saturationHint(this.history, this.selectedGenre, this.selectedTheme);
+      const baseText = `선택: ${g.name} × ${t.name}`;
+      if (hint) {
+        this.statusText.setText(`${baseText}\n⚠ ${hint}`).setColor(TEXT_COLOR.warn);
+      } else {
+        this.statusText.setText(baseText).setColor(TEXT_COLOR.ok);
+      }
       return;
     }
     this.statusText.setText('아직 한 가지가 선택되지 않았습니다.').setColor(TEXT_COLOR.dim);

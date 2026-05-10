@@ -4,10 +4,14 @@
  */
 import type { RndState } from './rnd';
 import type { EmployeeEquipment } from './equipment';
+import type { EconomyState } from './economy';
 import type { FacilityState } from './facilities';
 import type { MarketState } from './markets';
 import type { AcquisitionState } from './acquisitions';
 import type { PrestigeBonus } from './prestige';
+import type { BankruptcyState } from './bankruptcy';
+import type { ExecState } from './exec';
+import type { RivalState } from './rivals';
 
 /** 직원 직무. 1단계 사무실에서는 QA 직군 없음 (2단계 채용). marketing/data는 3단계 이상. */
 export type Job = 'planner' | 'designer' | 'programmer' | 'qa' | 'marketing' | 'data';
@@ -186,4 +190,12 @@ export interface GameState {
    * 옛 데이터 호환: undefined면 보너스 없음으로 처리.
    */
   readonly prestigeBonus?: PrestigeBonus;
+  /** 파산 / 폐업 위협 상태 — 옵셔널 (옛 데이터 호환). */
+  readonly bankruptcy?: BankruptcyState;
+  /** 임원 압박 / CEO 교체 위협 상태 — 옵셔널 (옛 데이터 호환). */
+  readonly exec?: ExecState;
+  /** 외부 경기 사이클 상태 — 옵셔널 (옛 데이터 호환). */
+  readonly economy?: EconomyState;
+  /** 경쟁사 출시 이력 — 옵셔널 (옛 데이터 호환). */
+  readonly rivals?: RivalState;
 }

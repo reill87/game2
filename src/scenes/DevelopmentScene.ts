@@ -35,10 +35,11 @@ import {
   pickCrisis,
   type Crisis,
 } from '@/domain/crises';
+import { isBankrupt, isCollapsing } from '@/domain/bankruptcy';
 import { BGM } from '@/bgm';
 import { EVENT_CATEGORY_TEXTURE } from '@/eventCategoryAssets';
 import { ICONS } from '@/icons';
-import { loadData, DEFAULT_COMPANY_NAME } from '@/save';
+import { loadData, DEFAULT_COMPANY_NAME, clearData } from '@/save';
 import { playSfx, SFX } from '@/sounds';
 import { COLOR, FONT_STACK, TEXT_COLOR, TINT } from '@/theme';
 import { addMuteToggle } from '@/util/muteToggle';
@@ -165,6 +166,11 @@ export class DevelopmentScene extends Phaser.Scene {
   private crisisCooldown = 0;
   private crisisTimerEvent: Phaser.Time.TimerEvent | null = null;
 
+  // 파산 / 폐업 모달
+  private bankruptcyModalContainer: Phaser.GameObjects.Container | null = null;
+  // 명성 폭락 모달 — 이미 표시했으면 중복 방지.
+  private collapseModalShown = false;
+
   // 직원 popup (per-employee actions)
   private empPopupContainer: Phaser.GameObjects.Container | null = null;
   /** 각 직원 타일의 interactive zone (recap redraw 시 재생성) */
@@ -246,6 +252,9 @@ export class DevelopmentScene extends Phaser.Scene {
     this.crisisTimerEvent?.remove();
     this.crisisTimerEvent = null;
     this.crisisCooldown = 0;
+    this.bankruptcyModalContainer?.destroy(true);
+    this.bankruptcyModalContainer = null;
+    this.collapseModalShown = false;
     this.empPopupContainer?.destroy(true);
     this.empPopupContainer = null;
     this.empTileHits = [];
@@ -1105,7 +1114,22 @@ export class DevelopmentScene extends Phaser.Scene {
         this.crisisCooldown = CRISIS_COOLDOWN_WEEKS;
         this.pauseForModal();
         this.showCrisisModal(crisis);
+        return;
       }
+    }
+
+    // 파산 위기 체크 — 골드 -500 이하 5주 연속.
+    if (!this.bankruptcyModalContainer && isBankrupt(this.state, this.state.bankruptcy)) {
+      this.pauseForModal();
+      this.showBankruptcyModal();
+      return;
+    }
+
+    // 명성 폭락 체크 — 명성 0 이하 (1회만).
+    if (!this.collapseModalShown && this.state.productIndex >= 1 && isCollapsing(this.state)) {
+      this.collapseModalShown = true;
+      this.pauseForModal();
+      this.showCollapseModal();
     }
   }
 
@@ -2207,6 +2231,212 @@ export class DevelopmentScene extends Phaser.Scene {
     this.crisisModalContainer = null;
     this.redraw();
     this.resumeAfterModal();
+  }
+
+  // ────────────────────────── 파산 / 폐업 모달 ──────────────────────────
+
+  /** 파산 모달 — 구조조정 or 폐업 선택. */
+  private showBankruptcyModal(): void {
+    playSfx(this, SFX.warning, 0.9);
+    const c = this.add.container(0, 0).setDepth(130);
+    const overlay = this.add
+      .rectangle(0, 0, 720, 1280, 0x000000, 0.85)
+      .setOrigin(0, 0)
+      .setInteractive();
+    c.add(overlay);
+
+    const panelW = 640;
+    const panelH = 480;
+    const panelX = this.contentX + (720 - panelW) / 2;
+    const panelY = Math.max(0, (1280 - panelH) / 2);
+    const glowPanel = makePanel(this, panelX - 3, panelY - 3, panelW + 6, panelH + 6, 0x5a1010);
+    c.add(glowPanel);
+    c.add(makePanel(this, panelX, panelY, panelW, panelH, COLOR.panel));
+
+    const headerH = 52;
+    const headerBg = this.add.graphics();
+    headerBg.fillStyle(0xcc2222, 1);
+    headerBg.fillRoundedRect(panelX, panelY, panelW, headerH, 12);
+    c.add(headerBg);
+    c.add(
+      this.add
+        .text(panelX + panelW / 2, panelY + headerH / 2, '💸 파산 위기!', {
+          fontFamily: FONT_STACK,
+          fontSize: '30px',
+          fontStyle: 'bold',
+          color: '#ffffff',
+        })
+        .setOrigin(0.5),
+    );
+
+    c.add(
+      this.add.text(panelX + 30, panelY + 68, '회사가 파산했습니다.\n자금 부족으로 더 이상 운영 불가.', {
+        fontFamily: FONT_STACK,
+        fontSize: '27px',
+        color: TEXT_COLOR.dim,
+        wordWrap: { width: panelW - 60, useAdvancedWrap: true },
+        lineSpacing: 4,
+      }),
+    );
+
+    // 구조조정 버튼
+    const btnW = panelW - 60;
+    const btn1Y = panelY + 180;
+    const btn2Y = btn1Y + 100;
+
+    const btn1Bg = this.add.graphics();
+    const drawBtn1 = (pressed: boolean): void => {
+      btn1Bg.clear();
+      btn1Bg.fillStyle(pressed ? 0x3a4020 : 0x2a3010, 1);
+      btn1Bg.fillRoundedRect(panelX + 30, btn1Y, btnW, 80, 12);
+    };
+    drawBtn1(false);
+    c.add(btn1Bg);
+    c.add(
+      this.add.text(panelX + 30 + 18, btn1Y + 14, '구조조정', {
+        fontFamily: FONT_STACK, fontSize: '27px', fontStyle: 'bold', color: TEXT_COLOR.primary,
+      }),
+    );
+    c.add(
+      this.add.text(panelX + 30 + 18, btn1Y + 44, '직원 절반 해고, 골드 +500 보전', {
+        fontFamily: FONT_STACK, fontSize: '21px', color: TEXT_COLOR.dim,
+      }),
+    );
+    const hit1 = this.add
+      .zone(panelX + 30 + btnW / 2, btn1Y + 40, btnW, 80)
+      .setInteractive({ useHandCursor: true });
+    hit1.on('pointerdown', () => drawBtn1(true));
+    hit1.on('pointerout', () => drawBtn1(false));
+    hit1.on('pointerup', () => {
+      drawBtn1(false);
+      this.applyRestructuring(c);
+    });
+    c.add(hit1);
+
+    // 폐업 버튼
+    const btn2Bg = this.add.graphics();
+    const drawBtn2 = (pressed: boolean): void => {
+      btn2Bg.clear();
+      btn2Bg.fillStyle(pressed ? 0x5a1010 : 0x3a1515, 1);
+      btn2Bg.fillRoundedRect(panelX + 30, btn2Y, btnW, 80, 12);
+    };
+    drawBtn2(false);
+    c.add(btn2Bg);
+    c.add(
+      this.add.text(panelX + 30 + 18, btn2Y + 14, '폐업', {
+        fontFamily: FONT_STACK, fontSize: '27px', fontStyle: 'bold', color: TEXT_COLOR.primary,
+      }),
+    );
+    c.add(
+      this.add.text(panelX + 30 + 18, btn2Y + 44, '게임 데이터 초기화 후 시작 화면으로', {
+        fontFamily: FONT_STACK, fontSize: '21px', color: TEXT_COLOR.dim,
+      }),
+    );
+    const hit2 = this.add
+      .zone(panelX + 30 + btnW / 2, btn2Y + 40, btnW, 80)
+      .setInteractive({ useHandCursor: true });
+    hit2.on('pointerdown', () => drawBtn2(true));
+    hit2.on('pointerout', () => drawBtn2(false));
+    hit2.on('pointerup', () => {
+      drawBtn2(false);
+      clearData();
+      this.scene.start(SCENE_KEYS.Boot);
+    });
+    c.add(hit2);
+
+    this.bankruptcyModalContainer = c;
+    applyHiDPI(this);
+    c.setAlpha(0);
+    this.tweens.add({ targets: c, alpha: 1, duration: 180, ease: 'Cubic.easeOut' });
+  }
+
+  /** 구조조정 적용 — 직원 절반(랜덤) 해고, 골드 +500, bankruptcy streak 초기화. */
+  private applyRestructuring(container: Phaser.GameObjects.Container): void {
+    playSfx(this, SFX.tap);
+    container.destroy(true);
+    this.bankruptcyModalContainer = null;
+
+    const emps = [...this.state.employees];
+    const keepCount = Math.ceil(emps.length / 2);
+    // 랜덤으로 절반만 남기기.
+    const shuffled = emps.sort(() => Math.random() - 0.5);
+    const kept = shuffled.slice(0, keepCount);
+    this.state = {
+      ...this.state,
+      employees: kept,
+      gold: 0,
+      // bankruptcy streak 초기화.
+      bankruptcy: { lowGoldStreak: 0 },
+    };
+    this.redraw();
+    this.resumeAfterModal();
+  }
+
+  /** 명성 폭락 모달 — 경고만, 닫기 가능. */
+  private showCollapseModal(): void {
+    playSfx(this, SFX.warning, 0.7);
+    const c = this.add.container(0, 0).setDepth(125);
+    const overlay = this.add
+      .rectangle(0, 0, 720, 1280, 0x000000, 0.75)
+      .setOrigin(0, 0)
+      .setInteractive();
+    c.add(overlay);
+
+    const panelW = 600;
+    const panelH = 340;
+    const panelX = this.contentX + (720 - panelW) / 2;
+    const panelY = Math.max(0, (1280 - panelH) / 2);
+    c.add(makePanel(this, panelX, panelY, panelW, panelH, COLOR.panel));
+
+    const headerH = 52;
+    const headerBg = this.add.graphics();
+    headerBg.fillStyle(0xaa4400, 1);
+    headerBg.fillRoundedRect(panelX, panelY, panelW, headerH, 12);
+    c.add(headerBg);
+    c.add(
+      this.add
+        .text(panelX + panelW / 2, panelY + headerH / 2, '⚠ 명성 폭락 위기', {
+          fontFamily: FONT_STACK,
+          fontSize: '28px',
+          fontStyle: 'bold',
+          color: '#ffffff',
+        })
+        .setOrigin(0.5),
+    );
+
+    c.add(
+      this.add.text(panelX + 30, panelY + 74, '회사 명성이 바닥을 쳤습니다.\n매출 보너스가 사라지고 채용이 어려워집니다.\n작품 품질을 높여 명성을 회복하세요.', {
+        fontFamily: FONT_STACK,
+        fontSize: '25px',
+        color: TEXT_COLOR.dim,
+        wordWrap: { width: panelW - 60, useAdvancedWrap: true },
+        lineSpacing: 4,
+      }),
+    );
+
+    const closeY = panelY + panelH - 72;
+    const closeBg = this.add.graphics();
+    closeBg.fillStyle(COLOR.btn, 1);
+    closeBg.fillRoundedRect(panelX + 30, closeY, panelW - 60, 48, 12);
+    c.add(closeBg);
+    c.add(
+      this.add.text(panelX + panelW / 2, closeY + 24, '확인', {
+        fontFamily: FONT_STACK, fontSize: '26px', fontStyle: 'bold', color: TEXT_COLOR.primary,
+      }).setOrigin(0.5),
+    );
+    const closeHit = this.add
+      .zone(panelX + panelW / 2, closeY + 24, panelW - 60, 48)
+      .setInteractive({ useHandCursor: true });
+    closeHit.on('pointerup', () => {
+      playSfx(this, SFX.tap);
+      c.destroy(true);
+      this.resumeAfterModal();
+    });
+    c.add(closeHit);
+
+    applyHiDPI(this);
+    c.setAlpha(0);
+    this.tweens.add({ targets: c, alpha: 1, duration: 180, ease: 'Cubic.easeOut' });
   }
 
   // ────────────────────────── 직원 per-action popup ──────────────────────────

@@ -399,6 +399,15 @@ export const THEME_MOD: Readonly<Record<ThemeId, { progressMul: number; bugMul: 
 };
 
 /**
+ * 인플레이션 배수 — 5년차(20작품)마다 비용 ×1.2 영구 가산.
+ * burn rate / 채용비 / R&D·시설·시장·인수 비용에 적용. 매출에는 적용 안 함.
+ */
+export function inflationMultiplier(productCount: number): number {
+  const years = Math.floor(productCount / 20);
+  return Math.pow(1.2, years);
+}
+
+/**
  * 홍보 — BALANCE.md §7 v0.2 튜닝. cost는 출시 직전 차감, revenueMul은 매출에 곱, reviewBonus는 score에 가산.
  * v0.1은 net 골드가 마이너스라 "누르면 손해" 함정 — small/medium 모두 score 50대에서 손익 흑자가 되도록 상향.
  */

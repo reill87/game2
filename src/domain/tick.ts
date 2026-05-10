@@ -9,6 +9,7 @@ import {
   CONDITION,
   DRESS_CODE_EFFECT,
   GENRE_MOD,
+  inflationMultiplier,
   LEAD_TEAM_BONUS,
   PERK,
   RANK_MULTIPLIER,
@@ -18,14 +19,16 @@ import {
   TRACK_EFFECT,
   TRAIT_EFFECT,
 } from './balance';
+import { tickBankruptcy } from './bankruptcy';
 import { NO_PRESTIGE } from './prestige';
 import { AP_CAP, AP_PER_WEEK } from './weeklyActions';
 import { isMatched, SLOT_ORDER } from './match';
 import { tickExitStreak } from './retention';
-import { isRndPurchased } from './rnd';
+import { isRndPurchased, type RndProgress } from './rnd';
 import { getSprintPhase, SPRINT_SLOT_WEIGHT } from './sprintPhase';
 import { computeEquipmentBonuses } from './equipment';
 import { isFacilityBuilt } from './facilities';
+import { getEconomyPhase, getEconomyCostMul, EMPTY_ECONOMY } from './economy';
 import type { Assignment, Employee, GameState, SlotKind, SupportAssignment } from './types';
 
 /** support 직원이 primary 대비 기여하는 배수. */
@@ -50,7 +53,12 @@ export function computeBurnRate(state: GameState): number {
   // 프레스티지: burnRateMul (기본 1.0, N회 누적 시 최대 0.5까지 감소).
   const prestigeBurnMul = (state.prestigeBonus ?? NO_PRESTIGE).burnRateMul;
   burnMul = Math.min(burnMul, prestigeBurnMul);
-  return burnMul < 1.0 ? Math.round(base * burnMul) : base;
+  // 인플레이션 — 5년차(20작품)마다 비용 ×1.2.
+  const inflation = inflationMultiplier(state.productIndex);
+  // 경기 사이클 비용 보정 — 호황 ×1.2, 평년 ×1.0, 침체 ×0.9.
+  const ecoPhase = getEconomyPhase(state.economy?.index ?? EMPTY_ECONOMY.index);
+  const ecoCostMul = getEconomyCostMul(ecoPhase);
+  return Math.round(base * burnMul * inflation * ecoCostMul);
 }
 
 /** 직원 한 명의 한 주 기여 — UI 표시용. advanceWeek와 같은 식. */
@@ -448,11 +456,33 @@ export function advanceWeek(prev: GameState): GameState {
   const apGain = AP_PER_WEEK + (isFacilityBuilt(prev.facilities, 'big-meeting-room') ? 1 : 0);
   const nextAp = Math.min(AP_CAP, (prev.availableAp ?? 0) + apGain);
 
-  return {
+  // 4) R&D 연구 진행 — 매주 weeksRemaining -1, 0 도달 시 purchased에 추가.
+  const rndProgress: RndProgress | undefined = prev.rnd.progress;
+  let nextRnd = prev.rnd;
+  if (rndProgress && rndProgress.inProgress && rndProgress.weeksRemaining > 0) {
+    const newWeeks = rndProgress.weeksRemaining - 1;
+    if (newWeeks <= 0) {
+      // 연구 완료 — purchased에 추가, progress idle.
+      nextRnd = {
+        purchased: [...prev.rnd.purchased, rndProgress.inProgress],
+        progress: { inProgress: null, weeksRemaining: 0 },
+      };
+    } else {
+      nextRnd = {
+        ...prev.rnd,
+        progress: { ...rndProgress, weeksRemaining: newWeeks },
+      };
+    }
+  }
+
+  // 골드는 마이너스 허용 — 파산 추적을 위해 하한 없음 (UI에서 표시만).
+  const nextGold = prev.gold + goldDelta;
+  const nextState: GameState = {
     ...prev,
     employees: nextEmployees,
-    gold: clamp(prev.gold + goldDelta, 0, Number.MAX_SAFE_INTEGER),
+    gold: nextGold,
     availableAp: nextAp,
+    rnd: nextRnd,
     project: {
       ...prev.project,
       weeksElapsed,
@@ -461,6 +491,9 @@ export function advanceWeek(prev: GameState): GameState {
       appeal: appealEnabled ? clamp(prev.project.appeal + appealDelta, 0, 100) : prev.project.appeal,
     },
   };
+  // 파산 상태 갱신 — 골드 임계 연속 주차.
+  const nextBankruptcy = tickBankruptcy(nextState, prev.bankruptcy);
+  return { ...nextState, bankruptcy: nextBankruptcy };
 }
 
 /** 1주 폴리싱: 1주 경과 + BugDebt 감소. 모두가 휴식 모드로 컨디션 회복. burn은 그대로 차감. */
@@ -477,7 +510,7 @@ export function polishWeek(prev: GameState): GameState {
   return {
     ...prev,
     employees: nextEmployees,
-    gold: clamp(prev.gold + goldDelta, 0, Number.MAX_SAFE_INTEGER),
+    gold: prev.gold + goldDelta,
     project: {
       ...prev.project,
       weeksElapsed,

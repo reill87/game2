@@ -1,8 +1,11 @@
 import Phaser from 'phaser';
 import type { Types } from 'phaser';
 
-import { BALANCE, ENDING } from '@/domain/balance';
+import { BALANCE, ENDING, inflationMultiplier } from '@/domain/balance';
+import { getExecPressure } from '@/domain/exec';
+import { computeSaturationMultiplier } from '@/domain/saturation';
 import type { ReleaseOutcome, ReviewStars } from '@/domain/result';
+import { RIVALS } from '@/domain/rivals';
 import {
   DEFAULT_POLICY,
   JOB_LABEL,
@@ -24,10 +27,17 @@ import {
   getRndTier,
   isRndAvailable,
   isRndPurchased,
-  purchaseRnd,
   RND_ITEMS,
+  RND_RESEARCH_WEEKS,
   type RndState,
 } from '@/domain/rnd';
+import {
+  ECONOMY_PHASE_LABEL,
+  EMPTY_ECONOMY,
+  getEconomyPhase,
+  getEconomyRevenueMul,
+} from '@/domain/economy';
+import type { EconomyState } from '@/domain/economy';
 import {
   EMPTY_MARKETS,
   MARKETS,
@@ -63,7 +73,7 @@ import type { CompanyPolicy, Employee, Track } from '@/domain/types';
 import { ICONS } from '@/icons';
 import { BGM } from '@/bgm';
 import { OFFICE_ILLUSTRATION } from '@/illustrations';
-import { HISTORY_CAP, loadData, saveData, DEFAULT_COMPANY_NAME, type SavedResult } from '@/save';
+import { HISTORY_CAP, loadData, saveData, clearData, DEFAULT_COMPANY_NAME, type SavedResult } from '@/save';
 import {
   MAIL_TEMPLATES,
   createMailMessage,
@@ -104,6 +114,8 @@ export class ResultScene extends Phaser.Scene {
   private livePolicy: CompanyPolicy = DEFAULT_POLICY;
   /** R&D 영구 업그레이드 상태. */
   private liveRnd: RndState = EMPTY_RND;
+  /** 경기 사이클 상태 — outcome에서 이어받아 저장에 반영. */
+  private liveEconomy: EconomyState = EMPTY_ECONOMY;
   /** 회사 시설 상태. */
   private liveFacilities: FacilityState = EMPTY_FACILITIES;
   /** 글로벌 시장 진출 상태. */
@@ -177,6 +189,8 @@ export class ResultScene extends Phaser.Scene {
     this.hiredEmployees = existing?.hiredEmployees ? [...existing.hiredEmployees] : [];
     this.livePolicy = existing?.policy ?? DEFAULT_POLICY;
     this.liveRnd = existing?.rnd ?? EMPTY_RND;
+    // economy: outcome.state가 shipProject에서 tickEconomy 적용된 최신 값.
+    this.liveEconomy = data.outcome.state.economy ?? EMPTY_ECONOMY;
     this.liveFacilities = existing?.facilities ?? EMPTY_FACILITIES;
     this.liveMarkets = existing?.markets ?? EMPTY_MARKETS;
     this.liveAcquisitions = existing?.acquisitions ?? EMPTY_ACQUISITIONS;
@@ -196,6 +210,17 @@ export class ResultScene extends Phaser.Scene {
     const newEntry = this.buildSavedResult();
     const prevHistory = existing?.history ?? [];
     this.history = [...prevHistory, newEntry].slice(-HISTORY_CAP);
+    // 시장 포화 — 출시 전 이력 기준으로 매출 보정. liveGold에서 포화 차감분 제거.
+    if (data.outcome.state.productIndex > 0) {
+      const { genre, theme } = data.outcome.state.project;
+      const satMul = computeSaturationMultiplier(prevHistory, genre, theme);
+      if (satMul < 1) {
+        // outcome.revenue는 포화 미적용 — 차이만큼 liveGold에서 차감.
+        const originalRevenue = data.outcome.revenue;
+        const adjustedRevenue = Math.round(originalRevenue * satMul);
+        this.liveGold -= originalRevenue - adjustedRevenue;
+      }
+    }
     // 업그레이드/채용 위젯은 매 init마다 다시 만들기 위해 null로 비움.
     this.officeStatusText = null;
     this.officeGoldText = null;
@@ -294,6 +319,12 @@ export class ResultScene extends Phaser.Scene {
     this.triggerNewMails();
     // 직급 트랙 분기 — junior→senior 진급 직원 중 track 미선택자 모달 큐.
     this.queueTrackChoiceModalsIfNeeded();
+    // 임원 압박 체크 — 출시 후 exec state 기준.
+    this.checkExecPressure();
+    // 경기 사이클 변화 — 새 사이클 시작 시 토스트.
+    if (this.outcome.economy.cycleChanged) {
+      this.time.delayedCall(2500, () => this.showEconomyToast());
+    }
     // 출시 등장 사운드 — 첫 별 등장 직전 살짝 늦춰 재생.
     this.time.delayedCall(220, () => playSfx(this, SFX.success, 0.55));
     this.buildHeader();
@@ -346,6 +377,10 @@ export class ResultScene extends Phaser.Scene {
       lastAssignment: o.state.assignment,
       ...(o.state.support ? { lastSupport: o.state.support } : {}),
       mails: this.liveMails,
+      ...(o.state.bankruptcy ? { bankruptcy: o.state.bankruptcy } : {}),
+      ...(o.state.exec ? { exec: o.state.exec } : {}),
+      economy: this.liveEconomy,
+      ...(o.state.rivals ? { rivals: o.state.rivals } : {}),
     });
     this.savedAt = saved?.savedAt ?? null;
   }
@@ -496,10 +531,43 @@ export class ResultScene extends Phaser.Scene {
           ] as const)
         : ([] as ReadonlyArray<readonly [string, string, string]>);
 
+    // 경기 row — 항상 표시.
+    const ecoMulVal = o.economy.revenueMul;
+    const ecoRowColor = ecoMulVal > 1.001 ? TEXT_COLOR.ok : ecoMulVal < 0.999 ? TEXT_COLOR.bad : TEXT_COLOR.dim;
+    const ecoRow: ReadonlyArray<readonly [string, string, string]> = [
+      ['경기', `${o.economy.phase} (지표 ${o.economy.index} · 매출 ×${ecoMulVal.toFixed(1)})`, ecoRowColor],
+    ];
+
+    // 시장 경쟁 row — 라이벌 매치 시 표시.
+    const ms = o.marketShare;
+    const rivalMap = new Map(RIVALS.map((r) => [r.id, r] as const));
+    const marketShareRows: ReadonlyArray<readonly [string, string, string]> =
+      ms.matchedReleases.length > 0
+        ? [
+            [
+              '시장 경쟁',
+              `라이벌 ${ms.matchedReleases.length}개 경쟁 · 매출 ×${ms.revenueMul.toFixed(1)}`,
+              ms.revenueMul < 1 ? TEXT_COLOR.bad : TEXT_COLOR.dim,
+            ],
+            ...ms.matchedReleases
+              .filter((r) => r.stars > o.stars)
+              .map((r) => {
+                const name = rivalMap.get(r.rivalId)?.name ?? r.rivalId;
+                return [
+                  '  경쟁사 우위',
+                  `${name} ★${r.stars} 출시 — 명성 −5`,
+                  TEXT_COLOR.bad,
+                ] as const;
+              }),
+          ]
+        : [];
+
     const baseRows: ReadonlyArray<readonly [string, string, string]> = [
       ['매출', `+${o.revenue} 골드`, TEXT_COLOR.ok],
       ['명성', repValue, TEXT_COLOR.warn],
+      ...marketShareRows,
       ...trendRow,
+      ...ecoRow,
       ['BugDebt', `${Math.round(project.bugDebt)} / 100`, project.bugDebt >= 70 ? TEXT_COLOR.bad : TEXT_COLOR.primary],
       ...(project.appealEnabled
         ? ([['Appeal', `${Math.round(project.appeal)} / 100`, TEXT_COLOR.primary]] as const)
@@ -927,11 +995,18 @@ export class ResultScene extends Phaser.Scene {
       }
     }
 
-    // R&D 버튼 — 항상 활성. 구매 개수 표시.
+    // R&D 버튼 — 항상 활성. 구매 개수 + 진행 상황 표시.
     const rndCount = this.liveRnd.purchased.length;
     const rndTotal = RND_ITEMS.length;
     if (this.rndBtnText) {
-      this.rndBtnText.setText(`R&D 연구소 (${rndCount}/${rndTotal})`);
+      const rndProg = this.liveRnd.progress;
+      let rndBtnLabel = `R&D 연구소 (${rndCount}/${rndTotal})`;
+      if (rndProg && rndProg.inProgress !== null) {
+        const progItem = RND_ITEMS.find((r) => r.id === rndProg.inProgress);
+        const shortName = progItem ? progItem.name : '연구';
+        rndBtnLabel = `R&D ${rndCount}/${rndTotal} (연구중: ${shortName} ${rndProg.weeksRemaining}주)`;
+      }
+      this.rndBtnText.setText(rndBtnLabel);
     }
     this.drawSecondaryButton(this.rndBtnBg, this.rndBtnText, this.rndBtnRect, this.rndBtnHit, true);
 
@@ -1284,9 +1359,12 @@ export class ResultScene extends Phaser.Scene {
     if (isRndPurchased(this.liveRnd, 'employer-branding'))    hireCostMul = Math.min(hireCostMul, 0.7);
     if (isRndPurchased(this.liveRnd, 'remote-collaboration')) hireCostMul = Math.min(hireCostMul, 0.5);
     if (isRndPurchased(this.liveRnd, 'global-hr-network'))    hireCostMul = Math.min(hireCostMul, 0.4);
+    // 인플레이션 — UI 표시에도 반영.
+    const hirePcInflation = inflationMultiplier(this.outcome.state.productIndex + 1);
     candidates.forEach((c, i) => {
       const cy = cardsY0 + i * (cardH + cardGap);
-      const effCost = hireCostMul < 1.0 ? Math.round(c.hireCost * hireCostMul) : c.hireCost;
+      const baseEff = hireCostMul < 1.0 ? Math.round(c.hireCost * hireCostMul) : c.hireCost;
+      const effCost = Math.round(baseEff * hirePcInflation);
       this.buildCandidateCard(layer, cardX, cy, cardW, cardH, c, effCost, () => {
         // 닫기 → 채용 처리.
         layer.destroy();
@@ -1441,7 +1519,11 @@ export class ResultScene extends Phaser.Scene {
     if (isRndPurchased(this.liveRnd, 'employer-branding'))    costMul = Math.min(costMul, 0.7);
     if (isRndPurchased(this.liveRnd, 'remote-collaboration')) costMul = Math.min(costMul, 0.5);
     if (isRndPurchased(this.liveRnd, 'global-hr-network'))    costMul = Math.min(costMul, 0.4);
-    const effCost = costMul < 1.0 ? Math.round(c.hireCost * costMul) : c.hireCost;
+    // 인플레이션 적용 — 5년차마다 채용 비용 ×1.2.
+    const productCount = this.outcome.state.productIndex + 1;
+    const inflation = inflationMultiplier(productCount);
+    const baseEffCost = costMul < 1.0 ? Math.round(c.hireCost * costMul) : c.hireCost;
+    const effCost = Math.round(baseEffCost * inflation);
     if (this.liveGold < effCost) return;
     const cap = BALANCE.officeHireCap[this.officeLevel];
     if (this.liveEmployees.length >= cap) return;
@@ -1611,6 +1693,10 @@ export class ResultScene extends Phaser.Scene {
     const purchased = isRndPurchased(this.liveRnd, item.id);
     const available = isRndAvailable(this.liveRnd, item, productCount);
     const affordable = this.liveGold >= item.cost;
+    // 연구 진행 상태 확인.
+    const prog = this.liveRnd.progress;
+    const isThisInProgress = prog?.inProgress === item.id;
+    const otherInProgress = prog?.inProgress !== null && prog?.inProgress !== item.id;
 
     layer.add(makePanel(this, x, y, w, h, COLOR.panelEmpty, false));
 
@@ -1679,6 +1765,25 @@ export class ResultScene extends Phaser.Scene {
           })
           .setOrigin(0.5),
       );
+    } else if (isThisInProgress) {
+      // 연구 진행 중 — 진행 상황 표시.
+      const weeks = RND_RESEARCH_WEEKS[item.id];
+      const remaining = prog?.weeksRemaining ?? 0;
+      const elapsed = weeks - remaining;
+      const inProgBg = this.add.graphics();
+      inProgBg.fillStyle(0x1a2a3a, 1);
+      inProgBg.fillRoundedRect(btnX, btnY, btnW, btnH, 8);
+      layer.add(inProgBg);
+      layer.add(
+        this.add
+          .text(btnX + btnW / 2, btnY + btnH / 2, `⏳ 연구 중 (${elapsed}/${weeks}주 완료)`, {
+            fontFamily: FONT_STACK,
+            fontSize: '21px',
+            fontStyle: 'bold',
+            color: TEXT_COLOR.warn,
+          })
+          .setOrigin(0.5),
+      );
     } else if (!available) {
       // 잠금 — 선행 R&D 또는 productCount 조건 미충족.
       const lockBg = this.add.graphics();
@@ -1702,6 +1807,25 @@ export class ResultScene extends Phaser.Scene {
           })
           .setOrigin(0.5),
       );
+    } else if (otherInProgress) {
+      // 다른 R&D 연구 중 — 비활성.
+      const busyBg = this.add.graphics();
+      busyBg.fillStyle(COLOR.btnDisabled, 1);
+      busyBg.fillRoundedRect(btnX, btnY, btnW, btnH, 8);
+      layer.add(busyBg);
+      const progId = prog?.inProgress;
+      const progItem = progId ? RND_ITEMS.find((r) => r.id === progId) : null;
+      const progName = progItem ? progItem.name : '연구';
+      const progRemaining = prog?.weeksRemaining ?? 0;
+      layer.add(
+        this.add
+          .text(btnX + btnW / 2, btnY + btnH / 2, `⏳ ${progName} 연구 중 (${progRemaining}주 남음)`, {
+            fontFamily: FONT_STACK,
+            fontSize: '20px',
+            color: TEXT_COLOR.disabled,
+          })
+          .setOrigin(0.5),
+      );
     } else {
       // 구매 가능 또는 골드 부족.
       const canBuy = affordable;
@@ -1709,9 +1833,11 @@ export class ResultScene extends Phaser.Scene {
       buyBg.fillStyle(canBuy ? COLOR.btn : COLOR.btnDisabled, 1);
       buyBg.fillRoundedRect(btnX, btnY, btnW, btnH, 8);
       layer.add(buyBg);
+      const totalWeeks = RND_RESEARCH_WEEKS[item.id];
+      const buyLabel = canBuy ? `연구 시작 (−${item.cost}g · ${totalWeeks}주)` : `골드 부족 (필요 ${item.cost}g)`;
       layer.add(
         this.add
-          .text(btnX + btnW / 2, btnY + btnH / 2, canBuy ? `구매 (−${item.cost}g)` : `골드 부족 (필요 ${item.cost}g)`, {
+          .text(btnX + btnW / 2, btnY + btnH / 2, buyLabel, {
             fontFamily: FONT_STACK,
             fontSize: '21px',
             fontStyle: 'bold',
@@ -1725,7 +1851,7 @@ export class ResultScene extends Phaser.Scene {
           .setInteractive({ useHandCursor: true });
         layer.add(hit);
         hit.on('pointerup', () => {
-          // R&D 연구 구매 — buy alias 사용.
+          // R&D 연구 시작.
           playSfx(this, SFX.buy);
           onBuy();
         });
@@ -1737,9 +1863,17 @@ export class ResultScene extends Phaser.Scene {
     const item = RND_ITEMS.find((r) => r.id === id);
     if (!item) return;
     if (isRndPurchased(this.liveRnd, id)) return;
+    // 이미 다른 R&D 연구 중이면 시작 불가.
+    const prog = this.liveRnd.progress;
+    if (prog && prog.inProgress !== null) return;
     if (this.liveGold < item.cost) return;
     this.liveGold -= item.cost;
-    this.liveRnd = purchaseRnd(this.liveRnd, id);
+    // 즉시 구매 대신 연구 시작 — advanceWeek���서 매��� 카운트다운.
+    const weeks = RND_RESEARCH_WEEKS[id];
+    this.liveRnd = {
+      ...this.liveRnd,
+      progress: { inProgress: id, weeksRemaining: weeks },
+    };
     this.persistResult();
     this.refreshOfficePanel();
     this.refreshSaveFooter();
@@ -2526,6 +2660,68 @@ export class ResultScene extends Phaser.Scene {
       ease: 'Back.easeOut',
       onComplete: () => {
         // 4초 후 슬라이드 아웃.
+        this.time.delayedCall(4000, () => {
+          this.tweens.add({
+            targets: container,
+            x: offscreenX,
+            duration: 260,
+            ease: 'Cubic.easeIn',
+            onComplete: () => container.destroy(),
+          });
+        });
+      },
+    });
+  }
+
+  /** 경기 사이클 변화 토스트 — 새 사이클 시작 시 우상단에 표시. */
+  private showEconomyToast(): void {
+    const eco = this.outcome.economy;
+    const newPhase = getEconomyPhase(this.liveEconomy.index);
+    const newLabel = ECONOMY_PHASE_LABEL[newPhase];
+    const newRevMul = getEconomyRevenueMul(newPhase);
+    const mulStr = newRevMul > 1.001 ? `×${newRevMul.toFixed(1)}` : newRevMul < 0.999 ? `×${newRevMul.toFixed(1)}` : '×1.0';
+    const emoji = newPhase === 'boom' ? '📈' : newPhase === 'recession' ? '📉' : '📊';
+    const label = `${emoji} 경기 ${newLabel} 진입`;
+    const detail = `지표 ${eco.prevIndex}→${this.liveEconomy.index} · 매출 ${mulStr}`;
+
+    const toastW = 300;
+    const toastH = 72;
+    const toastX = this.contentX + 720 - toastW - 12;
+    const toastY = 130;
+    const offscreenX = this.contentX + 720 + toastW;
+
+    const container = this.add.container(offscreenX, toastY).setDepth(200);
+
+    const bg = this.add.graphics();
+    const bgColor = newPhase === 'boom' ? 0x1a3a1a : newPhase === 'recession' ? 0x3a1a1a : COLOR.panel;
+    bg.fillStyle(bgColor, 1);
+    bg.fillRoundedRect(0, 0, toastW, toastH, 12);
+    bg.lineStyle(1.5, COLOR.panelStroke, 1);
+    bg.strokeRoundedRect(0, 0, toastW, toastH, 12);
+    container.add(bg);
+
+    container.add(
+      this.add.text(12, 10, label, {
+        fontFamily: FONT_STACK,
+        fontSize: '22px',
+        fontStyle: 'bold',
+        color: newPhase === 'boom' ? TEXT_COLOR.ok : newPhase === 'recession' ? TEXT_COLOR.bad : TEXT_COLOR.primary,
+      }),
+    );
+    container.add(
+      this.add.text(12, 38, detail, {
+        fontFamily: FONT_STACK,
+        fontSize: '20px',
+        color: TEXT_COLOR.dim,
+      }),
+    );
+
+    this.tweens.add({
+      targets: container,
+      x: toastX,
+      duration: 320,
+      ease: 'Back.easeOut',
+      onComplete: () => {
         this.time.delayedCall(4000, () => {
           this.tweens.add({
             targets: container,
@@ -3406,6 +3602,186 @@ export class ResultScene extends Phaser.Scene {
     this.liveMails = this.liveMails.map((m) =>
       m.id === mail.id ? { ...m, read: true, choices: undefined } : m,
     );
+    this.persistResult();
+    this.refreshOfficePanel();
+    this.refreshSaveFooter();
+  }
+
+  // ────────────────────────── 임원 압박 체크 ──────────────────────────
+
+  /** 출시 후 exec pressure 수준에 따라 토스트 / 모달 표시. */
+  private checkExecPressure(): void {
+    const execState = this.outcome.state.exec;
+    const level = getExecPressure(execState);
+    const streak = execState?.poorPerformanceStreak ?? 0;
+    if (level === 'fatal') {
+      // CEO 교체 — 모달 표시 후 구조조정 / 폐업 선택.
+      this.time.delayedCall(1200, () => this.showExecFatalModal(streak));
+    } else if (level === 'warning') {
+      // 이사회 경고 — 토스트로 표시.
+      this.time.delayedCall(2000, () => this.showExecWarningToast(streak));
+    }
+  }
+
+  /** 이사회 경고 토스트 (yellow) — 4초 표시. */
+  private showExecWarningToast(streak: number): void {
+    const toastW = 500;
+    const toastH = 72;
+    const toastX = this.contentX + (720 - toastW) / 2;
+    const toastY = 140;
+
+    const container = this.add.container(toastX, toastY - 90).setDepth(220);
+
+    const bg = this.add.graphics();
+    bg.fillStyle(0x3a2a00, 0.97);
+    bg.fillRoundedRect(0, 0, toastW, toastH, 12);
+    bg.lineStyle(2, 0xcc9900, 1);
+    bg.strokeRoundedRect(0, 0, toastW, toastH, 12);
+    container.add(bg);
+    container.add(
+      this.add
+        .text(toastW / 2, toastH / 2, `⚠ 이사회 경고: 최근 ${streak}작품 부진`, {
+          fontFamily: FONT_STACK,
+          fontSize: '24px',
+          fontStyle: 'bold',
+          color: '#ffcc44',
+        })
+        .setOrigin(0.5),
+    );
+
+    this.tweens.add({
+      targets: container,
+      y: toastY,
+      duration: 300,
+      ease: 'Back.easeOut',
+      onComplete: () => {
+        this.time.delayedCall(4000, () => {
+          this.tweens.add({
+            targets: container, alpha: 0, y: toastY - 30, duration: 260,
+            ease: 'Cubic.easeIn', onComplete: () => container.destroy(),
+          });
+        });
+      },
+    });
+  }
+
+  /** CEO 교체 모달 — [구조조정 / 폐업] 선택. */
+  private showExecFatalModal(streak: number): void {
+    playSfx(this, SFX.warning, 0.9);
+    const layer = this.add.container(0, 0).setDepth(200);
+    const overlay = this.add
+      .rectangle(0, 0, 720, 1280, 0x000000, 0.85)
+      .setOrigin(0, 0)
+      .setInteractive();
+    layer.add(overlay);
+
+    const panelW = 640;
+    const panelH = 500;
+    const panelX = this.contentX + (720 - panelW) / 2;
+    const panelY = Math.max(0, (1280 - panelH) / 2);
+    const glowPanel = makePanel(this, panelX - 3, panelY - 3, panelW + 6, panelH + 6, 0x5a1010);
+    layer.add(glowPanel);
+    layer.add(makePanel(this, panelX, panelY, panelW, panelH, COLOR.panel));
+
+    const headerH = 52;
+    const headerBg = this.add.graphics();
+    headerBg.fillStyle(0xcc2222, 1);
+    headerBg.fillRoundedRect(panelX, panelY, panelW, headerH, 12);
+    layer.add(headerBg);
+    layer.add(
+      this.add
+        .text(panelX + panelW / 2, panelY + headerH / 2, '👔 CEO 교체', {
+          fontFamily: FONT_STACK, fontSize: '30px', fontStyle: 'bold', color: '#ffffff',
+        })
+        .setOrigin(0.5),
+    );
+
+    layer.add(
+      this.add.text(panelX + 30, panelY + 68,
+        `이사회 결의: ${streak}작품 연속 부진으로 CEO 자리에서 물러나게 됩니다.\n\n어떻게 하시겠습니까?`, {
+          fontFamily: FONT_STACK,
+          fontSize: '26px',
+          color: TEXT_COLOR.dim,
+          wordWrap: { width: panelW - 60, useAdvancedWrap: true },
+          lineSpacing: 4,
+        }),
+    );
+
+    const btnW = panelW - 60;
+    const btn1Y = panelY + 210;
+    const btn2Y = btn1Y + 104;
+
+    // 구조조정 버튼
+    const btn1Bg = this.add.graphics();
+    const drawBtn1 = (p: boolean): void => {
+      btn1Bg.clear();
+      btn1Bg.fillStyle(p ? 0x3a4020 : 0x2a3010, 1);
+      btn1Bg.fillRoundedRect(panelX + 30, btn1Y, btnW, 84, 12);
+    };
+    drawBtn1(false);
+    layer.add(btn1Bg);
+    layer.add(this.add.text(panelX + 48, btn1Y + 14, '구조조정', {
+      fontFamily: FONT_STACK, fontSize: '27px', fontStyle: 'bold', color: TEXT_COLOR.primary,
+    }));
+    layer.add(this.add.text(panelX + 48, btn1Y + 46, '직원 절반 해고, 골드 +500. 경영권 유지.', {
+      fontFamily: FONT_STACK, fontSize: '21px', color: TEXT_COLOR.dim,
+    }));
+    const hit1 = this.add
+      .zone(panelX + 30 + btnW / 2, btn1Y + 42, btnW, 84)
+      .setInteractive({ useHandCursor: true });
+    hit1.on('pointerdown', () => drawBtn1(true));
+    hit1.on('pointerout', () => drawBtn1(false));
+    hit1.on('pointerup', () => {
+      drawBtn1(false);
+      layer.destroy();
+      this.applyExecRestructuring();
+    });
+    layer.add(hit1);
+
+    // 폐업 버튼
+    const btn2Bg = this.add.graphics();
+    const drawBtn2 = (p: boolean): void => {
+      btn2Bg.clear();
+      btn2Bg.fillStyle(p ? 0x5a1010 : 0x3a1515, 1);
+      btn2Bg.fillRoundedRect(panelX + 30, btn2Y, btnW, 84, 12);
+    };
+    drawBtn2(false);
+    layer.add(btn2Bg);
+    layer.add(this.add.text(panelX + 48, btn2Y + 14, '폐업', {
+      fontFamily: FONT_STACK, fontSize: '27px', fontStyle: 'bold', color: TEXT_COLOR.primary,
+    }));
+    layer.add(this.add.text(panelX + 48, btn2Y + 46, '게임 데이터 초기화 후 시작 화면으로', {
+      fontFamily: FONT_STACK, fontSize: '21px', color: TEXT_COLOR.dim,
+    }));
+    const hit2 = this.add
+      .zone(panelX + 30 + btnW / 2, btn2Y + 42, btnW, 84)
+      .setInteractive({ useHandCursor: true });
+    hit2.on('pointerdown', () => drawBtn2(true));
+    hit2.on('pointerout', () => drawBtn2(false));
+    hit2.on('pointerup', () => {
+      drawBtn2(false);
+      clearData();
+      this.scene.start(SCENE_KEYS.Boot);
+    });
+    layer.add(hit2);
+
+    applyHiDPI(this);
+    layer.setAlpha(0);
+    this.tweens.add({ targets: layer, alpha: 1, duration: 180, ease: 'Cubic.easeOut' });
+  }
+
+  /** CEO 교체 후 구조조정 적용 — 직원 절반 해고, 골드 +500. */
+  private applyExecRestructuring(): void {
+    playSfx(this, SFX.tap);
+    const emps = [...this.liveEmployees];
+    const keepCount = Math.ceil(emps.length / 2);
+    const shuffled = emps.sort(() => Math.random() - 0.5);
+    const kept = shuffled.slice(0, keepCount);
+    this.liveEmployees = kept;
+    this.hiredEmployees = this.hiredEmployees.filter((e) =>
+      kept.some((k) => k.id === e.id),
+    );
+    this.liveGold += 500;
     this.persistResult();
     this.refreshOfficePanel();
     this.refreshSaveFooter();

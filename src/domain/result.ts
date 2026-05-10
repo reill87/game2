@@ -9,6 +9,16 @@ import { isFacilityBuilt } from './facilities';
 import { computeMarketRevenueMul } from './markets';
 import { release } from './tick';
 import { NO_PRESTIGE } from './prestige';
+import { tickExec } from './exec';
+import {
+  getEconomyPhase,
+  getEconomyRevenueMul,
+  tickEconomy,
+  ECONOMY_PHASE_LABEL,
+  EMPTY_ECONOMY,
+} from './economy';
+import { computeMarketShareEffect, tickRivalReleases } from './rivals';
+import type { RivalRelease } from './rivals';
 import type { Employee, GameState, PromoTier, Rank } from './types';
 
 function clamp(n: number, lo: number, hi: number): number {
@@ -76,6 +86,25 @@ export interface ReleaseOutcome {
     readonly name: string;
     readonly multiplier: number;
   } | null;
+  /** 경기 사이클 — UI 표시용. */
+  readonly economy: {
+    readonly phase: string;
+    readonly index: number;
+    readonly revenueMul: number;
+    /** 이번 출시 후 새 사이클 시작 여부 (index 변경됨). */
+    readonly cycleChanged: boolean;
+    /** 이전 경기 지표 (cycleChanged=true일 때만 의미 있음). */
+    readonly prevIndex: number;
+  };
+  /** 시장 경쟁 — 같은 분기 라이벌과의 매출 점유율 효과. */
+  readonly marketShare: {
+    /** 우리 매출에 곱한 배수. */
+    readonly revenueMul: number;
+    /** 우리보다 잘한 라이벌 수 — 명성 -5씩. */
+    readonly betterRivalCount: number;
+    /** 매치된 라이벌 출시 목록. */
+    readonly matchedReleases: ReadonlyArray<RivalRelease>;
+  };
   /** released=true, gold = (prev.gold − promo.cost) + revenue. reputation도 누적. */
   readonly state: GameState;
 }
@@ -166,11 +195,32 @@ export function shipProject(
       ? 1.15
       : 1.0;
   const satelliteMul = isRndPurchased(prev.rnd, 'satellite-network') ? 1.3 : 1.0;
-  const revenue = Math.round(baseCalculated * (globalRevMul > 1.0 ? globalRevMul : 1.0) * satelliteMul);
+  // 경기 사이클 — 현재 경기 단계에 따른 매출 보정.
+  const ecoPhase = getEconomyPhase(prev.economy?.index ?? EMPTY_ECONOMY.index);
+  const ecoRevMul = getEconomyRevenueMul(ecoPhase);
+  const preRivalRevenue = Math.round(baseCalculated * (globalRevMul > 1.0 ? globalRevMul : 1.0) * satelliteMul * ecoRevMul);
+  // 경쟁사 시장 점유율 — 같은 분기 같은 장르·테마 경쟁 시 매출 감소.
+  const ms = computeMarketShareEffect(
+    prev.project.genre,
+    prev.project.theme,
+    stars,
+    prev.productIndex,
+    prev.rivals,
+  );
+  const revenue = Math.round(preRivalRevenue * ms.revenueMul);
+  // 경기 tickEconomy — 출시마다 카운터 +1, 주기 도달 시 새 index 추첨.
+  const prevEconomy = prev.economy ?? EMPTY_ECONOMY;
+  const newEconomy = tickEconomy(prevEconomy);
+  const economyCycleChanged = newEconomy.cyclesElapsed === 0 && newEconomy.index !== prevEconomy.index;
   // 시설: 회사 e스포츠팀 — 출시 시 명성 +1.
   const esportsBonus = isFacilityBuilt(prev.facilities, 'esports-team') ? 1 : 0;
-  const reputationGain = stars * REPUTATION.perStarOnRelease + esportsBonus;
+  const baseReputationGain = stars * REPUTATION.perStarOnRelease + esportsBonus;
+  // 경쟁사 명성 영향 — 우리보다 잘한 라이벌 1개당 명성 −5.
+  const betterRivalRepDrop = ms.betterRivalCount * 5;
+  const reputationGain = Math.max(0, baseReputationGain - betterRivalRepDrop);
   const newReputation = prev.reputation + reputationGain;
+  // 라이벌 새 출시 (우리 출시 직후).
+  const newRivals = tickRivalReleases(prev.rivals, prev.productIndex);
   // 트렌드 카운트다운 — 출시 후 −1, 0이면 null로 만료 (Boot에서 새 트렌드 결정).
   const nextTrend = prev.trend
     ? prev.trend.remainingProjects > 1
@@ -198,12 +248,17 @@ export function shipProject(
     return { ...e, skill: newSkill, shippedProjects: newShipped, rank: newRank };
   });
 
+  // 임원 압박 갱신 — 명성 획득 기반 streak.
+  const nextExec = tickExec(prev.exec, reputationGain);
   const released = release({
     ...prev,
     gold: goldAfterPromo,
     employees: boostedEmployees,
     reputation: newReputation,
     trend: nextTrend,
+    exec: nextExec,
+    economy: newEconomy,
+    rivals: newRivals,
   });
   const state: GameState = { ...released, gold: released.gold + revenue };
 
@@ -233,6 +288,19 @@ export function shipProject(
     trend: trendDef
       ? { id: trendDef.id, name: trendDef.name, multiplier: rawTrendMul }
       : null,
+    economy: {
+      phase: ECONOMY_PHASE_LABEL[ecoPhase],
+      index: prevEconomy.index,
+      revenueMul: ecoRevMul,
+      cycleChanged: economyCycleChanged,
+      prevIndex: prevEconomy.index,
+    },
+    marketShare: {
+      revenueMul: ms.revenueMul,
+      betterRivalCount: ms.betterRivalCount,
+      matchedReleases: ms.matchedReleases,
+    },
     state,
   };
 }
+

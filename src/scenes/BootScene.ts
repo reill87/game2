@@ -6,6 +6,8 @@ import { EMPTY_MARKETS, type MarketState } from '@/domain/markets';
 import { EMPTY_ACQUISITIONS, type AcquisitionState } from '@/domain/acquisitions';
 import { computePrestigeBonus } from '@/domain/prestige';
 import type { CompanyPolicy, Employee, TrendStatus } from '@/domain/types';
+import type { BankruptcyState } from '@/domain/bankruptcy';
+import type { ExecState } from '@/domain/exec';
 import { preloadAvatars } from '@/avatars';
 import { BGM } from '@/bgm';
 import { preloadEventCategories } from '@/eventCategoryAssets';
@@ -133,6 +135,11 @@ export class BootScene extends Phaser.Scene {
       return;
     }
 
+    const history = saved?.history ?? [];
+    const bankruptcy: BankruptcyState | undefined = saved?.bankruptcy;
+    const exec: ExecState | undefined = saved?.exec;
+    const economy = saved?.economy;
+    const rivals = saved?.rivals;
     this.scene.start(SCENE_KEYS.GenreSelect, {
       productIndex,
       gold,
@@ -145,9 +152,14 @@ export class BootScene extends Phaser.Scene {
       rnd,
       facilities,
       markets,
+      history,
       lastAssignment: filteredAssignment,
       ...(hasFilteredSupport ? { lastSupport: filteredSupport } : {}),
       ...(prestigeCount > 0 ? { prestigeBonus } : {}),
+      ...(bankruptcy ? { bankruptcy } : {}),
+      ...(exec ? { exec } : {}),
+      ...(economy ? { economy } : {}),
+      ...(rivals ? { rivals } : {}),
     });
   }
 

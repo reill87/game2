@@ -262,8 +262,50 @@ export const RND_ITEMS: ReadonlyArray<RndItem> = [
   },
 ];
 
+/** R&D 연구 진행 상태. */
+export interface RndProgress {
+  /** 현재 연구 중인 R&D id. null이면 idle. */
+  readonly inProgress: RndId | null;
+  /** 남은 주차. 0 도달 시 inProgress를 purchased에 추가, inProgress=null. */
+  readonly weeksRemaining: number;
+}
+
+/** R&D별 연구 소요 주차. tier별로 차등. */
+export const RND_RESEARCH_WEEKS: Readonly<Record<RndId, number>> = {
+  // T1: 2주
+  'test-automation': 2,
+  'ci-cd': 2,
+  'design-system': 2,
+  'process-standard': 2,
+  'employer-branding': 2,
+  'finance-automation': 2,
+  'data-driven': 2,
+  'global-expansion': 2,
+  // T2: 4주
+  'ai-pair-programming': 4,
+  'auto-design-tools': 4,
+  'continuous-integration': 4,
+  'analytics-platform': 4,
+  'i18n-platform': 4,
+  'security-program': 4,
+  'cloud-migration': 4,
+  'remote-collaboration': 4,
+  // T3: 6주
+  'self-cloud-infra': 6,
+  'global-hr-network': 6,
+  'autonomous-deploy': 6,
+  'ai-pm-assistant': 6,
+  // T4: 10주
+  'quantum-deploy': 10,
+  'satellite-network': 10,
+  'neural-architecture': 10,
+  'company-os': 10,
+};
+
 export interface RndState {
   readonly purchased: ReadonlyArray<RndId>;
+  /** 진행 중인 연구. 옛 데이터 호환을 위해 옵셔널. */
+  readonly progress?: RndProgress;
 }
 
 export const EMPTY_RND: RndState = { purchased: [] };
