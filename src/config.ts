@@ -29,6 +29,11 @@ export const gameConfig: Phaser.Types.Core.GameConfig = {
     antialias: true,
     roundPixels: false,
   },
+  // Phaser DOM element 지원 — scene.add.dom() 사용 시 필수.
+  // BootScene 회사명 입력 모달이 HTML <input>을 띄움.
+  dom: {
+    createContainer: true,
+  },
   plugins: {
     scene: [
       {
