@@ -1593,6 +1593,33 @@ export class ResultScene extends Phaser.Scene {
         color: TEXT_COLOR.warn,
       }),
     );
+
+    // 헤더 우측 상단 X 닫기 — 카드가 viewport 넘어 하단 닫기 버튼 안 보일 때 폴백.
+    const xSize = 36;
+    const xX = panelX + panelW - xSize - 12;
+    const xY = panelY + 12;
+    const xBg = this.add.graphics();
+    xBg.fillStyle(COLOR.btnSecondary, 1);
+    xBg.fillRoundedRect(xX, xY, xSize, xSize, 8);
+    layer.add(xBg);
+    layer.add(
+      this.add
+        .text(xX + xSize / 2, xY + xSize / 2, '✕', {
+          fontFamily: FONT_STACK,
+          fontSize: '22px',
+          fontStyle: 'bold',
+          color: TEXT_COLOR.primary,
+        })
+        .setOrigin(0.5),
+    );
+    const xHit = this.add
+      .zone(xX + xSize / 2, xY + xSize / 2, xSize, xSize)
+      .setInteractive({ useHandCursor: true });
+    layer.add(xHit);
+    xHit.on('pointerup', () => {
+      playSfx(this, SFX.tap);
+      layer.destroy();
+    });
     layer.add(
       this.add.text(panelX + 24, panelY + 40, '영구 업그레이드 — 한 번 구매하면 모든 프로젝트에 적용', {
         fontFamily: FONT_STACK,
