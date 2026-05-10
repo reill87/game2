@@ -64,6 +64,29 @@ export class StatsScene extends Phaser.Scene {
 
   // ──────���─────────────────── header ──��───────────────────────
   private buildHeader(count: number, companyName: string, prestigeCount: number): void {
+    // 우측 상단 X 닫기 — 하단 닫기 버튼이 viewport 밖일 때 폴백.
+    const xSize = 44;
+    const xX = this.contentX + 720 - xSize - 16;
+    const xY = 24;
+    const xBg = this.add.graphics();
+    xBg.fillStyle(COLOR.btnSecondary, 1);
+    xBg.fillRoundedRect(xX, xY, xSize, xSize, 10);
+    this.add
+      .text(xX + xSize / 2, xY + xSize / 2, '✕', {
+        fontFamily: FONT_STACK,
+        fontSize: '26px',
+        fontStyle: 'bold',
+        color: TEXT_COLOR.primary,
+      })
+      .setOrigin(0.5);
+    const xHit = this.add
+      .zone(xX + xSize / 2, xY + xSize / 2, xSize, xSize)
+      .setInteractive({ useHandCursor: true });
+    xHit.on('pointerup', () => {
+      playSfx(this, SFX.tap);
+      this.scene.start(this.returnTo);
+    });
+
     this.add
       .text(this.cx, 60, `${companyName} 누적 통계`, {
         fontFamily: FONT_STACK,

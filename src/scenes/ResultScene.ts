@@ -980,8 +980,8 @@ export class ResultScene extends Phaser.Scene {
       const cost = BALANCE.officeUpgradeCostBy[4];
       canUpgrade = this.liveGold >= cost;
       upgradeBtnLabel = canUpgrade
-        ? `서울 캠퍼스로 (-${cost}g)`
-        : `서울 캠퍼스 (${this.liveGold}/${cost}g)`;
+        ? `성수 글로벌 캠퍼스로 (-${cost}g)`
+        : `성수 글로벌 캠퍼스 (${this.liveGold}/${cost}g)`;
     } else {
       canUpgrade = false;
       upgradeBtnLabel = '사옥 최대 단계 ✓';
@@ -1556,6 +1556,40 @@ export class ResultScene extends Phaser.Scene {
   /** R&D 모달 — 현재 활성 tier(reopens마다 리셋). */
   private rndActiveTier: 1 | 2 | 3 | 4 = 1;
 
+  /** 모달 헤더 우측 상단 X 닫기 — 카드가 viewport 넘어 하단 닫기 안 보일 때 폴백. */
+  private addModalCloseX(
+    layer: Phaser.GameObjects.Container,
+    panelX: number,
+    panelY: number,
+    panelW: number,
+  ): void {
+    const xSize = 36;
+    const xX = panelX + panelW - xSize - 12;
+    const xY = panelY + 12;
+    const xBg = this.add.graphics();
+    xBg.fillStyle(COLOR.btnSecondary, 1);
+    xBg.fillRoundedRect(xX, xY, xSize, xSize, 8);
+    layer.add(xBg);
+    layer.add(
+      this.add
+        .text(xX + xSize / 2, xY + xSize / 2, '✕', {
+          fontFamily: FONT_STACK,
+          fontSize: '22px',
+          fontStyle: 'bold',
+          color: TEXT_COLOR.primary,
+        })
+        .setOrigin(0.5),
+    );
+    const xHit = this.add
+      .zone(xX + xSize / 2, xY + xSize / 2, xSize, xSize)
+      .setInteractive({ useHandCursor: true });
+    layer.add(xHit);
+    xHit.on('pointerup', () => {
+      playSfx(this, SFX.tap);
+      layer.destroy();
+    });
+  }
+
   private openRndModal(): void {
     this.rndActiveTier = 1;
     this.renderRndModal();
@@ -1603,32 +1637,7 @@ export class ResultScene extends Phaser.Scene {
       }),
     );
 
-    // 헤더 우측 상단 X 닫기 — 카드가 viewport 넘어 하단 닫기 버튼 안 보일 때 폴백.
-    const xSize = 36;
-    const xX = panelX + panelW - xSize - 12;
-    const xY = panelY + 12;
-    const xBg = this.add.graphics();
-    xBg.fillStyle(COLOR.btnSecondary, 1);
-    xBg.fillRoundedRect(xX, xY, xSize, xSize, 8);
-    layer.add(xBg);
-    layer.add(
-      this.add
-        .text(xX + xSize / 2, xY + xSize / 2, '✕', {
-          fontFamily: FONT_STACK,
-          fontSize: '22px',
-          fontStyle: 'bold',
-          color: TEXT_COLOR.primary,
-        })
-        .setOrigin(0.5),
-    );
-    const xHit = this.add
-      .zone(xX + xSize / 2, xY + xSize / 2, xSize, xSize)
-      .setInteractive({ useHandCursor: true });
-    layer.add(xHit);
-    xHit.on('pointerup', () => {
-      playSfx(this, SFX.tap);
-      layer.destroy();
-    });
+    this.addModalCloseX(layer, panelX, panelY, panelW);
     layer.add(
       this.add.text(panelX + 24, panelY + 40, '영구 업그레이드 — 한 번 구매하면 모든 프로젝트에 적용', {
         fontFamily: FONT_STACK,
@@ -1954,6 +1963,7 @@ export class ResultScene extends Phaser.Scene {
 
     const panel = makePanel(this, panelX, panelY, panelW, panelH, COLOR.panel);
     layer.add(panel);
+    this.addModalCloseX(layer, panelX, panelY, panelW);
 
     // 헤더.
     layer.add(
@@ -2184,6 +2194,7 @@ export class ResultScene extends Phaser.Scene {
     const panelY = Math.max(20, (1280 - panelH) / 2);
     const panel = makePanel(this, panelX, panelY, panelW, panelH, COLOR.panel);
     layer.add(panel);
+    this.addModalCloseX(layer, panelX, panelY, panelW);
 
     // 헤더.
     layer.add(
@@ -2829,6 +2840,7 @@ export class ResultScene extends Phaser.Scene {
     const panelY = Math.max(20, (1280 - panelH) / 2);
     const panel = makePanel(this, panelX, panelY, panelW, panelH, COLOR.panel);
     layer.add(panel);
+    this.addModalCloseX(layer, panelX, panelY, panelW);
 
     // 헤더.
     layer.add(
@@ -3042,6 +3054,7 @@ export class ResultScene extends Phaser.Scene {
     const panelY = Math.max(20, (1280 - panelH) / 2);
     const panel = makePanel(this, panelX, panelY, panelW, panelH, COLOR.panel);
     layer.add(panel);
+    this.addModalCloseX(layer, panelX, panelY, panelW);
 
     // 헤더.
     layer.add(
@@ -3336,6 +3349,7 @@ export class ResultScene extends Phaser.Scene {
     const panelH = Math.min(1160, headerH + listH + footerH + 16);
     const panel = makePanel(this, panelX, panelY, panelW, panelH, COLOR.panel);
     layer.add(panel);
+    this.addModalCloseX(layer, panelX, panelY, panelW);
 
     // 헤더.
     const unreadCount = this.liveMails.filter((m) => !m.read).length;
@@ -3513,6 +3527,7 @@ export class ResultScene extends Phaser.Scene {
     const panelY = Math.max(40, (1280 - panelH) / 2);
     const panel = makePanel(this, panelX, panelY, panelW, panelH, COLOR.panel);
     layer.add(panel);
+    this.addModalCloseX(layer, panelX, panelY, panelW);
 
     // 발신자 정보.
     layer.add(

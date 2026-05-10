@@ -508,7 +508,7 @@ export const OFFICE_STAGE_LABEL: Readonly<Record<1 | 2 | 3 | 4, string>> = {
   1: '분당 셰어오피스',
   2: '판교 임대 사무실',
   3: '강남 자가 사옥',
-  4: '서울 캠퍼스',
+  4: '성수 글로벌 캠퍼스',
 };
 
 /**
