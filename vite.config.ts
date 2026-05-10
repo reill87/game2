@@ -24,10 +24,10 @@ export default defineConfig({
     },
     rollupOptions: {
       output: {
-        // phaser와 rex-ui를 별도 chunk로 분리해 메인 bundle 크기 감소.
+        // phaser + rex-ui를 한 vendor chunk로 묶음. 분리하면 rex가 Phaser 글로벌 못 찾음.
+        // 메인 앱 코드만 별도 chunk로 분리해 캐시 활용.
         manualChunks: {
-          phaser: ['phaser'],
-          'rex-ui': ['phaser3-rex-plugins/templates/ui/ui-plugin.js'],
+          vendor: ['phaser', 'phaser3-rex-plugins/templates/ui/ui-plugin.js'],
         },
       },
     },
