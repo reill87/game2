@@ -189,6 +189,13 @@ export class ResultScene extends Phaser.Scene {
     this.hiredEmployees = existing?.hiredEmployees ? [...existing.hiredEmployees] : [];
     this.livePolicy = existing?.policy ?? DEFAULT_POLICY;
     this.liveRnd = existing?.rnd ?? EMPTY_RND;
+    // stale rnd progress 정리 — 옛 id 또는 weeksRemaining=0인 inProgress 제거.
+    {
+      const p = this.liveRnd.progress;
+      if (p && (!p.inProgress || p.weeksRemaining <= 0 || !RND_ITEMS.some((r) => r.id === p.inProgress))) {
+        this.liveRnd = { ...this.liveRnd, progress: { inProgress: null, weeksRemaining: 0 } };
+      }
+    }
     // economy: outcome.state가 shipProject에서 tickEconomy 적용된 최신 값.
     this.liveEconomy = data.outcome.state.economy ?? EMPTY_ECONOMY;
     this.liveFacilities = existing?.facilities ?? EMPTY_FACILITIES;
@@ -1721,9 +1728,16 @@ export class ResultScene extends Phaser.Scene {
     const available = isRndAvailable(this.liveRnd, item, productCount);
     const affordable = this.liveGold >= item.cost;
     // 연구 진행 상태 확인.
-    const prog = this.liveRnd.progress;
+    // stale progress 방어: weeksRemaining<=0이거나 inProgress가 RND_ITEMS에 없으면 무효.
+    const rawProg = this.liveRnd.progress;
+    const validProg =
+      rawProg && rawProg.inProgress && rawProg.weeksRemaining > 0 &&
+      RND_ITEMS.some((r) => r.id === rawProg.inProgress)
+        ? rawProg
+        : undefined;
+    const prog = validProg;
     const isThisInProgress = prog?.inProgress === item.id;
-    const otherInProgress = prog?.inProgress !== null && prog?.inProgress !== item.id;
+    const otherInProgress = !!prog && prog.inProgress !== item.id;
 
     layer.add(makePanel(this, x, y, w, h, COLOR.panelEmpty, false));
 
