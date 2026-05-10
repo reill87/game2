@@ -2,6 +2,7 @@
  * 회사 시설 시스템 — 한 번 짓고 영구 효과.
  * 시설 ID는 화이트리스트로 관리하며 save.ts sanitize 시 사용한다.
  */
+import type { OfficeLevel } from './types';
 
 export type FacilityId =
   | 'gym'
@@ -128,7 +129,7 @@ export function isFacilityBuilt(fs: FacilityState | undefined, id: FacilityId): 
 export function isFacilityAvailable(
   fs: FacilityState | undefined,
   item: Facility,
-  officeLevel: 1 | 2 | 3 | 4,
+  officeLevel: OfficeLevel,
 ): boolean {
   if (item.minOfficeLevel !== undefined && officeLevel < item.minOfficeLevel) return false;
   if (item.requires) {

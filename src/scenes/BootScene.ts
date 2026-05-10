@@ -5,7 +5,7 @@ import { EMPTY_FACILITIES, type FacilityState } from '@/domain/facilities';
 import { EMPTY_MARKETS, type MarketState } from '@/domain/markets';
 import { EMPTY_ACQUISITIONS, type AcquisitionState } from '@/domain/acquisitions';
 import { computePrestigeBonus } from '@/domain/prestige';
-import type { CompanyPolicy, Employee, TrendStatus } from '@/domain/types';
+import type { CompanyPolicy, Employee, OfficeLevel, TrendStatus } from '@/domain/types';
 import type { BankruptcyState } from '@/domain/bankruptcy';
 import type { ExecState } from '@/domain/exec';
 import { preloadAvatars } from '@/avatars';
@@ -59,7 +59,7 @@ export class BootScene extends Phaser.Scene {
     const saved = loadData();
     const productIndex = saved?.productCount ?? 0;
     const gold = saved?.gold ?? 0;
-    const officeLevel: 1 | 2 | 3 | 4 = saved?.officeLevel ?? 1;
+    const officeLevel: OfficeLevel = saved?.officeLevel ?? 1;
     const reputation = saved?.reputation ?? 0;
     const policy: CompanyPolicy = saved?.policy ?? DEFAULT_POLICY;
     // 트렌드 — saved 값이 없거나 만료(null)면 새로 결정.

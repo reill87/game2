@@ -7,6 +7,7 @@ import type {
   GameState,
   GenreId,
   Job,
+  OfficeLevel,
   Rank,
   SlotKind,
   Stance,
@@ -504,48 +505,53 @@ export const THEME_LABEL: Readonly<Record<ThemeId, { name: string; desc: string 
 };
 
 /** 사무실 단계별 표시 라벨. 도메인이 직접 단계 수를 다루진 않지만 UI 일관성 확보용. */
-export const OFFICE_STAGE_LABEL: Readonly<Record<1 | 2 | 3 | 4, string>> = {
+export const OFFICE_STAGE_LABEL: Readonly<Record<OfficeLevel, string>> = {
   1: '분당 셰어오피스',
   2: '판교 임대 사무실',
   3: '강남 자가 사옥',
   4: '성수 글로벌 캠퍼스',
+  5: '판교 R&D 메가 캠퍼스',
+  6: '글로벌 본사 타워',
 };
 
 /**
  * 사옥 단계별 support 슬롯 활성 여부.
- *  - 1단계(분당): support 없음 (총 4명 배치 가능)
- *  - 2단계(판교): programming + graphics support 활성 (총 6명)
- *  - 3단계(강남): 기존 4 슬롯 support 활성 (총 8명)
- *  - 4단계(성수 글로벌 캠퍼스): 모든 슬롯 support 활성 (총 8명 배치, 고용 상한 16명)
+ *  - 1단계: support 없음
+ *  - 2단계: programming + graphics support 활성
+ *  - 3단계: 기존 4 슬롯 support 활성
+ *  - 4~6단계: 모든 슬롯 support 활성 (고용 상한만 단계별 증가)
  */
-export const SUPPORT_SLOTS_BY_OFFICE: Readonly<Record<1 | 2 | 3 | 4, ReadonlySet<SlotKind>>> = {
+export const SUPPORT_SLOTS_BY_OFFICE: Readonly<Record<OfficeLevel, ReadonlySet<SlotKind>>> = {
   1: new Set<SlotKind>(),
   2: new Set<SlotKind>(['programming', 'graphics']),
   3: new Set<SlotKind>(['planning', 'graphics', 'qa', 'programming']),
   4: new Set<SlotKind>(['planning', 'graphics', 'qa', 'programming', 'marketing', 'data']),
+  5: new Set<SlotKind>(['planning', 'graphics', 'qa', 'programming', 'marketing', 'data']),
+  6: new Set<SlotKind>(['planning', 'graphics', 'qa', 'programming', 'marketing', 'data']),
 };
 
 /** 해당 사옥 단계에서 슬롯의 support 배치가 가능한지 여부. */
-export function isSupportSlotActive(officeLevel: 1 | 2 | 3 | 4, slot: SlotKind): boolean {
+export function isSupportSlotActive(officeLevel: OfficeLevel, slot: SlotKind): boolean {
   return SUPPORT_SLOTS_BY_OFFICE[officeLevel].has(slot);
 }
 
 /**
  * 사옥 단계별 활성 primary 슬롯 목록.
- *  - 1단계: 기본 4 슬롯 (planning/graphics/qa/programming)
- *  - 2단계: + marketing (총 5)
- *  - 3단계: + data (총 6)
- *  - 4단계: 6 슬롯 모두 (총 6)
+ *  - 1단계: 기본 4 슬롯
+ *  - 2단계: + marketing (5)
+ *  - 3~6단계: 6 슬롯 모두 (단계별 차이는 정원/시설 보너스로 표현)
  */
-export const ACTIVE_SLOTS_BY_OFFICE: Readonly<Record<1 | 2 | 3 | 4, ReadonlyArray<SlotKind>>> = {
+export const ACTIVE_SLOTS_BY_OFFICE: Readonly<Record<OfficeLevel, ReadonlyArray<SlotKind>>> = {
   1: ['planning', 'graphics', 'qa', 'programming'],
   2: ['planning', 'graphics', 'qa', 'programming', 'marketing'],
   3: ['planning', 'graphics', 'qa', 'programming', 'marketing', 'data'],
   4: ['planning', 'graphics', 'qa', 'programming', 'marketing', 'data'],
+  5: ['planning', 'graphics', 'qa', 'programming', 'marketing', 'data'],
+  6: ['planning', 'graphics', 'qa', 'programming', 'marketing', 'data'],
 };
 
 /** 해당 사옥 단계에서 슬롯이 활성(primary 배치 가능)인지 여부. */
-export function isSlotActive(officeLevel: 1 | 2 | 3 | 4, slot: SlotKind): boolean {
+export function isSlotActive(officeLevel: OfficeLevel, slot: SlotKind): boolean {
   return (ACTIVE_SLOTS_BY_OFFICE[officeLevel] as ReadonlyArray<string>).includes(slot);
 }
 
@@ -556,7 +562,7 @@ export function newProject(opts: {
   theme: ThemeId;
   gold: number;
   employees: ReadonlyArray<Employee>;
-  officeLevel?: 1 | 2 | 3 | 4;
+  officeLevel?: OfficeLevel;
   reputation?: number;
   appealEnabled?: boolean;
   policy?: CompanyPolicy;

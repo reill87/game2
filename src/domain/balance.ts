@@ -2,7 +2,7 @@
  * 밸런스 v0.1 상수. 모든 수치는 docs/BALANCE.md의 표와 1:1 대응.
  * 변경 시 문서도 함께 갱신할 것.
  */
-import type { DressCode, GenreId, PromoTier, Rank, ThemeId, TrendId } from './types';
+import type { DressCode, GenreId, OfficeLevel, PromoTier, Rank, ThemeId, TrendId } from './types';
 
 export const BALANCE = {
   /** 정배치 직원 1명이 1주에 내는 진행도(%) — (밸런스 v2) 3.5 → 2.5 (~30% 느려짐). */
@@ -49,11 +49,13 @@ export const BALANCE = {
   /** 사무실 1→2 업그레이드 비용 (골드). @deprecated officeUpgradeCostBy 사용 권장. */
   officeUpgradeCost: 300,
   /** 다음 단계 업그레이드 비용 — 키는 업그레이드 후 도달 단계.
-   * v3 밸런스: L4를 후반 핵심 목표로 — 30K로 상향 (이전 4K → 너무 빨리 달성). */
-  officeUpgradeCostBy: { 2: 500, 3: 3000, 4: 30000 } as Record<2 | 3 | 4, number>,
-  /** 사무실 단계별 고용 상한.
-   * v3 밸런스: L4를 '글로벌 캠퍼스'에 어울리게 16명까지 확장 (이전 10). */
-  officeHireCap: { 1: 3, 2: 5, 3: 8, 4: 16 } as Record<1 | 2 | 3 | 4, number>,
+   * v3 밸런스: 6단계까지 확장. L4부터 후반 핵심 목표.
+   * - L4 성수 글로벌 캠퍼스: 15K
+   * - L5 판교 R&D 메가 캠퍼스: 60K
+   * - L6 글로벌 본사 타워: 200K (엔딩 globalNo1과 동급) */
+  officeUpgradeCostBy: { 2: 500, 3: 3000, 4: 15000, 5: 60000, 6: 200000 } as Record<2 | 3 | 4 | 5 | 6, number>,
+  /** 사무실 단계별 고용 상한. */
+  officeHireCap: { 1: 3, 2: 5, 3: 8, 4: 12, 5: 18, 6: 24 } as Record<OfficeLevel, number>,
 } as const;
 
 /**
@@ -79,7 +81,9 @@ export const BURN = {
     2: 10,
     3: 24,
     4: 60,
-  } as Record<1 | 2 | 3 | 4, number>,
+    5: 140,
+    6: 320,
+  } as Record<OfficeLevel, number>,
 } as const;
 
 /**
@@ -127,11 +131,13 @@ export const SIDE_PROJECT = {
  * - 복장: skillMul과 morale 매주 가산.
  * - 복지(perks): 영구 구매, 매주 작은 morale/stamina 보너스 누적.
  */
-export const COMMUTE_DRAIN_BY_OFFICE: Readonly<Record<1 | 2 | 3 | 4, number>> = {
+export const COMMUTE_DRAIN_BY_OFFICE: Readonly<Record<OfficeLevel, number>> = {
   1: 2,
   2: 4,
   3: 6,
   4: 10,
+  5: 12,
+  6: 14,
 };
 
 export const REMOTE = {

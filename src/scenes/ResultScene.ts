@@ -69,7 +69,7 @@ import {
   type EmployeeEquipment,
   type EquipmentSlot,
 } from '@/domain/equipment';
-import type { CompanyPolicy, Employee, Track } from '@/domain/types';
+import type { CompanyPolicy, Employee, OfficeLevel, Track } from '@/domain/types';
 import { ICONS } from '@/icons';
 import { BGM } from '@/bgm';
 import { OFFICE_ILLUSTRATION } from '@/illustrations';
@@ -107,7 +107,7 @@ export class ResultScene extends Phaser.Scene {
 
   // mutable office-state — Result 내에서 업그레이드/채용/정책 변경 가능
   private liveGold = 0;
-  private officeLevel: 1 | 2 | 3 | 4 = 1;
+  private officeLevel: OfficeLevel = 1;
   private hiredEmployees: Employee[] = [];
   /** 전체 직원 풀(튜토리얼 3 + 채용). track 등 변경분 보존용. */
   private liveEmployees: ReadonlyArray<Employee> = [];
@@ -665,7 +665,7 @@ export class ResultScene extends Phaser.Scene {
     const illustX = panelX + panelW / 2;
     const illustY = panelY + 14 + illustH / 2;
     this.officeIllustration = this.add
-      .image(illustX, illustY, OFFICE_ILLUSTRATION[this.officeLevel])
+      .image(illustX, illustY, OFFICE_ILLUSTRATION[this.officeLevel] ?? OFFICE_ILLUSTRATION[1])
       .setDisplaySize(illustW, illustH)
       .setOrigin(0.5);
 
@@ -949,11 +949,11 @@ export class ResultScene extends Phaser.Scene {
 
   private refreshOfficePanel(): void {
     if (!this.officeStatusText || !this.officeGoldText) return;
-    const cap = BALANCE.officeHireCap[this.officeLevel];
+    const cap = BALANCE.officeHireCap[this.officeLevel] ?? 3;
     // liveEmployees는 튜토리얼 + 채용 + 이탈을 모두 반영한 실제 인원.
     const totalEmps = this.liveEmployees.length;
     const companyName = loadData()?.companyName ?? DEFAULT_COMPANY_NAME;
-    this.officeStatusText.setText(`${companyName} — ${OFFICE_STAGE_LABEL[this.officeLevel]} — 고용 ${totalEmps}/${cap}명`);
+    this.officeStatusText.setText(`${companyName} — ${OFFICE_STAGE_LABEL[this.officeLevel] ?? '?'} — 고용 ${totalEmps}/${cap}명`);
     this.officeGoldText.setText(`${this.liveGold}g`);
     // 코인 아이콘은 골드 텍스트 좌측, 텍스트 폭이 변하므로 동적으로 위치 보정.
     if (this.officeGoldIcon) {
@@ -961,27 +961,17 @@ export class ResultScene extends Phaser.Scene {
       this.officeGoldIcon.setX(textLeft - 6);
     }
 
-    // 업그레이드 버튼 상태·라벨 결정. 골드 부족 시 부족분 표시.
+    // 업그레이드 버튼 상태·라벨 결정 — 데이터 기반(BALANCE.officeUpgradeCostBy + OFFICE_STAGE_LABEL).
     let upgradeBtnLabel: string;
     let canUpgrade: boolean;
-    if (this.officeLevel === 1) {
-      const cost = BALANCE.officeUpgradeCostBy[2];
-      canUpgrade = this.liveGold >= cost;
+    const nextLevel = (this.officeLevel + 1) as OfficeLevel;
+    const nextCost = (BALANCE.officeUpgradeCostBy as Record<number, number | undefined>)[nextLevel];
+    const nextLabel = OFFICE_STAGE_LABEL[nextLevel];
+    if (nextCost !== undefined && nextLabel) {
+      canUpgrade = this.liveGold >= nextCost;
       upgradeBtnLabel = canUpgrade
-        ? `판교 임대로 (-${cost}g)`
-        : `판교 임대 (${this.liveGold}/${cost}g)`;
-    } else if (this.officeLevel === 2) {
-      const cost = BALANCE.officeUpgradeCostBy[3];
-      canUpgrade = this.liveGold >= cost;
-      upgradeBtnLabel = canUpgrade
-        ? `강남 자가로 (-${cost}g)`
-        : `강남 자가 (${this.liveGold}/${cost}g)`;
-    } else if (this.officeLevel === 3) {
-      const cost = BALANCE.officeUpgradeCostBy[4];
-      canUpgrade = this.liveGold >= cost;
-      upgradeBtnLabel = canUpgrade
-        ? `성수 글로벌 캠퍼스로 (-${cost}g)`
-        : `성수 글로벌 캠퍼스 (${this.liveGold}/${cost}g)`;
+        ? `${nextLabel}로 (-${nextCost}g)`
+        : `${nextLabel} (${this.liveGold}/${nextCost}g)`;
     } else {
       canUpgrade = false;
       upgradeBtnLabel = '사옥 최대 단계 ✓';
@@ -1099,27 +1089,15 @@ export class ResultScene extends Phaser.Scene {
   }
 
   private handleUpgrade(): void {
-    if (this.officeLevel === 1) {
-      const cost = BALANCE.officeUpgradeCostBy[2];
-      if (this.liveGold < cost) return;
-      this.liveGold -= cost;
-      this.officeLevel = 2;
-      this.crossfadeIllustration(OFFICE_ILLUSTRATION[2]);
-    } else if (this.officeLevel === 2) {
-      const cost = BALANCE.officeUpgradeCostBy[3];
-      if (this.liveGold < cost) return;
-      this.liveGold -= cost;
-      this.officeLevel = 3;
-      this.crossfadeIllustration(OFFICE_ILLUSTRATION[3]);
-    } else if (this.officeLevel === 3) {
-      const cost = BALANCE.officeUpgradeCostBy[4];
-      if (this.liveGold < cost) return;
-      this.liveGold -= cost;
-      this.officeLevel = 4;
-      this.crossfadeIllustration(OFFICE_ILLUSTRATION[4]);
-    } else {
-      return;
-    }
+    // 데이터 기반 — 다음 단계 cost·illustration이 정의되어 있을 때만 진행.
+    const nextLevel = (this.officeLevel + 1) as OfficeLevel;
+    const cost = (BALANCE.officeUpgradeCostBy as Record<number, number | undefined>)[nextLevel];
+    const nextIllust = OFFICE_ILLUSTRATION[nextLevel];
+    if (cost === undefined || !nextIllust) return; // 최대 단계.
+    if (this.liveGold < cost) return;
+    this.liveGold -= cost;
+    this.officeLevel = nextLevel;
+    this.crossfadeIllustration(nextIllust);
     this.persistResult();
     playSfx(this, SFX.success, 0.5);
     this.refreshOfficePanel();
@@ -1128,7 +1106,7 @@ export class ResultScene extends Phaser.Scene {
 
   private handleHire(): void {
     if (this.officeLevel < 2) return;
-    const cap = BALANCE.officeHireCap[this.officeLevel];
+    const cap = BALANCE.officeHireCap[this.officeLevel] ?? 3;
     if (this.liveEmployees.length >= cap) return;
     playSfx(this, SFX.modal, 0.45);
     this.openInterviewModal();
@@ -1534,7 +1512,7 @@ export class ResultScene extends Phaser.Scene {
     const baseEffCost = costMul < 1.0 ? Math.round(c.hireCost * costMul) : c.hireCost;
     const effCost = Math.round(baseEffCost * inflation);
     if (this.liveGold < effCost) return;
-    const cap = BALANCE.officeHireCap[this.officeLevel];
+    const cap = BALANCE.officeHireCap[this.officeLevel] ?? 3;
     if (this.liveEmployees.length >= cap) return;
     this.liveGold -= effCost;
     // HireCandidate에서 Employee 전용 필드만 추려 저장(보관 시 hireCost/tagline 제외).

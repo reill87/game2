@@ -7,15 +7,18 @@
  *  3) BootScene.preload가 자동 로드
  */
 import Phaser from 'phaser';
+import type { OfficeLevel } from './domain/types';
 
 const ASSET_BASE = '/assets/illustrations';
 
-/** 사옥 단계 → 일러스트 텍스처 키. */
-export const OFFICE_ILLUSTRATION: Readonly<Record<1 | 2 | 3 | 4, string>> = {
+/** 사옥 단계 → 일러스트 텍스처 키. L5/L6은 자산 없으므로 L4 일러스트 재사용. */
+export const OFFICE_ILLUSTRATION: Readonly<Record<OfficeLevel, string>> = {
   1: 'illust-office-1',
   2: 'illust-office-2',
   3: 'illust-office-3',
   4: 'illust-office-4',
+  5: 'illust-office-4',
+  6: 'illust-office-4',
 };
 
 const FILES: ReadonlyArray<readonly [string, string]> = [

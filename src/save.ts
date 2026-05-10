@@ -37,6 +37,7 @@ import type {
   CompanyPolicy,
   Employee,
   Job,
+  OfficeLevel,
   Rank,
   Stance,
   Track,
@@ -75,7 +76,7 @@ export interface SaveData {
   readonly savedAt: number;
   readonly gold: number;
   readonly productCount: number;
-  readonly officeLevel: 1 | 2 | 3 | 4;
+  readonly officeLevel: OfficeLevel;
   readonly hiredEmployees: ReadonlyArray<Employee>;
   readonly lastResult: SavedResult | null;
   /** 회사 누적 명성 — PIVOT-4. 옛 v2 데이터엔 없을 수 있어 옵셔널 취급. */
@@ -238,7 +239,7 @@ function sanitizeMails(raw: unknown): ReadonlyArray<MailMessage> | undefined {
 export function saveData(input: {
   gold: number;
   productCount: number;
-  officeLevel: 1 | 2 | 3 | 4;
+  officeLevel: OfficeLevel;
   hiredEmployees: ReadonlyArray<Employee>;
   lastResult: SavedResult | null;
   reputation: number;
@@ -651,8 +652,10 @@ function interpret(storage: Storage, parsed: unknown, fromLegacy: boolean): Save
     if (typeof obj.gold !== 'number') return backupAndNull(storage, parsed);
     // officeLevel 검증 — 잘못된 값이면 1로 fallback.
     const rawLevel = obj.officeLevel;
-    const safeOfficeLevel: 1 | 2 | 3 | 4 =
-      rawLevel === 1 || rawLevel === 2 || rawLevel === 3 || rawLevel === 4 ? rawLevel : 1;
+    const safeOfficeLevel: OfficeLevel =
+      rawLevel === 1 || rawLevel === 2 || rawLevel === 3 || rawLevel === 4 || rawLevel === 5 || rawLevel === 6
+        ? rawLevel
+        : 1;
     // endingsShown 마이그레이션 — 옛 endingShown===true 이면 ['acquisition']으로 승격.
     const sanitizedEndingsShown = sanitizeEndingsShown(obj.endingsShown, obj.endingShown);
     // milestones 화이트리스트 필터.

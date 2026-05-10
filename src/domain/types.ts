@@ -13,6 +13,9 @@ import type { BankruptcyState } from './bankruptcy';
 import type { ExecState } from './exec';
 import type { RivalState } from './rivals';
 
+/** 사옥 단계 — 1 (분당 셰어) ~ 6 (글로벌 본사 타워). 새 단계 추가 시 여기만 늘리면 됨. */
+export type OfficeLevel = 1 | 2 | 3 | 4 | 5 | 6;
+
 /** 직원 직무. 1단계 사무실에서는 QA 직군 없음 (2단계 채용). marketing/data는 3단계 이상. */
 export type Job = 'planner' | 'designer' | 'programmer' | 'qa' | 'marketing' | 'data';
 
@@ -162,8 +165,8 @@ export interface GameState {
   readonly crunch: boolean;
   /** 0 = 첫 작품 (튜토리얼). 출시 직후 +1. UI/도메인 분기에 사용. */
   readonly productIndex: number;
-  /** 사무실 단계 — 1: 분당 셰어, 2: 판교 임대, 3: 강남 자가, 4: 성수 글로벌 캠퍼스. burn rate 계산에 사용. */
-  readonly officeLevel: 1 | 2 | 3 | 4;
+  /** 사무실 단계 — 1: 분당 셰어 / 2: 판교 임대 / 3: 강남 자가 / 4: 성수 글로벌 캠퍼스 / 5: 판교 R&D 메가 캠퍼스 / 6: 글로벌 본사 타워. */
+  readonly officeLevel: OfficeLevel;
   /** 회사 누적 명성 (작품 사이 영구 누적). 매출 보너스에 사용. */
   readonly reputation: number;
   /** 회사 정책(출퇴근/복장/복지). 작품 사이 결정, 매주 효과. */
