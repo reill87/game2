@@ -188,7 +188,9 @@ export class ResultScene extends Phaser.Scene {
     this.officeLevel = existing?.officeLevel ?? 1;
     this.hiredEmployees = existing?.hiredEmployees ? [...existing.hiredEmployees] : [];
     this.livePolicy = existing?.policy ?? DEFAULT_POLICY;
-    this.liveRnd = existing?.rnd ?? EMPTY_RND;
+    // outcome.state.rnd가 dev cycle 중 advanceWeek로 decrement된 최신 progress를 가짐.
+    // 옛 save를 그대로 쓰면 R&D 진행이 ResultScene에서 안 보이는 버그.
+    this.liveRnd = data.outcome.state.rnd ?? existing?.rnd ?? EMPTY_RND;
     // stale rnd progress 정리 — 옛 id 또는 weeksRemaining=0인 inProgress 제거.
     {
       const p = this.liveRnd.progress;
