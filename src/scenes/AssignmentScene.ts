@@ -44,17 +44,23 @@ interface EmployeeLayout {
 }
 
 /**
- * 직원 카드 레이아웃 선택 — 1~6명 모두 GAME_WIDTH(720)에 맞춤.
- *  - 1~3명: 1행 (큰 카드)
+ * 직원 카드 레이아웃 선택 — 720px 폭에 맞춰 자동 wrap.
+ *  - 1~3명: 1행 (큰 카드 240h)
  *  - 4명  : 1행 4열 (좁은 카드)
- *  - 5~6명: 2행 3열
+ *  - 5~6명: 2행 3열 (200h)
+ *  - 7~9명: 3행 3열 (140h, 컴팩트)
+ *  - 10~12명: 3행 4열 (140h, 더 좁음)
+ *  - 13+명: 4행, 12명 표시 후 잘림 (드물 케이스)
  */
 function pickEmployeeLayout(count: number): EmployeeLayout {
   if (count <= 3) return { cols: Math.max(1, count), cardW: 200, cardH: 240, gap: 14, rowGap: 14 };
   if (count === 4) return { cols: 4, cardW: 160, cardH: 240, gap: 12, rowGap: 14 };
-  // 5~6명 → 3열 wrap
-  return { cols: 3, cardW: 200, cardH: 200, gap: 14, rowGap: 14 };
+  if (count <= 6) return { cols: 3, cardW: 200, cardH: 200, gap: 14, rowGap: 14 };
+  if (count <= 9) return { cols: 3, cardW: 200, cardH: 140, gap: 12, rowGap: 10 };
+  // 10~12명: 4열 컴팩트
+  return { cols: 4, cardW: 158, cardH: 140, gap: 10, rowGap: 10 };
 }
+
 
 /** 직급별 배지 배경색 — newbie 회색 / junior 파랑 / senior 초록 / lead 노랑. */
 function rankBadgeColor(rank: Rank): number {
@@ -355,10 +361,20 @@ export class AssignmentScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
+    // 컴팩트 모드 — 카드 높이 < 180일 때 (직원 7명+).
+    const compact = h < 180;
+    const avatarSize = compact ? 36 : 60;
+    const avatarY = compact ? y + 50 : y + 56 + avatarSize / 2;
+    const nameY = compact ? y + 8 : y + 30;
+    const nameSize = compact ? '18px' : '26px';
+    const jobY = compact ? y + 76 : y + 130;
+    const traitY = compact ? y + 92 : y + 148;
+    const skillBadgeSize = compact ? '16px' : '20px';
+
     const nameText = this.add
-      .text(x + w / 2, y + 30, emp.name, {
+      .text(x + w / 2, nameY, emp.name, {
         fontFamily: FONT_STACK,
-        fontSize: '26px',
+        fontSize: nameSize,
         fontStyle: 'bold',
         color: TEXT_COLOR.primary,
         align: 'center',
@@ -367,9 +383,8 @@ export class AssignmentScene extends Phaser.Scene {
       .setOrigin(0.5, 0);
 
     // 직원 아바타 — 이름 아래 중앙. morale 기반 ring tint으로 표정 대용.
-    const avatarSize = 60;
     const avatar = this.add
-      .image(x + w / 2, y + 56 + avatarSize / 2, AVATAR_KEY[emp.job])
+      .image(x + w / 2, avatarY, AVATAR_KEY[emp.job])
       .setDisplaySize(avatarSize, avatarSize)
       .setOrigin(0.5);
     void avatar;
@@ -381,16 +396,16 @@ export class AssignmentScene extends Phaser.Scene {
           : TINT.bad;
     const ring = this.add.graphics();
     ring.lineStyle(2, ringColor, 0.85);
-    ring.strokeCircle(x + w / 2, y + 56 + avatarSize / 2, avatarSize / 2 + 2);
+    ring.strokeCircle(x + w / 2, avatarY, avatarSize / 2 + 2);
     void ring;
 
-    // 스킬 배지 — 1.0 초과분만 우상단에 작게 (예: skill 1.10 → "+10%")
+    // 스킬 배지 — 1.0 초과분만 우상단에 작게.
     const skillPct = Math.round((emp.skill - 1) * 100);
     if (skillPct > 0) {
       this.add
-        .text(x + w - 12, y + 12, `+${skillPct}%`, {
+        .text(x + w - 12, y + 8, `+${skillPct}%`, {
           fontFamily: FONT_STACK,
-          fontSize: '20px',
+          fontSize: skillBadgeSize,
           fontStyle: 'bold',
           color: TEXT_COLOR.warn,
         })
@@ -400,22 +415,22 @@ export class AssignmentScene extends Phaser.Scene {
     const { label: jobText } = addIconLabel(
       this,
       x + w / 2,
-      y + 130,
+      jobY,
       ICONS[JOB_ICON[emp.job]].key,
       JOB_LABEL[emp.job],
       {
-        iconSize: 14,
+        iconSize: compact ? 11 : 14,
         iconTint: TINT.dim,
         textColor: TEXT_COLOR.dim,
-        fontSize: 13,
+        fontSize: compact ? 11 : 13,
         gap: 4,
       },
     );
 
-    // 트레이트 라벨 — 직무 라인 바로 아래 작게 (트레이트 있는 직원만)
-    if (emp.trait) {
+    // 트레이트 라벨 — 컴팩트 모드에선 생략.
+    if (emp.trait && !compact) {
       this.add
-        .text(x + w / 2, y + 148, TRAIT_LABEL[emp.trait], {
+        .text(x + w / 2, traitY, TRAIT_LABEL[emp.trait], {
           fontFamily: FONT_STACK,
           fontSize: '18px',
           color: TEXT_COLOR.warn,
