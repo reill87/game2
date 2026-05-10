@@ -365,7 +365,8 @@ export class EndingScene extends Phaser.Scene {
     const overlay = this.add
       .rectangle(0, 0, 720, 1280, 0x000000, 0.85)
       .setOrigin(0, 0)
-      .setInteractive();
+      .setInteractive()
+      .setDepth(200); // 모달 background — 아래 버튼 클릭 차단.
     layer.add(overlay);
 
     const panelW = 540;
@@ -430,7 +431,8 @@ export class EndingScene extends Phaser.Scene {
     );
     const cancelHit = this.add
       .zone(cancelX + cancelW / 2, btnY + btnH / 2, cancelW, btnH)
-      .setInteractive({ useHandCursor: true });
+      .setInteractive({ useHandCursor: true })
+      .setDepth(201); // 모달 layer(200)보다 위 — container.depth는 hit zone에 전파 안 됨.
     cancelHit.on('pointerup', () => {
       playSfx(this, SFX.tap);
       layer.destroy();
@@ -454,7 +456,8 @@ export class EndingScene extends Phaser.Scene {
     );
     const confirmHit = this.add
       .zone(confirmX + confirmW / 2, btnY + btnH / 2, confirmW, btnH)
-      .setInteractive({ useHandCursor: true });
+      .setInteractive({ useHandCursor: true })
+      .setDepth(201);
     confirmHit.on('pointerup', () => {
       playSfx(this, SFX.click);
       // 메인 세이브 삭제 후 프레스티지 카운터 증가 → Boot로.
@@ -670,7 +673,8 @@ export class EndingScene extends Phaser.Scene {
     const overlay = this.add
       .rectangle(0, 0, 720, 1280, 0x000000, 0.85)
       .setOrigin(0, 0)
-      .setInteractive();
+      .setInteractive()
+      .setDepth(200); // 모달 background — 아래 버튼 클릭 차단.
     layer.add(overlay);
 
     const panelW = 540;
@@ -726,7 +730,8 @@ export class EndingScene extends Phaser.Scene {
     );
     const cancelHit = this.add
       .zone(cancelX + cancelW / 2, btnY + btnH / 2, cancelW, btnH)
-      .setInteractive({ useHandCursor: true });
+      .setInteractive({ useHandCursor: true })
+      .setDepth(201); // 모달 layer(200)보다 위 — container.depth는 hit zone에 전파 안 됨.
     cancelHit.on('pointerup', () => {
       playSfx(this, SFX.tap);
       layer.destroy();
@@ -751,7 +756,8 @@ export class EndingScene extends Phaser.Scene {
     );
     const confirmHit = this.add
       .zone(confirmX + confirmW / 2, btnY + btnH / 2, confirmW, btnH)
-      .setInteractive({ useHandCursor: true });
+      .setInteractive({ useHandCursor: true })
+      .setDepth(201);
     confirmHit.on('pointerup', () => {
       playSfx(this, SFX.click);
       clearData();
