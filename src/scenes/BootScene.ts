@@ -16,6 +16,7 @@ import { preloadIllustrations } from '@/illustrations';
 import { loadData, loadPrestigeCount, saveData, loadSettings, DEFAULT_COMPANY_NAME, type SavedResult } from '@/save';
 import { setSfxVolume, preloadSfx } from '@/sounds';
 import { preloadUITextures } from '@/util/ui';
+import { fitCamera } from '@/util/cameraFit';
 import { SCENE_KEYS } from './keys';
 
 /**
@@ -168,6 +169,11 @@ export class BootScene extends Phaser.Scene {
    * 첫 진입(productIndex=0, companyName 없음)에서 한 번만 표시.
    */
   private showCompanyNameModal(onDone: () => void): void {
+    // BootScene은 평소엔 즉시 scene.start로 넘어가므로 fitCamera를 안 부르지만,
+    // 모달을 띄울 땐 720×1280 logical을 viewport에 맞춰야 DOM input 위치도 맞음.
+    fitCamera(this);
+    this.scale.on('resize', () => fitCamera(this));
+
     // 어두운 배경
     const bg = this.add.graphics();
     bg.fillStyle(0x0e0e12, 1);
