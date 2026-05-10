@@ -13,7 +13,13 @@ export type FacilityId =
   | 'inhouse-studio'
   | 'ai-copilot'
   | 'wellness-trainer'
-  | 'esports-team';
+  | 'esports-team'
+  // L5+ 메가 캠퍼스 전용
+  | 'innovation-lab'
+  | 'private-shuttle'
+  // L6 글로벌 본사 전용
+  | 'sky-lounge'
+  | 'global-broadcast-studio';
 
 export interface Facility {
   readonly id: FacilityId;
@@ -24,7 +30,7 @@ export interface Facility {
   /** 의존 시설 (있으면 먼저 구매해야 함). */
   readonly requires?: ReadonlyArray<FacilityId>;
   /** 사옥 단계 게이트 — 해당 단계 미만이면 건설 불가. */
-  readonly minOfficeLevel?: 1 | 2 | 3;
+  readonly minOfficeLevel?: OfficeLevel;
 }
 
 export const FACILITIES: ReadonlyArray<Facility> = [
@@ -101,6 +107,43 @@ export const FACILITIES: ReadonlyArray<Facility> = [
     effectLabel: '출시 시 명성 +1',
     minOfficeLevel: 3,
   },
+  // ── L5 메가 캠퍼스 전용 ────────────────────────────────────────────
+  {
+    id: 'innovation-lab',
+    name: '이노베이션 랩',
+    desc: 'R&D 연구소 부속 실험실 — 모든 R&D 연구 시간 −2주.',
+    cost: 80000,
+    effectLabel: 'R&D 연구 −2주',
+    minOfficeLevel: 5,
+    requires: ['inhouse-studio'],
+  },
+  {
+    id: 'private-shuttle',
+    name: '셔틀버스 운영',
+    desc: '캠퍼스 통근 셔틀 — 통근 stamina drain ×0.4.',
+    cost: 60000,
+    effectLabel: 'stamina drain ×0.4',
+    minOfficeLevel: 5,
+  },
+  // ── L6 글로벌 본사 전용 ────────────────────────────────────────────
+  {
+    id: 'sky-lounge',
+    name: '스카이 라운지',
+    desc: '본사 최상층 라운지 — 전원 매주 morale +3, stamina +2.',
+    cost: 120000,
+    effectLabel: 'morale +3 · stamina +2 / 주',
+    minOfficeLevel: 6,
+    requires: ['rooftop-garden'],
+  },
+  {
+    id: 'global-broadcast-studio',
+    name: '글로벌 방송 스튜디오',
+    desc: '본사 내 라이브 방송실 — 출시 시 매출 +5%, 명성 +2.',
+    cost: 200000,
+    effectLabel: '출시 매출 +5% · 명성 +2',
+    minOfficeLevel: 6,
+    requires: ['esports-team', 'inhouse-studio'],
+  },
 ];
 
 /** save.ts sanitize용 화이트리스트 — FACILITIES ID 목록. */
@@ -114,6 +157,10 @@ export const VALID_FACILITY_IDS: ReadonlyArray<FacilityId> = [
   'ai-copilot',
   'wellness-trainer',
   'esports-team',
+  'innovation-lab',
+  'private-shuttle',
+  'sky-lounge',
+  'global-broadcast-studio',
 ];
 
 export interface FacilityState {

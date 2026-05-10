@@ -71,3 +71,12 @@ async function boot(): Promise<void> {
 }
 
 void boot();
+
+// PWA service worker 등록 — production 빌드에서만 (dev에선 HMR 충돌 방지).
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch((err) => {
+      console.warn('[sw] register failed:', err);
+    });
+  });
+}

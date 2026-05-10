@@ -51,6 +51,8 @@ interface EmployeeLayout {
  *  - 7~9명: 3행 3열 (140h, 컴팩트)
  *  - 10~12명: 3행 4열 (140h, 더 좁음)
  *  - 13~16명: 4행 4열 (110h, 초컴팩트 — L4 글로벌 캠퍼스)
+ *  - 17~20명: 5행 4열 (94h, 미니카드 — L5 메가 캠퍼스)
+ *  - 21~24명: 4행 6열 (94h, 미니카드 — L6 글로벌 본사 타워)
  */
 function pickEmployeeLayout(count: number): EmployeeLayout {
   if (count <= 3) return { cols: Math.max(1, count), cardW: 200, cardH: 240, gap: 14, rowGap: 14 };
@@ -58,8 +60,10 @@ function pickEmployeeLayout(count: number): EmployeeLayout {
   if (count <= 6) return { cols: 3, cardW: 200, cardH: 200, gap: 14, rowGap: 14 };
   if (count <= 9) return { cols: 3, cardW: 200, cardH: 140, gap: 12, rowGap: 10 };
   if (count <= 12) return { cols: 4, cardW: 158, cardH: 140, gap: 10, rowGap: 10 };
-  // 13~16명: 4×4 초컴팩트
-  return { cols: 4, cardW: 158, cardH: 110, gap: 10, rowGap: 8 };
+  if (count <= 16) return { cols: 4, cardW: 158, cardH: 110, gap: 10, rowGap: 8 };
+  if (count <= 20) return { cols: 4, cardW: 158, cardH: 94, gap: 10, rowGap: 8 };
+  // 21~24명: 6열로 더 좁게
+  return { cols: 6, cardW: 104, cardH: 94, gap: 8, rowGap: 8 };
 }
 
 
@@ -363,12 +367,14 @@ export class AssignmentScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     // 컴팩트 모드 — 카드 높이 < 180일 때 (직원 7명+).
+    // 울트라 컴팩트 — h < 120일 때 (17~24명, L5/L6). job 라벨 생략.
     const compact = h < 180;
-    const avatarSize = compact ? 36 : 60;
-    const avatarY = compact ? y + 50 : y + 56 + avatarSize / 2;
-    const nameY = compact ? y + 8 : y + 30;
-    const nameSize = compact ? '18px' : '26px';
-    const jobY = compact ? y + 76 : y + 130;
+    const ultraCompact = h < 120;
+    const avatarSize = ultraCompact ? 28 : compact ? 36 : 60;
+    const avatarY = ultraCompact ? y + 38 : compact ? y + 50 : y + 56 + avatarSize / 2;
+    const nameY = compact ? y + 6 : y + 30;
+    const nameSize = ultraCompact ? '14px' : compact ? '18px' : '26px';
+    const jobY = ultraCompact ? y + 56 : compact ? y + 76 : y + 130;
     const traitY = compact ? y + 92 : y + 148;
     const skillBadgeSize = compact ? '16px' : '20px';
 
@@ -413,20 +419,23 @@ export class AssignmentScene extends Phaser.Scene {
         .setOrigin(1, 0);
     }
 
-    const { label: jobText } = addIconLabel(
-      this,
-      x + w / 2,
-      jobY,
-      ICONS[JOB_ICON[emp.job]].key,
-      JOB_LABEL[emp.job],
-      {
-        iconSize: compact ? 11 : 14,
-        iconTint: TINT.dim,
-        textColor: TEXT_COLOR.dim,
-        fontSize: compact ? 11 : 13,
-        gap: 4,
-      },
-    );
+    // 울트라 컴팩트는 job 라벨 생략 — 자리 부족.
+    const jobText = ultraCompact
+      ? this.add.text(x + w / 2, jobY, '', { fontSize: '1px' }).setOrigin(0.5)
+      : addIconLabel(
+          this,
+          x + w / 2,
+          jobY,
+          ICONS[JOB_ICON[emp.job]].key,
+          JOB_LABEL[emp.job],
+          {
+            iconSize: compact ? 11 : 14,
+            iconTint: TINT.dim,
+            textColor: TEXT_COLOR.dim,
+            fontSize: compact ? 11 : 13,
+            gap: 4,
+          },
+        ).label;
 
     // 트레이트 라벨 — 컴팩트 모드에선 생략.
     if (emp.trait && !compact) {
@@ -440,11 +449,11 @@ export class AssignmentScene extends Phaser.Scene {
     }
 
     // 컨디션 미니바 — 가로 50, 두께 3, 카드 하단 가운데 두 줄.
-    const barW = 56;
+    const barW = ultraCompact ? 44 : 56;
     const barH = 3;
     const barX = x + w / 2 - barW / 2;
-    const moraleBarY = y + h - 38;
-    const staminaBarY = y + h - 30;
+    const moraleBarY = ultraCompact ? y + h - 28 : y + h - 38;
+    const staminaBarY = ultraCompact ? y + h - 22 : y + h - 30;
     const moraleBg = this.add.graphics();
     moraleBg.fillStyle(COLOR.gaugeBg, 1);
     moraleBg.fillRect(barX, moraleBarY, barW, barH);
@@ -455,9 +464,9 @@ export class AssignmentScene extends Phaser.Scene {
     const staminaFill = this.add.graphics();
 
     const placedText = this.add
-      .text(x + w / 2, y + h - 16, '', {
+      .text(x + w / 2, ultraCompact ? y + h - 10 : y + h - 16, '', {
         fontFamily: FONT_STACK,
-        fontSize: '21px',
+        fontSize: ultraCompact ? '12px' : '21px',
         color: TEXT_COLOR.ok,
       })
       .setOrigin(0.5);

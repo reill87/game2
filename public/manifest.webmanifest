@@ -1,0 +1,19 @@
+{
+  "name": "판교개발 — IT 회사 시뮬",
+  "short_name": "판교개발",
+  "description": "판교 IT 회사를 운영하는 시뮬레이션 게임",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0e0e12",
+  "theme_color": "#0e0e12",
+  "orientation": "portrait",
+  "lang": "ko",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

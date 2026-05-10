@@ -199,7 +199,9 @@ export function effectiveSkill(
   const aiMul = isFacilityBuilt(state.facilities, 'ai-copilot') ? 1.07 : 1.0;
   // R&D T4: NAS 도입 — 모든 직원 effective skill ×1.05.
   const nasMul = isRndPurchased(state.rnd, 'neural-architecture') ? 1.05 : 1.0;
-  const raw = baseSkill * m * s * rankMul * traitMul * trackMul * dressMul * remoteVillainMul * leadBonus * aiMul * nasMul;
+  // R&D T5: 사내 LLM — 모든 직원 effective skill ×1.15.
+  const llmMul = isRndPurchased(state.rnd, 'company-llm') ? 1.15 : 1.0;
+  const raw = baseSkill * m * s * rankMul * traitMul * trackMul * dressMul * remoteVillainMul * leadBonus * aiMul * nasMul * llmMul;
   // (밸런스 v2) 풀스펙 스택 남용 방지 — effective skill 최대 3.0.
   return Math.min(raw, BALANCE.maxEffectiveSkill);
 }
@@ -247,13 +249,17 @@ function tickCondition(emp: Employee, state: GameState, mode: 'work' | 'rest'): 
 
     // 출퇴근 / 재택 — 배치된 직원만 출근 또는 재택.
     if (state.policy.commute === 'office') {
-      let commute = COMMUTE_DRAIN_BY_OFFICE[state.officeLevel];
+      let commute = COMMUTE_DRAIN_BY_OFFICE[state.officeLevel] ?? 2;
       if (state.policy.perks.shuttle) {
         commute = Math.max(0, commute - PERK.shuttle.staminaPerWeek);
       }
       // 시설: 사내 트레이너 — stamina drain ×0.7.
       if (isFacilityBuilt(state.facilities, 'wellness-trainer')) {
         commute *= 0.7;
+      }
+      // L5 시설: 셔틀버스 운영 — 통근 stamina drain ×0.4 (시설 자체 효과로 큰 폭 감소).
+      if (isFacilityBuilt(state.facilities, 'private-shuttle')) {
+        commute *= 0.4;
       }
       dStamina -= commute;
     } else {
@@ -273,6 +279,11 @@ function tickCondition(emp: Employee, state: GameState, mode: 'work' | 'rest'): 
   if (isFacilityBuilt(state.facilities, 'gym'))            dStamina += 1;
   if (isFacilityBuilt(state.facilities, 'gameroom'))       dMorale  += 1;
   if (isFacilityBuilt(state.facilities, 'rooftop-garden')) dMorale  += 2;
+  // L6 sky-lounge — 강력 보너스 (rooftop-garden 선행).
+  if (isFacilityBuilt(state.facilities, 'sky-lounge')) {
+    dMorale  += 3;
+    dStamina += 2;
+  }
 
   // 장비 morale/stamina 보너스 — 4슬롯 합산.
   const eqBonus = computeEquipmentBonuses(emp.equipment);
@@ -363,6 +374,10 @@ export function advanceWeek(prev: GameState): GameState {
   if (isRndPurchased(prev.rnd, 'quantum-deploy')) {
     progressDelta *= 1.15;
   }
+  // R&D T5: AI 자동 코더 — Progress 배수 ×1.25.
+  if (isRndPurchased(prev.rnd, 'ai-coder')) {
+    progressDelta *= 1.25;
+  }
 
   let bugDebtDelta =
     (BALANCE.baseBugDebtPerWeek + mismatchedCount * BALANCE.mismatchBugDebt) *
@@ -380,6 +395,10 @@ export function advanceWeek(prev: GameState): GameState {
   // R&D: AI 페어 프로그래밍 — BugDebt 추가 −1/주. (밸런스 v2) -2 → -1.
   if (isRndPurchased(prev.rnd, 'ai-pair-programming')) {
     bugDebtDelta -= 1;
+  }
+  // R&D T5: 메타버스 오피스 — BugDebt −2/주 (강력).
+  if (isRndPurchased(prev.rnd, 'metaverse-office')) {
+    bugDebtDelta -= 2;
   }
   // 트레이트: 완벽주의·고민병 — 정배치 직원에 한해 BugDebt 추가 감소.
   for (const slot of SLOT_ORDER) {
@@ -453,7 +472,11 @@ export function advanceWeek(prev: GameState): GameState {
   const goldDelta = overdueDelta - burn + idleGold;
 
   // 3) AP 누적 — 매주 +1(+대회의실 보너스), AP_CAP 이하로 clamp.
-  const apGain = AP_PER_WEEK + (isFacilityBuilt(prev.facilities, 'big-meeting-room') ? 1 : 0);
+  const apGain =
+    AP_PER_WEEK +
+    (isFacilityBuilt(prev.facilities, 'big-meeting-room') ? 1 : 0) +
+    // R&D T5: 메타버스 오피스 — AP +1/주.
+    (isRndPurchased(prev.rnd, 'metaverse-office') ? 1 : 0);
   const nextAp = Math.min(AP_CAP, (prev.availableAp ?? 0) + apGain);
 
   // 4) R&D 연구 진행 — 매주 weeksRemaining -1, 0 도달 시 purchased에 추가.

@@ -11,14 +11,14 @@ import type { OfficeLevel } from './domain/types';
 
 const ASSET_BASE = '/assets/illustrations';
 
-/** 사옥 단계 → 일러스트 텍스처 키. L5/L6은 자산 없으므로 L4 일러스트 재사용. */
+/** 사옥 단계 → 일러스트 텍스처 키. */
 export const OFFICE_ILLUSTRATION: Readonly<Record<OfficeLevel, string>> = {
   1: 'illust-office-1',
   2: 'illust-office-2',
   3: 'illust-office-3',
   4: 'illust-office-4',
-  5: 'illust-office-4',
-  6: 'illust-office-4',
+  5: 'illust-office-5',
+  6: 'illust-office-6',
 };
 
 const FILES: ReadonlyArray<readonly [string, string]> = [
@@ -26,6 +26,8 @@ const FILES: ReadonlyArray<readonly [string, string]> = [
   [OFFICE_ILLUSTRATION[2], 'office_stage_2.svg'],
   [OFFICE_ILLUSTRATION[3], 'office_stage_3.svg'],
   [OFFICE_ILLUSTRATION[4], 'office_stage_4.svg'],
+  [OFFICE_ILLUSTRATION[5], 'office_stage_5.svg'],
+  [OFFICE_ILLUSTRATION[6], 'office_stage_6.svg'],
 ];
 
 /**

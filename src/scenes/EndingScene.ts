@@ -28,7 +28,7 @@ import { SCENE_KEYS } from './keys';
 export class EndingScene extends Phaser.Scene {
   static readonly KEY = SCENE_KEYS.Ending;
 
-  private endingType: 'acquisition' | 'ipo' | 'global-no1' | 'unicorn' = 'acquisition';
+  private endingType: 'acquisition' | 'ipo' | 'global-no1' | 'unicorn' | 'global-hq' = 'acquisition';
   /** logical 720×1280 고정 좌표. */
   private cx = 360;
   private contentX = 0;
@@ -37,7 +37,7 @@ export class EndingScene extends Phaser.Scene {
     super({ key: SCENE_KEYS.Ending });
   }
 
-  init(data: { ending?: 'acquisition' | 'ipo' | 'global-no1' | 'unicorn' }): void {
+  init(data: { ending?: 'acquisition' | 'ipo' | 'global-no1' | 'unicorn' | 'global-hq' }): void {
     this.endingType = data?.ending ?? 'acquisition';
   }
 
@@ -66,6 +66,8 @@ export class EndingScene extends Phaser.Scene {
       this.buildGlobalNo1Ending(totalRevenue, productCount, companyName);
     } else if (this.endingType === 'ipo') {
       this.buildIpoEnding(totalRevenue, productCount, companyName);
+    } else if (this.endingType === 'global-hq') {
+      this.buildGlobalHqEnding(totalRevenue, productCount, companyName);
     } else {
       this.buildAcquisitionEnding(totalRevenue, productCount, companyName);
     }
@@ -254,6 +256,21 @@ export class EndingScene extends Phaser.Scene {
     });
 
     this.animateIn([title, headline, sub, panel, ...rowEls, footer]);
+  }
+
+  // ────────────────────────── 글로벌 본사 타워 엔딩 (사옥 L6 도달) ──────────────────────────
+  // 매출 임계가 아닌 '사옥 6단계 달성' 트리거. 도전 과제형 엔딩.
+  private buildGlobalHqEnding(totalRevenue: number, productCount: number, companyName: string): void {
+    this.buildContinueEnding({
+      titleText: '글로벌 본사 타워 완공',
+      titleColor: TEXT_COLOR.warn,
+      headline: `${companyName} — 자체 본사 타워 입주`,
+      sub: '24명 규모의 풀팀이 한 캠퍼스에서 일한다.\n분당 셰어오피스에서 시작한 회사가 자체 타워를 갖게 되었다.',
+      footer: '사옥 최대 단계 달성 — R&D T5 전 항목 해금. 다음은 유니콘.',
+      threshold: 200000,
+      totalRevenue,
+      productCount,
+    });
   }
 
   // ────────────────────────── 글로벌 1위 엔딩 ──────────────────────────

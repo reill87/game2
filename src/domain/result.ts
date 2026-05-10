@@ -195,10 +195,14 @@ export function shipProject(
       ? 1.15
       : 1.0;
   const satelliteMul = isRndPurchased(prev.rnd, 'satellite-network') ? 1.3 : 1.0;
+  // R&D T5: 글로벌 데이터 패브릭 — 매출 ×1.5.
+  const dataFabricMul = isRndPurchased(prev.rnd, 'global-data-fabric') ? 1.5 : 1.0;
   // 경기 사이클 — 현재 경기 단계에 따른 매출 보정.
   const ecoPhase = getEconomyPhase(prev.economy?.index ?? EMPTY_ECONOMY.index);
   const ecoRevMul = getEconomyRevenueMul(ecoPhase);
-  const preRivalRevenue = Math.round(baseCalculated * (globalRevMul > 1.0 ? globalRevMul : 1.0) * satelliteMul * ecoRevMul);
+  // L6 시설: 글로벌 방송 스튜디오 — 출시 매출 +5%.
+  const broadcastMul = isFacilityBuilt(prev.facilities, 'global-broadcast-studio') ? 1.05 : 1.0;
+  const preRivalRevenue = Math.round(baseCalculated * (globalRevMul > 1.0 ? globalRevMul : 1.0) * satelliteMul * dataFabricMul * ecoRevMul * broadcastMul);
   // 경쟁사 시장 점유율 — 같은 분기 같은 장르·테마 경쟁 시 매출 감소.
   const ms = computeMarketShareEffect(
     prev.project.genre,
@@ -212,9 +216,10 @@ export function shipProject(
   const prevEconomy = prev.economy ?? EMPTY_ECONOMY;
   const newEconomy = tickEconomy(prevEconomy);
   const economyCycleChanged = newEconomy.cyclesElapsed === 0 && newEconomy.index !== prevEconomy.index;
-  // 시설: 회사 e스포츠팀 — 출시 시 명성 +1.
+  // 시설: 회사 e스포츠팀 — 출시 시 명성 +1, 글로벌 방송 스튜디오 — +2.
   const esportsBonus = isFacilityBuilt(prev.facilities, 'esports-team') ? 1 : 0;
-  const baseReputationGain = stars * REPUTATION.perStarOnRelease + esportsBonus;
+  const broadcastRepBonus = isFacilityBuilt(prev.facilities, 'global-broadcast-studio') ? 2 : 0;
+  const baseReputationGain = stars * REPUTATION.perStarOnRelease + esportsBonus + broadcastRepBonus;
   // 경쟁사 명성 영향 — 우리보다 잘한 라이벌 1개당 명성 −5.
   const betterRivalRepDrop = ms.betterRivalCount * 5;
   const reputationGain = Math.max(0, baseReputationGain - betterRivalRepDrop);

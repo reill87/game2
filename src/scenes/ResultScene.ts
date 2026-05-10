@@ -124,8 +124,8 @@ export class ResultScene extends Phaser.Scene {
   private liveAcquisitions: AcquisitionState = EMPTY_ACQUISITIONS;
   /** 출시 이력 — 매 init마다 새 entry 한 건 append 후 cap. */
   private history: ReadonlyArray<SavedResult> = [];
-  /** 이미 본 엔딩 목록 — 'acquisition' | 'ipo' | 'global-no1' | 'unicorn'. */
-  private liveEndingsShown: ReadonlyArray<'acquisition' | 'ipo' | 'global-no1' | 'unicorn'> = [];
+  /** 이미 본 엔딩 목록 — 'acquisition' | 'ipo' | 'global-no1' | 'unicorn' | 'global-hq'. */
+  private liveEndingsShown: ReadonlyArray<'acquisition' | 'ipo' | 'global-no1' | 'unicorn' | 'global-hq'> = [];
   /** 누적 달성 마일스톤 ID. */
   private liveMilestones: ReadonlyArray<MilestoneId> = [];
   /** 연말 결산 달성 시 reputation 보너스 — persistResult에서 합산. */
@@ -205,7 +205,7 @@ export class ResultScene extends Phaser.Scene {
     this.liveAcquisitions = existing?.acquisitions ?? EMPTY_ACQUISITIONS;
     // endingsShown 로드 — save.ts의 sanitizeEndingsShown이 endingShown(deprecated) 마이그레이션을
     // 이미 처리하므로 여기서는 endingsShown만 보면 된다.
-    type EndingId = 'acquisition' | 'ipo' | 'global-no1' | 'unicorn';
+    type EndingId = 'acquisition' | 'ipo' | 'global-no1' | 'unicorn' | 'global-hq';
     const initialEndingsShown: ReadonlyArray<EndingId> =
       existing?.endingsShown ?? [];
     this.liveEndingsShown = initialEndingsShown;
@@ -282,7 +282,16 @@ export class ResultScene extends Phaser.Scene {
     // 엔딩 분기 — 가장 높은 미달성 임계 우선.
     const totalRevenue = this.history.reduce((s, r) => s + r.revenue, 0);
     const shownSet = new Set(this.liveEndingsShown);
-    type EndingTier = 'acquisition' | 'ipo' | 'global-no1' | 'unicorn';
+    type EndingTier = 'acquisition' | 'ipo' | 'global-no1' | 'unicorn' | 'global-hq';
+
+    // global-hq는 매출이 아닌 사옥 L6 도달 트리거 (도전 과제형).
+    if (this.officeLevel >= 6 && !shownSet.has('global-hq')) {
+      this.liveEndingsShown = [...this.liveEndingsShown, 'global-hq'];
+      this.persistResult();
+      this.scene.start(SCENE_KEYS.Ending, { ending: 'global-hq' });
+      return;
+    }
+
     const endingChecks: ReadonlyArray<{ id: EndingTier; threshold: number }> = [
       { id: 'unicorn',     threshold: ENDING.unicornRevenueThreshold },
       { id: 'global-no1',  threshold: ENDING.globalNo1RevenueThreshold },
@@ -1532,7 +1541,7 @@ export class ResultScene extends Phaser.Scene {
 
   // ────────────────────────── R&D modal ──────────────────────────
   /** R&D 모달 — 현재 활성 tier(reopens마다 리셋). */
-  private rndActiveTier: 1 | 2 | 3 | 4 = 1;
+  private rndActiveTier: 1 | 2 | 3 | 4 | 5 = 1;
 
   /** 모달 헤더 우측 상단 X 닫기 — 카드가 viewport 넘어 하단 닫기 안 보일 때 폴백. */
   private addModalCloseX(
@@ -1627,12 +1636,15 @@ export class ResultScene extends Phaser.Scene {
     // Tier 탭.
     const tabY = panelY + 76;
     const tabH = 40;
-    const tabW = (panelW - 48 - 24) / 4;
-    const tierLabels: Array<{ tier: 1 | 2 | 3 | 4; label: string; count: number }> = [
+    // 5탭(T1~T5) — 너비 자동 분할.
+    const tabCount = 5;
+    const tabW = (panelW - 48 - (tabCount - 1) * 8) / tabCount;
+    const tierLabels: Array<{ tier: 1 | 2 | 3 | 4 | 5; label: string; count: number }> = [
       { tier: 1, label: 'T1', count: RND_ITEMS.filter((i) => getRndTier(i.id) === 1).length },
       { tier: 2, label: 'T2', count: RND_ITEMS.filter((i) => getRndTier(i.id) === 2).length },
       { tier: 3, label: 'T3', count: RND_ITEMS.filter((i) => getRndTier(i.id) === 3).length },
       { tier: 4, label: 'T4', count: RND_ITEMS.filter((i) => getRndTier(i.id) === 4).length },
+      { tier: 5, label: 'T5', count: RND_ITEMS.filter((i) => getRndTier(i.id) === 5).length },
     ];
     tierLabels.forEach((t, i) => {
       const tx = panelX + 24 + i * (tabW + 8);
@@ -1714,7 +1726,7 @@ export class ResultScene extends Phaser.Scene {
     onBuy: () => void,
   ): void {
     const purchased = isRndPurchased(this.liveRnd, item.id);
-    const available = isRndAvailable(this.liveRnd, item, productCount);
+    const available = isRndAvailable(this.liveRnd, item, productCount, this.officeLevel);
     const affordable = this.liveGold >= item.cost;
     // 연구 진행 상태 확인.
     // stale progress 방어: weeksRemaining<=0이거나 inProgress가 RND_ITEMS에 없으면 무효.
@@ -1733,7 +1745,12 @@ export class ResultScene extends Phaser.Scene {
     // 티어 배지 — 좌상단 작은 T1/T2/T3 칩.
     const tier = getRndTier(item.id);
     const tierLabel = `T${tier}`;
-    const tierColor = tier === 4 ? '#ff5722' : tier === 3 ? TEXT_COLOR.ok : tier === 2 ? TEXT_COLOR.warn : TEXT_COLOR.primary;
+    const tierColor =
+      tier === 5 ? '#d946ef' :
+      tier === 4 ? '#ff5722' :
+      tier === 3 ? TEXT_COLOR.ok :
+      tier === 2 ? TEXT_COLOR.warn :
+      TEXT_COLOR.primary;
     layer.add(
       this.add.text(x + 8, y + 8, tierLabel, {
         fontFamily: FONT_STACK,
@@ -1824,6 +1841,9 @@ export class ResultScene extends Phaser.Scene {
       if (item.minProductCount !== undefined && productCount < item.minProductCount) {
         lockParts.push(`${item.minProductCount}번째 출시 후 해금`);
       }
+      if (item.minOfficeLevel !== undefined && this.officeLevel < item.minOfficeLevel) {
+        lockParts.push(`사옥 ${item.minOfficeLevel}단계 필요`);
+      }
       if (item.requires) {
         const missing = item.requires.filter((r) => !isRndPurchased(this.liveRnd, r));
         if (missing.length > 0) lockParts.push(`선행: ${missing.join(', ')}`);
@@ -1899,7 +1919,11 @@ export class ResultScene extends Phaser.Scene {
     if (this.liveGold < item.cost) return;
     this.liveGold -= item.cost;
     // 즉시 구매 대신 연구 시작 — advanceWeek���서 매��� 카운트다운.
-    const weeks = RND_RESEARCH_WEEKS[id];
+    let weeks = RND_RESEARCH_WEEKS[id];
+    // 시설: 이노베이션 랩 — 모든 R&D 연구 시간 −2주(최소 1주).
+    if (isFacilityBuilt(this.liveFacilities, 'innovation-lab')) {
+      weeks = Math.max(1, weeks - 2);
+    }
     this.liveRnd = {
       ...this.liveRnd,
       progress: { inProgress: id, weeksRemaining: weeks },

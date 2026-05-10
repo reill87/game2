@@ -30,7 +30,12 @@ export type RndId =
   | 'quantum-deploy'
   | 'satellite-network'
   | 'neural-architecture'
-  | 'company-os';
+  | 'company-os'
+  // Tier 5 — 사옥 L5/L6 전용. End-game 콘텐츠.
+  | 'ai-coder'
+  | 'global-data-fabric'
+  | 'company-llm'
+  | 'metaverse-office';
 
 export interface RndItem {
   readonly id: RndId;
@@ -43,6 +48,8 @@ export interface RndItem {
   readonly requires?: ReadonlyArray<RndId>;
   /** productCount 게이트 — 너무 빨리 풀리는 거 방지. */
   readonly minProductCount?: number;
+  /** 사옥 단계 게이트 — 해당 단계 이상에서만 노출(T5는 L5+). */
+  readonly minOfficeLevel?: number;
 }
 
 export const RND_ITEMS: ReadonlyArray<RndItem> = [
@@ -260,6 +267,48 @@ export const RND_ITEMS: ReadonlyArray<RndItem> = [
     requires: ['quantum-deploy', 'satellite-network'],
     minProductCount: 50,
   },
+  // ── Tier 5 ────────────────────────────────────────────────────────────────
+  // 사옥 L5+ 전용. End-game 차원의 강력 효과.
+  {
+    id: 'ai-coder',
+    name: 'AI 자동 코더',
+    desc: 'AI가 직원 대신 코드 생산. Progress 배수 ×1.25 (가장 강력).',
+    cost: 250000,
+    effectLabel: 'Progress 배수 ×1.25',
+    requires: ['quantum-deploy', 'neural-architecture'],
+    minProductCount: 60,
+    minOfficeLevel: 5,
+  },
+  {
+    id: 'global-data-fabric',
+    name: '글로벌 데이터 패브릭',
+    desc: '전세계 데이터 통합 플랫폼. 매출 ×1.5 — 모든 작품에 적용.',
+    cost: 350000,
+    effectLabel: '매출 ×1.5',
+    requires: ['satellite-network', 'company-os'],
+    minProductCount: 70,
+    minOfficeLevel: 5,
+  },
+  {
+    id: 'company-llm',
+    name: '사내 LLM',
+    desc: '자체 거대 언어모델. 모든 직원 effective skill ×1.15.',
+    cost: 400000,
+    effectLabel: 'Effective skill ×1.15',
+    requires: ['neural-architecture', 'company-os'],
+    minProductCount: 80,
+    minOfficeLevel: 6,
+  },
+  {
+    id: 'metaverse-office',
+    name: '메타버스 오피스',
+    desc: '가상 캠퍼스에서 24시간 협업. AP +1/주, BugDebt /주 −2.',
+    cost: 500000,
+    effectLabel: 'AP +1/주 · BugDebt −2/주',
+    requires: ['ai-coder', 'global-data-fabric'],
+    minProductCount: 90,
+    minOfficeLevel: 6,
+  },
 ];
 
 /** R&D 연구 진행 상태. */
@@ -300,6 +349,11 @@ export const RND_RESEARCH_WEEKS: Readonly<Record<RndId, number>> = {
   'satellite-network': 10,
   'neural-architecture': 10,
   'company-os': 10,
+  // T5: 16주 — end-game 장기 R&D
+  'ai-coder': 16,
+  'global-data-fabric': 16,
+  'company-llm': 16,
+  'metaverse-office': 16,
 };
 
 export interface RndState {
@@ -318,16 +372,24 @@ export function isRndAvailable(
   rnd: RndState | undefined,
   item: RndItem,
   productCount: number,
+  officeLevel?: number,
 ): boolean {
   if (item.minProductCount !== undefined && productCount < item.minProductCount) return false;
+  if (item.minOfficeLevel !== undefined && (officeLevel ?? 1) < item.minOfficeLevel) return false;
   if (item.requires) {
     for (const req of item.requires) if (!isRndPurchased(rnd, req)) return false;
   }
   return true;
 }
 
-/** R&D 항목의 티어 반환. T2/T3/T4 화이트리스트로 판정. */
-export function getRndTier(id: RndId): 1 | 2 | 3 | 4 {
+/** R&D 항목의 티어 반환. T2/T3/T4/T5 화이트리스트로 판정. */
+export function getRndTier(id: RndId): 1 | 2 | 3 | 4 | 5 {
+  const T5_IDS: ReadonlySet<RndId> = new Set([
+    'ai-coder',
+    'global-data-fabric',
+    'company-llm',
+    'metaverse-office',
+  ]);
   const T4_IDS: ReadonlySet<RndId> = new Set([
     'quantum-deploy',
     'satellite-network',
@@ -350,6 +412,7 @@ export function getRndTier(id: RndId): 1 | 2 | 3 | 4 {
     'cloud-migration',
     'remote-collaboration',
   ]);
+  if (T5_IDS.has(id)) return 5;
   if (T4_IDS.has(id)) return 4;
   if (T3_IDS.has(id)) return 3;
   if (T2_IDS.has(id)) return 2;
