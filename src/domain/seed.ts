@@ -516,7 +516,7 @@ export const OFFICE_STAGE_LABEL: Readonly<Record<1 | 2 | 3 | 4, string>> = {
  *  - 1단계(분당): support 없음 (총 4명 배치 가능)
  *  - 2단계(판교): programming + graphics support 활성 (총 6명)
  *  - 3단계(강남): 기존 4 슬롯 support 활성 (총 8명)
- *  - 4단계(서울): 모든 슬롯(marketing/data 포함) support 활성 (총 8명, 고용 상한 10명)
+ *  - 4단계(성수 글로벌 캠퍼스): 모든 슬롯 support 활성 (총 8명 배치, 고용 상한 16명)
  */
 export const SUPPORT_SLOTS_BY_OFFICE: Readonly<Record<1 | 2 | 3 | 4, ReadonlySet<SlotKind>>> = {
   1: new Set<SlotKind>(),

@@ -48,10 +48,12 @@ export const BALANCE = {
   appealEnabledBaseScore: 70,
   /** 사무실 1→2 업그레이드 비용 (골드). @deprecated officeUpgradeCostBy 사용 권장. */
   officeUpgradeCost: 300,
-  /** 다음 단계 업그레이드 비용 — 키는 업그레이드 후 도달 단계. */
-  officeUpgradeCostBy: { 2: 300, 3: 900, 4: 4000 } as Record<2 | 3 | 4, number>,
-  /** 사무실 단계별 고용 상한. */
-  officeHireCap: { 1: 3, 2: 4, 3: 6, 4: 10 } as Record<1 | 2 | 3 | 4, number>,
+  /** 다음 단계 업그레이드 비용 — 키는 업그레이드 후 도달 단계.
+   * v3 밸런스: L4를 후반 핵심 목표로 — 30K로 상향 (이전 4K → 너무 빨리 달성). */
+  officeUpgradeCostBy: { 2: 500, 3: 3000, 4: 30000 } as Record<2 | 3 | 4, number>,
+  /** 사무실 단계별 고용 상한.
+   * v3 밸런스: L4를 '글로벌 캠퍼스'에 어울리게 16명까지 확장 (이전 10). */
+  officeHireCap: { 1: 3, 2: 5, 3: 8, 4: 16 } as Record<1 | 2 | 3 | 4, number>,
 } as const;
 
 /**

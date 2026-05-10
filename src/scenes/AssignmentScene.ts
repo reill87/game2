@@ -50,15 +50,16 @@ interface EmployeeLayout {
  *  - 5~6명: 2행 3열 (200h)
  *  - 7~9명: 3행 3열 (140h, 컴팩트)
  *  - 10~12명: 3행 4열 (140h, 더 좁음)
- *  - 13+명: 4행, 12명 표시 후 잘림 (드물 케이스)
+ *  - 13~16명: 4행 4열 (110h, 초컴팩트 — L4 글로벌 캠퍼스)
  */
 function pickEmployeeLayout(count: number): EmployeeLayout {
   if (count <= 3) return { cols: Math.max(1, count), cardW: 200, cardH: 240, gap: 14, rowGap: 14 };
   if (count === 4) return { cols: 4, cardW: 160, cardH: 240, gap: 12, rowGap: 14 };
   if (count <= 6) return { cols: 3, cardW: 200, cardH: 200, gap: 14, rowGap: 14 };
   if (count <= 9) return { cols: 3, cardW: 200, cardH: 140, gap: 12, rowGap: 10 };
-  // 10~12명: 4열 컴팩트
-  return { cols: 4, cardW: 158, cardH: 140, gap: 10, rowGap: 10 };
+  if (count <= 12) return { cols: 4, cardW: 158, cardH: 140, gap: 10, rowGap: 10 };
+  // 13~16명: 4×4 초컴팩트
+  return { cols: 4, cardW: 158, cardH: 110, gap: 10, rowGap: 8 };
 }
 
 
