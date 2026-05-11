@@ -1957,11 +1957,19 @@ export class ResultScene extends Phaser.Scene {
       ? Math.max(0, emps.findIndex((e) => e.id === focusEmpId))
       : 0;
 
+    // 직원 탭 — 6열 그리드로 wrap (24명까지 4행). 화면 폭에 맞춰 다행 그리드.
+    const tabCols = 6;
+    const tabH = 36;
+    const tabGap = 6;
+    const tabRowGap = 6;
+    const tabRows = Math.max(1, Math.ceil(emps.length / tabCols));
+    const tabsBlockH = tabRows * tabH + (tabRows - 1) * tabRowGap;
+
     // 슬롯 4개 카드 높이: 헤더 + 직원 탭 row + 슬롯 4개 × 슬롯 카드 + 닫기.
     const slotCardH = 64;
     const slotGap = 8;
     const slotsH = 4 * slotCardH + 3 * slotGap;
-    const panelH = Math.min(1160, 80 + 44 + 16 + slotsH + 16 + 48 + 16);
+    const panelH = Math.min(1240, 80 + tabsBlockH + 8 + 16 + slotsH + 16 + 48 + 16);
 
     const panel = makePanel(this, panelX, panelY, panelW, panelH, COLOR.panel);
     layer.add(panel);
@@ -1985,16 +1993,14 @@ export class ResultScene extends Phaser.Scene {
       }),
     );
 
-    // 직원 탭 row — 가로 스크롤 없이 최대 6명까지 버튼.
+    // 직원 탭 grid — 6열 wrap. 24명까지 4행.
     const tabsY = panelY + 76;
-    const tabH = 36;
-    const tabGap = 6;
-    const tabW = emps.length > 0 ? Math.min(90, (panelW - 48 - tabGap * (emps.length - 1)) / emps.length) : 90;
+    const tabW = (panelW - 48 - tabGap * (tabCols - 1)) / tabCols;
     const empTabs: Array<{
       bg: Phaser.GameObjects.Graphics;
       text: Phaser.GameObjects.Text;
     }> = [];
-    const slotsContainerY = tabsY + tabH + 16;
+    const slotsContainerY = tabsY + tabsBlockH + 16;
     const slotsContainer = this.add.container(panelX + 24, slotsContainerY);
     layer.add(slotsContainer);
 
@@ -2097,23 +2103,26 @@ export class ResultScene extends Phaser.Scene {
       empTabs.forEach((t) => { t.bg.destroy(); t.text.destroy(); });
       empTabs.length = 0;
       emps.forEach((emp, i) => {
-        const tx = panelX + 24 + i * (tabW + tabGap);
+        const row = Math.floor(i / tabCols);
+        const col = i % tabCols;
+        const tx = panelX + 24 + col * (tabW + tabGap);
+        const ty = tabsY + row * (tabH + tabRowGap);
         const isSelected = i === selectedIdx;
         const bg = this.add.graphics();
         bg.fillStyle(isSelected ? COLOR.btn : COLOR.btnSecondary, 1);
-        bg.fillRoundedRect(tx, tabsY, tabW, tabH, 8);
+        bg.fillRoundedRect(tx, ty, tabW, tabH, 8);
         layer.add(bg);
         const txt = this.add
-          .text(tx + tabW / 2, tabsY + tabH / 2, emp.name.slice(0, 4), {
+          .text(tx + tabW / 2, ty + tabH / 2, emp.name.slice(0, 4), {
             fontFamily: FONT_STACK,
-            fontSize: '19px',
+            fontSize: '17px',
             fontStyle: isSelected ? 'bold' : 'normal',
             color: TEXT_COLOR.primary,
           })
           .setOrigin(0.5);
         layer.add(txt);
         const hit = this.add
-          .zone(tx + tabW / 2, tabsY + tabH / 2, tabW, tabH)
+          .zone(tx + tabW / 2, ty + tabH / 2, tabW, tabH)
           .setInteractive({ useHandCursor: true });
         layer.add(hit);
         hit.on('pointerup', () => {
