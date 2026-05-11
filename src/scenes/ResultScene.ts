@@ -86,7 +86,7 @@ import { NPCS } from '@/domain/npcs';
 import { detectNewMilestones, type Milestone, type MilestoneId } from '@/domain/milestones';
 import { playSfx, SFX } from '@/sounds';
 import { COLOR, FONT_STACK, TEXT_COLOR, TINT } from '@/theme';
-import { formatGold, createModal, createButton } from '@/ui';
+import { formatGold, createModal, createButton, confettiBurst, showToast } from '@/ui';
 import { TYPE } from '@/theme';
 import { applyHiDPI } from '@/util/hidpi';
 import { addMuteToggle } from '@/util/muteToggle';
@@ -132,6 +132,8 @@ export class ResultScene extends Phaser.Scene {
   private liveMilestones: ReadonlyArray<MilestoneId> = [];
   /** 연말 결산 달성 시 reputation 보너스 — persistResult에서 합산. */
   private yearEndReputationBonus = 0;
+  /** 이번 출시 사이클에서 완료된 R&D 이름들 — create()에서 toast 발화. */
+  private justCompletedRnd: ReadonlyArray<string> = [];
   /** 수신 메일 목록 — 최대 30개 보관. */
   private liveMails: ReadonlyArray<MailMessage> = [];
 
@@ -192,7 +194,13 @@ export class ResultScene extends Phaser.Scene {
     this.livePolicy = existing?.policy ?? DEFAULT_POLICY;
     // outcome.state.rnd가 dev cycle 중 advanceWeek로 decrement된 최신 progress를 가짐.
     // 옛 save를 그대로 쓰면 R&D 진행이 ResultScene에서 안 보이는 버그.
+    const prevPurchasedIds = new Set(existing?.rnd?.purchased ?? []);
     this.liveRnd = data.outcome.state.rnd ?? existing?.rnd ?? EMPTY_RND;
+    // 이번 출시 사이클에서 새로 완료된 R&D 감지 → 토스트.
+    this.justCompletedRnd = this.liveRnd.purchased
+      .filter((id) => !prevPurchasedIds.has(id))
+      .map((id) => RND_ITEMS.find((r) => r.id === id)?.name)
+      .filter((n): n is string => !!n);
     // stale rnd progress 정리 — 옛 id 또는 weeksRemaining=0인 inProgress 제거.
     {
       const p = this.liveRnd.progress;
@@ -281,6 +289,16 @@ export class ResultScene extends Phaser.Scene {
     addMuteToggle(this);
     this.addSettingsButton();
     this.persistResult();
+
+    // R&D 완료 토스트 — init에서 감지된 항목을 순차 발화.
+    if (this.justCompletedRnd.length > 0) {
+      this.justCompletedRnd.forEach((name, i) => {
+        this.time.delayedCall(800 + i * 400, () => {
+          showToast(this, `🎉 R&D 완료: ${name}`, { tone: 'ok', durationMs: 3000 });
+          confettiBurst(this, 360, 400, { count: 24 });
+        });
+      });
+    }
     // 엔딩 분기 — 가장 높은 미달성 임계 우선.
     const totalRevenue = this.history.reduce((s, r) => s + r.revenue, 0);
     const shownSet = new Set(this.liveEndingsShown);
@@ -1852,6 +1870,10 @@ export class ResultScene extends Phaser.Scene {
     this.persistResult();
     this.refreshOfficePanel();
     this.refreshSaveFooter();
+
+    // 셀러브레이션 + 토스트 — 연구 시작 피드백.
+    confettiBurst(this, 360, 640, { count: 20 });
+    showToast(this, `🔬 ${item.name} 연구 시작 (${weeks}주)`, { tone: 'ok' });
   }
 
   // ────────────────────────── 장비 modal ──────────────────────────
@@ -2242,6 +2264,9 @@ export class ResultScene extends Phaser.Scene {
     this.persistResult();
     this.refreshOfficePanel();
     this.refreshSaveFooter();
+    // 셀러브레이션 + 토스트.
+    confettiBurst(this, 360, 640, { count: 20 });
+    showToast(this, `🏢 ${item.name} 건설 완료`, { tone: 'ok' });
     // 시설 모달 재오픈 — 최신 상태 반영.
     this.openFacilitiesModal();
   }
@@ -2840,6 +2865,8 @@ export class ResultScene extends Phaser.Scene {
     this.liveMarkets = enterMarket(this.liveMarkets, id);
     this.persistResult();
     this.refreshOfficePanel();
+    confettiBurst(this, 360, 640, { count: 20 });
+    showToast(this, `🌐 ${m.name} 시장 진출 완료`, { tone: 'ok' });
     this.refreshSaveFooter();
   }
 
@@ -3013,6 +3040,8 @@ export class ResultScene extends Phaser.Scene {
     this.persistResult();
     this.refreshOfficePanel();
     this.refreshSaveFooter();
+    confettiBurst(this, 360, 640, { count: 28 });
+    showToast(this, `🤝 ${acq.name} 인수 완료 — ${newEmps.length}명 합류`, { tone: 'ok', durationMs: 2500 });
   }
 
   // ────────────────────────── 메일 시스템 ──────────────────────────

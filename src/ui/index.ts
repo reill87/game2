@@ -13,3 +13,7 @@ export * from './components/button';
 export * from './components/badge';
 export * from './components/card';
 export * from './components/modal';
+export * from './components/tabs';
+export * from './components/toast';
+export * from './components/confetti';
+export * from './components/scrollArea';
