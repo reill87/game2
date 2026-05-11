@@ -86,6 +86,7 @@ import { NPCS } from '@/domain/npcs';
 import { detectNewMilestones, type Milestone, type MilestoneId } from '@/domain/milestones';
 import { playSfx, SFX } from '@/sounds';
 import { COLOR, FONT_STACK, TEXT_COLOR, TINT } from '@/theme';
+import { formatGold } from '@/ui';
 import { applyHiDPI } from '@/util/hidpi';
 import { addMuteToggle } from '@/util/muteToggle';
 import { makePanel } from '@/util/ui';
@@ -963,7 +964,7 @@ export class ResultScene extends Phaser.Scene {
     const totalEmps = this.liveEmployees.length;
     const companyName = loadData()?.companyName ?? DEFAULT_COMPANY_NAME;
     this.officeStatusText.setText(`${companyName} — ${OFFICE_STAGE_LABEL[this.officeLevel] ?? '?'} — 고용 ${totalEmps}/${cap}명`);
-    this.officeGoldText.setText(`${this.liveGold}g`);
+    this.officeGoldText.setText(formatGold(this.liveGold));
     // 코인 아이콘은 골드 텍스트 좌측, 텍스트 폭이 변하므로 동적으로 위치 보정.
     if (this.officeGoldIcon) {
       const textLeft = this.officeGoldText.x - this.officeGoldText.width;
