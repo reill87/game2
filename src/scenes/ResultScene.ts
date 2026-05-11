@@ -86,7 +86,8 @@ import { NPCS } from '@/domain/npcs';
 import { detectNewMilestones, type Milestone, type MilestoneId } from '@/domain/milestones';
 import { playSfx, SFX } from '@/sounds';
 import { COLOR, FONT_STACK, TEXT_COLOR, TINT } from '@/theme';
-import { formatGold } from '@/ui';
+import { formatGold, createModal, createButton } from '@/ui';
+import { TYPE } from '@/theme';
 import { applyHiDPI } from '@/util/hidpi';
 import { addMuteToggle } from '@/util/muteToggle';
 import { makePanel } from '@/util/ui';
@@ -3523,117 +3524,71 @@ export class ResultScene extends Phaser.Scene {
     const npcName = npc?.name ?? mail.fromNpcId;
     const npcRole = npc?.role ?? '';
 
-    const layer = this.add.container(0, 0).setDepth(155);
-    const overlay = this.add
-      .rectangle(0, 0, 720, 1280, 0x000000, 0.75)
-      .setOrigin(0, 0)
-      .setInteractive();
-    layer.add(overlay);
-
-    const panelW = 600;
-    const panelX = this.contentX + (720 - panelW) / 2;
-
-    // 패널 높이 계산 — 본문 + 선택지.
+    // 디자인 시스템 모달 — Phase 2 컴포넌트(createModal) 사용 시범.
     const choiceH = mail.choices ? mail.choices.length * 68 + 16 : 0;
+    const panelW = 600;
     const panelH = Math.min(1100, 180 + choiceH + 60);
-    const panelY = Math.max(40, (1280 - panelH) / 2);
-    const panel = makePanel(this, panelX, panelY, panelW, panelH, COLOR.panel);
-    layer.add(panel);
-    this.addModalCloseX(layer, panelX, panelY, panelW);
 
-    // 발신자 정보.
+    const modal = createModal(this, {
+      w: panelW,
+      h: panelH,
+      category: 'mail',
+      title: `${npcName} — ${npcRole}`,
+      subtitle: mail.subject,
+      depth: 155,
+      onClose: () => this.openMailInboxModal(),
+    });
+
+    const { layer } = modal;
+    const { x: panelX } = modal.panel;
+    const { y: panelY } = modal.panel;
+
+    // 본문 — subtitle 아래.
     layer.add(
-      this.add.text(panelX + 24, panelY + 18, `${npcName} — ${npcRole}`, {
-        fontFamily: FONT_STACK,
-        fontSize: '20px',
-        fontStyle: 'bold',
-        color: TEXT_COLOR.warn,
-      }),
-    );
-    // 제목.
-    layer.add(
-      this.add.text(panelX + 24, panelY + 40, mail.subject, {
-        fontFamily: FONT_STACK,
-        fontSize: '28px',
-        fontStyle: 'bold',
-        color: TEXT_COLOR.primary,
-        wordWrap: { width: panelW - 48 },
-      }),
-    );
-    // 본문.
-    layer.add(
-      this.add.text(panelX + 24, panelY + 80, mail.body, {
-        fontFamily: FONT_STACK,
-        fontSize: '22px',
+      this.add.text(panelX + 24, panelY + 96, mail.body, {
+        ...TYPE.lead,
         color: TEXT_COLOR.dim,
         wordWrap: { width: panelW - 48 },
       }),
     );
 
-    // 선택지 버튼들.
-    const choicesY = panelY + 148;
+    // 선택지 버튼들 — createButton 사용 (primary variant + 부제 텍스트).
+    const choicesY = panelY + 168;
     if (mail.choices && mail.choices.length > 0) {
       mail.choices.forEach((choice, i) => {
         const btnY = choicesY + i * 68;
         const btnH = 58;
-        const btnBg = this.add.graphics();
-        btnBg.fillStyle(COLOR.btn, 1);
-        btnBg.fillRoundedRect(panelX + 24, btnY, panelW - 48, btnH, 10);
-        layer.add(btnBg);
+        const btn = createButton(this, {
+          x: panelX + 24,
+          y: btnY,
+          w: panelW - 48,
+          h: btnH,
+          label: choice.label,
+          variant: 'primary',
+          size: 'md',
+          onTap: () => {
+            playSfx(this, SFX.success);
+            this.applyMailChoice(mail, choice.apply);
+            // onClose 발화 막고 즉시 close.
+            modal.onClose = undefined;
+            modal.close();
+          },
+        });
+        // 라벨 좌측 정렬 + 부제 노출 위해 text 위치 조정.
+        btn.text.setOrigin(0, 0.5).setX(panelX + 24 + 12).setY(btnY + 18);
+        layer.add(btn.bg);
+        layer.add(btn.text);
+        layer.add(btn.hit);
+        // 부제 — choice.summary.
         layer.add(
-          this.add.text(panelX + 24 + 12, btnY + 8, choice.label, {
-            fontFamily: FONT_STACK,
-            fontSize: '20px',
-            fontStyle: 'bold',
+          this.add.text(panelX + 24 + 12, btnY + 36, choice.summary, {
+            ...TYPE.meta,
             color: TEXT_COLOR.primary,
             wordWrap: { width: panelW - 72 },
-          }),
+          }).setAlpha(0.85),
         );
-        layer.add(
-          this.add.text(panelX + 24 + 12, btnY + 30, choice.summary, {
-            fontFamily: FONT_STACK,
-            fontSize: '18px',
-            color: TEXT_COLOR.dim,
-            wordWrap: { width: panelW - 72 },
-          }),
-        );
-        const hit = this.add
-          .zone(panelX + 24 + (panelW - 48) / 2, btnY + btnH / 2, panelW - 48, btnH)
-          .setInteractive({ useHandCursor: true });
-        layer.add(hit);
-        hit.on('pointerup', () => {
-          playSfx(this, SFX.success);
-          this.applyMailChoice(mail, choice.apply);
-          layer.destroy();
-        });
       });
     }
-
-    // 닫기 버튼.
-    const closeY = panelY + panelH - 56;
-    const closeBg = this.add.graphics();
-    closeBg.fillStyle(COLOR.btnSecondary, 1);
-    closeBg.fillRoundedRect(panelX + 24, closeY, panelW - 48, 40, 12);
-    layer.add(closeBg);
-    layer.add(
-      this.add
-        .text(panelX + panelW / 2, closeY + 20, '닫기', {
-          fontFamily: FONT_STACK,
-          fontSize: '24px',
-          color: TEXT_COLOR.dim,
-        })
-        .setOrigin(0.5),
-    );
-    const closeHit = this.add
-      .zone(panelX + panelW / 2, closeY + 20, panelW - 48, 40)
-      .setInteractive({ useHandCursor: true });
-    layer.add(closeHit);
-    closeHit.on('pointerup', () => {
-      playSfx(this, SFX.tap);
-      layer.destroy();
-      // 인박스로 돌아감.
-      this.openMailInboxModal();
-    });
   }
 
   /**
