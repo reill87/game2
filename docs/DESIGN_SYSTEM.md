@@ -143,21 +143,27 @@ const b = createBadge(this, x, y, {
 layer.add([b.bg, b.text]);
 ```
 
-## 시범 적용
+## 적용 완료 (Phase 2)
 
-- `ResultScene.openMailDetailModal` — `createModal` + `createButton` 사용으로 이전 80줄을 40줄로 축소.
+ResultScene의 모든 주요 모달이 `createModal` + `createButton`으로 마이그레이션됨:
 
-## 남은 모달 (마이그레이션 후보)
+- ✅ `openRndModal` — `category: 'rnd'` (시안)
+- ✅ `openFacilitiesModal` — `category: 'facility'` (보라)
+- ✅ `openMarketsModal` — `category: 'market'` (청록)
+- ✅ `openAcquisitionsModal` — `category: 'acquisition'` (앰버)
+- ✅ `openEquipmentModal` — `category: 'hire'` (블루)
+- ✅ `openMailInboxModal` — `category: 'mail'` (핑크)
+- ✅ `openMailDetailModal` — `category: 'mail'` (핑크)
+- ✅ `openInterviewModal` — `category: 'hire'` (블루)
 
-- `openRndModal` — `category: 'rnd'`
-- `openFacilitiesModal` — `category: 'facility'`
-- `openMarketsModal` — `category: 'market'`
-- `openAcquisitionsModal` — `category: 'acquisition'`
-- `openEquipmentModal` — 기존 헤더 패턴 유지하되 `createButton` 전환
-- `openMailInboxModal` — `category: 'mail'`
-- `openInterviewModal` — `category: 'hire'`
+이제 모든 모달이:
+- 헤더에 카테고리 시그니처 색 띠 표시
+- 좌상단 카테고리 색 제목
+- 우상단 X 닫기 버튼 (자동)
+- slide-up + fade-in 진입 애니메이션 (탭 전환 시 R&D는 끔)
+- 일관된 spacing/typography
 
-각 모달은 한 번에 1개씩 옮기면 안전. tsc + 시각 확인 후 커밋.
+`addModalCloseX` 옛 헬퍼는 제거됨.
 
 ## Phase 3 예고
 

@@ -1313,38 +1313,19 @@ export class ResultScene extends Phaser.Scene {
     } else {
       candidates = pickHireCandidates(3);
     }
-    const layer = this.add.container(0, 0).setDepth(150);
-
-    // 어두운 오버레이 — logical 720×1280 풀 사이즈.
-    const overlay = this.add
-      .rectangle(0, 0, 720, 1280, 0x000000, 0.7)
-      .setOrigin(0, 0)
-      .setInteractive();
-    layer.add(overlay);
-
-    // 패널 — 카드 3장 세로 배치.
     const panelW = 600;
     const panelH = 720;
-    const panelX = this.contentX + (720 - panelW) / 2;
-    const panelY = 200;
-    const panel = makePanel(this, panelX, panelY, panelW, panelH, COLOR.panel);
-    layer.add(panel);
-
-    // 헤더.
-    const headerBar = this.add.text(panelX + 24, panelY + 18, '면접', {
-      fontFamily: FONT_STACK,
-      fontSize: '21px',
-      fontStyle: 'bold',
-      color: TEXT_COLOR.warn,
+    const modal = createModal(this, {
+      w: panelW,
+      h: panelH,
+      y: 200,
+      category: 'hire',
+      title: '면접',
+      subtitle: '후보 3명 중 한 명을 채용',
+      depth: 150,
     });
-    layer.add(headerBar);
-    const title = this.add.text(panelX + 24, panelY + 42, '후보 3명 중 한 명을 채용', {
-      fontFamily: FONT_STACK,
-      fontSize: '30px',
-      fontStyle: 'bold',
-      color: TEXT_COLOR.primary,
-    });
-    layer.add(title);
+    const { layer } = modal;
+    const { x: panelX, y: panelY } = modal.panel;
 
     // 카드들.
     const cardX = panelX + 24;
@@ -1364,35 +1345,28 @@ export class ResultScene extends Phaser.Scene {
       const baseEff = hireCostMul < 1.0 ? Math.round(c.hireCost * hireCostMul) : c.hireCost;
       const effCost = Math.round(baseEff * hirePcInflation);
       this.buildCandidateCard(layer, cardX, cy, cardW, cardH, c, effCost, () => {
-        // 닫기 → 채용 처리.
-        layer.destroy();
+        modal.close();
         this.applyHire(c);
       });
     });
 
-    // 닫기(취소) 버튼.
-    const closeY = panelY + panelH - 60;
-    const closeRect = new Phaser.Geom.Rectangle(panelX + 24, closeY, panelW - 48, 44);
-    const closeBg = this.add.graphics();
-    closeBg.fillStyle(COLOR.btnSecondary, 1);
-    closeBg.fillRoundedRect(closeRect.x, closeRect.y, closeRect.width, closeRect.height, 12);
-    layer.add(closeBg);
-    const closeText = this.add
-      .text(panelX + panelW / 2, closeY + 22, '나중에', {
-        fontFamily: FONT_STACK,
-        fontSize: '24px',
-        color: TEXT_COLOR.dim,
-      })
-      .setOrigin(0.5);
-    layer.add(closeText);
-    const closeHit = this.add
-      .zone(panelX + panelW / 2, closeY + 22, panelW - 48, 44)
-      .setInteractive({ useHandCursor: true });
-    layer.add(closeHit);
-    closeHit.on('pointerup', () => {
-      playSfx(this, SFX.tap);
-      layer.destroy();
+    // 나중에(취소) 버튼.
+    const cancelBtn = createButton(this, {
+      x: panelX + 24,
+      y: panelY + panelH - 60,
+      w: panelW - 48,
+      h: 44,
+      label: '나중에',
+      variant: 'secondary',
+      size: 'md',
+      onTap: () => {
+        playSfx(this, SFX.tap);
+        modal.close();
+      },
     });
+    layer.add(cancelBtn.bg);
+    layer.add(cancelBtn.text);
+    layer.add(cancelBtn.hit);
   }
 
   private buildCandidateCard(
@@ -1545,39 +1519,7 @@ export class ResultScene extends Phaser.Scene {
   /** R&D 모달 — 현재 활성 tier(reopens마다 리셋). */
   private rndActiveTier: 1 | 2 | 3 | 4 | 5 = 1;
 
-  /** 모달 헤더 우측 상단 X 닫기 — 카드가 viewport 넘어 하단 닫기 안 보일 때 폴백. */
-  private addModalCloseX(
-    layer: Phaser.GameObjects.Container,
-    panelX: number,
-    panelY: number,
-    panelW: number,
-  ): void {
-    const xSize = 36;
-    const xX = panelX + panelW - xSize - 12;
-    const xY = panelY + 12;
-    const xBg = this.add.graphics();
-    xBg.fillStyle(COLOR.btnSecondary, 1);
-    xBg.fillRoundedRect(xX, xY, xSize, xSize, 8);
-    layer.add(xBg);
-    layer.add(
-      this.add
-        .text(xX + xSize / 2, xY + xSize / 2, '✕', {
-          fontFamily: FONT_STACK,
-          fontSize: '22px',
-          fontStyle: 'bold',
-          color: TEXT_COLOR.primary,
-        })
-        .setOrigin(0.5),
-    );
-    const xHit = this.add
-      .zone(xX + xSize / 2, xY + xSize / 2, xSize, xSize)
-      .setInteractive({ useHandCursor: true });
-    layer.add(xHit);
-    xHit.on('pointerup', () => {
-      playSfx(this, SFX.tap);
-      layer.destroy();
-    });
-  }
+  // 옛 addModalCloseX 헬퍼는 createModal로 대체되어 제거됨.
 
   private openRndModal(): void {
     this.rndActiveTier = 1;
@@ -1591,49 +1533,31 @@ export class ResultScene extends Phaser.Scene {
       .filter((c) => (c as Phaser.GameObjects.Container).getData?.('rndModal'))
       .forEach((c) => c.destroy());
 
-    const layer = this.add.container(0, 0).setDepth(150);
-    layer.setData('rndModal', true);
-
-    const overlay = this.add
-      .rectangle(0, 0, 720, 1280, 0x000000, 0.7)
-      .setOrigin(0, 0)
-      .setInteractive();
-    layer.add(overlay);
-
     // 활성 tier의 아이템만 필터링.
     const tier = this.rndActiveTier;
     const items = RND_ITEMS.filter((it) => getRndTier(it.id) === tier);
 
-    // cardH: 118 → 132 — 모바일 zoom 0.5에서 카드 가독성 확보.
     const cardH = 132;
     const cardGap = 10;
-    const headerH = 130; // 헤더 + 탭 row 추가 분
+    const headerH = 130;
     const footerH = 60;
     const panelW = 600;
     const panelH = headerH + items.length * (cardH + cardGap) - cardGap + footerH + 16;
-    const panelX = this.contentX + (720 - panelW) / 2;
-    const panelY = Math.max(20, (1280 - panelH) / 2);
-    const panel = makePanel(this, panelX, panelY, panelW, panelH, COLOR.panel);
-    layer.add(panel);
 
-    // 헤더.
-    layer.add(
-      this.add.text(panelX + 24, panelY + 18, 'R&D 연구소', {
-        fontFamily: FONT_STACK,
-        fontSize: '21px',
-        fontStyle: 'bold',
-        color: TEXT_COLOR.warn,
-      }),
-    );
-
-    this.addModalCloseX(layer, panelX, panelY, panelW);
-    layer.add(
-      this.add.text(panelX + 24, panelY + 40, '영구 업그레이드 — 한 번 구매하면 모든 프로젝트에 적용', {
-        fontFamily: FONT_STACK,
-        fontSize: '17px',
-        color: TEXT_COLOR.dim,
-      }),
-    );
+    const modal = createModal(this, {
+      w: panelW,
+      h: panelH,
+      category: 'rnd',
+      title: 'R&D 연구소',
+      subtitle: '영구 업그레이드 — 한 번 구매하면 모든 프로젝트에 적용',
+      depth: 150,
+      // 탭 전환 재생성 시 slide-up이 매번 재생되면 거슬려서 첫 진입 외엔 끄고 싶지만,
+      // 단순화 위해 tier 1 진입 시에만 애니메이트.
+      animate: tier === 1,
+    });
+    const { layer } = modal;
+    const { x: panelX, y: panelY } = modal.panel;
+    layer.setData('rndModal', true);
 
     // Tier 탭.
     const tabY = panelY + 76;
@@ -1687,34 +1611,29 @@ export class ResultScene extends Phaser.Scene {
     items.forEach((item, i) => {
       const cy = cardsY0 + i * (cardH + cardGap);
       this.buildRndCard(layer, cardX, cy, cardW, cardH, item, productCount, () => {
-        layer.destroy();
+        modal.close();
         this.applyRndPurchase(item.id);
       });
     });
 
-    // 닫기 버튼.
+    // 하단 닫기 버튼 (footer) — createButton.
     const closeY = panelY + panelH - footerH + 8;
-    const closeBg = this.add.graphics();
-    closeBg.fillStyle(COLOR.btnSecondary, 1);
-    closeBg.fillRoundedRect(panelX + 24, closeY, panelW - 48, 40, 12);
-    layer.add(closeBg);
-    layer.add(
-      this.add
-        .text(panelX + panelW / 2, closeY + 20, '닫기', {
-          fontFamily: FONT_STACK,
-          fontSize: '24px',
-          color: TEXT_COLOR.dim,
-        })
-        .setOrigin(0.5),
-    );
-    const closeHit = this.add
-      .zone(panelX + panelW / 2, closeY + 20, panelW - 48, 40)
-      .setInteractive({ useHandCursor: true });
-    layer.add(closeHit);
-    closeHit.on('pointerup', () => {
-      playSfx(this, SFX.tap);
-      layer.destroy();
+    const closeBtn = createButton(this, {
+      x: panelX + 24,
+      y: closeY,
+      w: panelW - 48,
+      h: 40,
+      label: '닫기',
+      variant: 'secondary',
+      size: 'md',
+      onTap: () => {
+        playSfx(this, SFX.tap);
+        modal.close();
+      },
     });
+    layer.add(closeBtn.bg);
+    layer.add(closeBtn.text);
+    layer.add(closeBtn.hit);
   }
 
   private buildRndCard(
@@ -1941,25 +1860,12 @@ export class ResultScene extends Phaser.Scene {
    * @param focusEmpId 처음부터 특정 직원을 선택한 상태로 열 때 사용 (null이면 첫 직원).
    */
   private openEquipmentModal(focusEmpId: string | null): void {
-    const layer = this.add.container(0, 0).setDepth(150);
-
-    const overlay = this.add
-      .rectangle(0, 0, 720, 1280, 0x000000, 0.7)
-      .setOrigin(0, 0)
-      .setInteractive();
-    layer.add(overlay);
-
-    const panelW = 620;
-    const panelX = this.contentX + (720 - panelW) / 2;
-    const panelY = 60;
-
     // 선택 직원 인덱스.
     const emps = [...this.liveEmployees];
     let selectedIdx = focusEmpId
       ? Math.max(0, emps.findIndex((e) => e.id === focusEmpId))
       : 0;
 
-    // 직원 탭 — 6열 그리드로 wrap (24명까지 4행). 화면 폭에 맞춰 다행 그리드.
     const tabCols = 6;
     const tabH = 36;
     const tabGap = 6;
@@ -1967,33 +1873,23 @@ export class ResultScene extends Phaser.Scene {
     const tabRows = Math.max(1, Math.ceil(emps.length / tabCols));
     const tabsBlockH = tabRows * tabH + (tabRows - 1) * tabRowGap;
 
-    // 슬롯 4개 카드 높이: 헤더 + 직원 탭 row + 슬롯 4개 × 슬롯 카드 + 닫기.
     const slotCardH = 64;
     const slotGap = 8;
     const slotsH = 4 * slotCardH + 3 * slotGap;
+    const panelW = 620;
     const panelH = Math.min(1240, 80 + tabsBlockH + 8 + 16 + slotsH + 16 + 48 + 16);
 
-    const panel = makePanel(this, panelX, panelY, panelW, panelH, COLOR.panel);
-    layer.add(panel);
-    this.addModalCloseX(layer, panelX, panelY, panelW);
-
-    // 헤더.
-    layer.add(
-      this.add.text(panelX + 24, panelY + 18, '장비 관리', {
-        fontFamily: FONT_STACK,
-        fontSize: '21px',
-        fontStyle: 'bold',
-        color: TEXT_COLOR.warn,
-      }),
-    );
-    layer.add(
-      this.add.text(panelX + 24, panelY + 40, '직원별 개인 장비 (4슬롯) — 업그레이드 시 효율·컨디션 ↑', {
-        fontFamily: FONT_STACK,
-        fontSize: '22px',
-        color: TEXT_COLOR.dim,
-        wordWrap: { width: panelW - 48 },
-      }),
-    );
+    const modal = createModal(this, {
+      w: panelW,
+      h: panelH,
+      y: 60,
+      category: 'hire',
+      title: '장비 관리',
+      subtitle: '직원별 개인 장비 (4슬롯) — 업그레이드 시 효율·컨디션 ↑',
+      depth: 150,
+    });
+    const { layer } = modal;
+    const { x: panelX, y: panelY } = modal.panel;
 
     // 직원 탭 grid — 6열 wrap. 24명까지 4행.
     const tabsY = panelY + 76;
@@ -2142,28 +2038,22 @@ export class ResultScene extends Phaser.Scene {
     rebuildSlots(selectedIdx);
 
     // 닫기 버튼.
-    const closeY = panelY + panelH - 56;
-    const closeBg = this.add.graphics();
-    closeBg.fillStyle(COLOR.btnSecondary, 1);
-    closeBg.fillRoundedRect(panelX + 24, closeY, panelW - 48, 40, 12);
-    layer.add(closeBg);
-    layer.add(
-      this.add
-        .text(panelX + panelW / 2, closeY + 20, '닫기', {
-          fontFamily: FONT_STACK,
-          fontSize: '24px',
-          color: TEXT_COLOR.dim,
-        })
-        .setOrigin(0.5),
-    );
-    const closeHit = this.add
-      .zone(panelX + panelW / 2, closeY + 20, panelW - 48, 40)
-      .setInteractive({ useHandCursor: true });
-    layer.add(closeHit);
-    closeHit.on('pointerup', () => {
-      playSfx(this, SFX.tap);
-      layer.destroy();
+    const closeBtn = createButton(this, {
+      x: panelX + 24,
+      y: panelY + panelH - 56,
+      w: panelW - 48,
+      h: 40,
+      label: '닫기',
+      variant: 'secondary',
+      size: 'md',
+      onTap: () => {
+        playSfx(this, SFX.tap);
+        modal.close();
+      },
     });
+    layer.add(closeBtn.bg);
+    layer.add(closeBtn.text);
+    layer.add(closeBtn.hit);
   }
 
   private applyEquipmentPurchase(
@@ -2188,79 +2078,33 @@ export class ResultScene extends Phaser.Scene {
 
   // ────────────────────────── 시설 modal ──────────────────────────
   private openFacilitiesModal(): void {
-    const layer = this.add.container(0, 0).setDepth(150);
-
-    const overlay = this.add
-      .rectangle(0, 0, 720, 1280, 0x000000, 0.7)
-      .setOrigin(0, 0)
-      .setInteractive();
-    layer.add(overlay);
-
-    // cardH: 110 → 124 — 모바일 zoom 0.5에서 카드 가독성 확보.
     const cardH = 124;
     const cardGap = 10;
     const headerH = 80;
     const footerH = 60;
     const panelW = 600;
     const panelH = headerH + FACILITIES.length * (cardH + cardGap) - cardGap + footerH + 16;
-    const panelX = this.contentX + (720 - panelW) / 2;
-    const panelY = Math.max(20, (1280 - panelH) / 2);
-    const panel = makePanel(this, panelX, panelY, panelW, panelH, COLOR.panel);
-    layer.add(panel);
-    this.addModalCloseX(layer, panelX, panelY, panelW);
 
-    // 헤더.
-    layer.add(
-      this.add.text(panelX + 24, panelY + 18, '회사 시설', {
-        fontFamily: FONT_STACK,
-        fontSize: '21px',
-        fontStyle: 'bold',
-        color: TEXT_COLOR.warn,
-      }),
-    );
-    layer.add(
-      this.add.text(panelX + 24, panelY + 40, '한 번 건설하면 모든 프로젝트에 영구 적용', {
-        fontFamily: FONT_STACK,
-        fontSize: '24px',
-        fontStyle: 'bold',
-        color: TEXT_COLOR.primary,
-      }),
-    );
+    const modal = createModal(this, {
+      w: panelW,
+      h: panelH,
+      category: 'facility',
+      title: '회사 시설',
+      subtitle: '한 번 건설하면 모든 프로젝트에 영구 적용',
+      depth: 150,
+    });
+    const { layer } = modal;
+    const { x: panelX, y: panelY } = modal.panel;
 
-    // 카드들.
     const cardsY0 = panelY + headerH;
     const cardX = panelX + 20;
     const cardW = panelW - 40;
     FACILITIES.forEach((item, i) => {
       const cy = cardsY0 + i * (cardH + cardGap);
       this.buildFacilityCard(layer, cardX, cy, cardW, cardH, item, () => {
-        layer.destroy();
+        modal.close();
         this.applyFacilityBuild(item.id);
       });
-    });
-
-    // 닫기 버튼.
-    const closeY = panelY + panelH - footerH + 8;
-    const closeBg = this.add.graphics();
-    closeBg.fillStyle(COLOR.btnSecondary, 1);
-    closeBg.fillRoundedRect(panelX + 24, closeY, panelW - 48, 40, 12);
-    layer.add(closeBg);
-    layer.add(
-      this.add
-        .text(panelX + panelW / 2, closeY + 20, '닫기', {
-          fontFamily: FONT_STACK,
-          fontSize: '24px',
-          color: TEXT_COLOR.dim,
-        })
-        .setOrigin(0.5),
-    );
-    const closeHit = this.add
-      .zone(panelX + panelW / 2, closeY + 20, panelW - 48, 40)
-      .setInteractive({ useHandCursor: true });
-    layer.add(closeHit);
-    closeHit.on('pointerup', () => {
-      playSfx(this, SFX.tap);
-      layer.destroy();
     });
   }
 
@@ -2833,45 +2677,24 @@ export class ResultScene extends Phaser.Scene {
   private openMarketsModal(): void {
     const productCount = this.outcome.state.productIndex + 1;
     const reputation = this.outcome.reputation.total + this.yearEndReputationBonus;
-    const layer = this.add.container(0, 0).setDepth(150);
 
-    // 어두운 오버레이.
-    const overlay = this.add
-      .rectangle(0, 0, 720, 1280, 0x000000, 0.7)
-      .setOrigin(0, 0)
-      .setInteractive();
-    layer.add(overlay);
-
-    // cardH: 130 → 144 — 모바일 zoom 0.5에서 카드 가독성 확보.
     const cardH = 144;
     const cardGap = 10;
     const headerH = 80;
     const footerH = 60;
     const panelW = 600;
     const panelH = headerH + MARKETS.length * (cardH + cardGap) - cardGap + footerH + 16;
-    const panelX = this.contentX + (720 - panelW) / 2;
-    const panelY = Math.max(20, (1280 - panelH) / 2);
-    const panel = makePanel(this, panelX, panelY, panelW, panelH, COLOR.panel);
-    layer.add(panel);
-    this.addModalCloseX(layer, panelX, panelY, panelW);
 
-    // 헤더.
-    layer.add(
-      this.add.text(panelX + 24, panelY + 18, '글로벌 시장 진출', {
-        fontFamily: FONT_STACK,
-        fontSize: '21px',
-        fontStyle: 'bold',
-        color: TEXT_COLOR.warn,
-      }),
-    );
-    layer.add(
-      this.add.text(panelX + 24, panelY + 40, '진출한 시장만큼 매출 곱연산 — 영구 적용', {
-        fontFamily: FONT_STACK,
-        fontSize: '24px',
-        fontStyle: 'bold',
-        color: TEXT_COLOR.primary,
-      }),
-    );
+    const modal = createModal(this, {
+      w: panelW,
+      h: panelH,
+      category: 'market',
+      title: '글로벌 시장 진출',
+      subtitle: '진출한 시장만큼 매출 곱연산 — 영구 적용',
+      depth: 150,
+    });
+    const { layer } = modal;
+    const { x: panelX, y: panelY } = modal.panel;
 
     // 카드들.
     const cardsY0 = panelY + headerH;
@@ -2880,33 +2703,9 @@ export class ResultScene extends Phaser.Scene {
     MARKETS.forEach((m, i) => {
       const cy = cardsY0 + i * (cardH + cardGap);
       this.buildMarketCard(layer, cardX, cy, cardW, cardH, m, productCount, reputation, () => {
-        layer.destroy();
+        modal.close();
         this.applyMarketEntry(m.id);
       });
-    });
-
-    // 닫기 버튼.
-    const closeY = panelY + panelH - footerH + 8;
-    const closeBg = this.add.graphics();
-    closeBg.fillStyle(COLOR.btnSecondary, 1);
-    closeBg.fillRoundedRect(panelX + 24, closeY, panelW - 48, 40, 12);
-    layer.add(closeBg);
-    layer.add(
-      this.add
-        .text(panelX + panelW / 2, closeY + 20, '닫기', {
-          fontFamily: FONT_STACK,
-          fontSize: '24px',
-          color: TEXT_COLOR.dim,
-        })
-        .setOrigin(0.5),
-    );
-    const closeHit = this.add
-      .zone(panelX + panelW / 2, closeY + 20, panelW - 48, 40)
-      .setInteractive({ useHandCursor: true });
-    layer.add(closeHit);
-    closeHit.on('pointerup', () => {
-      playSfx(this, SFX.tap);
-      layer.destroy();
     });
   }
 
@@ -3047,80 +2846,34 @@ export class ResultScene extends Phaser.Scene {
   // ────────────────────────── 자회사 인수 modal ──────────────────────────
   private openAcquisitionsModal(): void {
     const totalRevenue = this.history.reduce((s, r) => s + r.revenue, 0);
-    const layer = this.add.container(0, 0).setDepth(150);
 
-    // 어두운 오버레이.
-    const overlay = this.add
-      .rectangle(0, 0, 720, 1280, 0x000000, 0.7)
-      .setOrigin(0, 0)
-      .setInteractive();
-    layer.add(overlay);
-
-    // cardH: 140 → 154 — 모바일 zoom 0.5에서 카드 가독성 확보.
     const cardH = 154;
     const cardGap = 10;
     const headerH = 80;
     const footerH = 60;
     const panelW = 600;
     const panelH = headerH + ACQUISITIONS.length * (cardH + cardGap) - cardGap + footerH + 16;
-    const panelX = this.contentX + (720 - panelW) / 2;
-    const panelY = Math.max(20, (1280 - panelH) / 2);
-    const panel = makePanel(this, panelX, panelY, panelW, panelH, COLOR.panel);
-    layer.add(panel);
-    this.addModalCloseX(layer, panelX, panelY, panelW);
 
-    // 헤더.
-    layer.add(
-      this.add.text(panelX + 24, panelY + 18, '자회사 인수', {
-        fontFamily: FONT_STACK,
-        fontSize: '21px',
-        fontStyle: 'bold',
-        color: TEXT_COLOR.warn,
-      }),
-    );
-    layer.add(
-      this.add.text(panelX + 24, panelY + 40, '골드 싱크 + 고스킬 직원 영입 + 명성 부스트', {
-        fontFamily: FONT_STACK,
-        fontSize: '24px',
-        fontStyle: 'bold',
-        color: TEXT_COLOR.primary,
-      }),
-    );
+    const modal = createModal(this, {
+      w: panelW,
+      h: panelH,
+      category: 'acquisition',
+      title: '자회사 인수',
+      subtitle: '골드 싱크 + 고스킬 직원 영입 + 명성 부스트',
+      depth: 150,
+    });
+    const { layer } = modal;
+    const { x: panelX, y: panelY } = modal.panel;
 
-    // 카드들.
     const cardsY0 = panelY + headerH;
     const cardX = panelX + 20;
     const cardW = panelW - 40;
     ACQUISITIONS.forEach((acq, i) => {
       const cy = cardsY0 + i * (cardH + cardGap);
       this.buildAcquisitionCard(layer, cardX, cy, cardW, cardH, acq, totalRevenue, () => {
-        layer.destroy();
+        modal.close();
         this.applyAcquisition(acq.id);
       });
-    });
-
-    // 닫기 버튼.
-    const closeY = panelY + panelH - footerH + 8;
-    const closeBg = this.add.graphics();
-    closeBg.fillStyle(COLOR.btnSecondary, 1);
-    closeBg.fillRoundedRect(panelX + 24, closeY, panelW - 48, 40, 12);
-    layer.add(closeBg);
-    layer.add(
-      this.add
-        .text(panelX + panelW / 2, closeY + 20, '닫기', {
-          fontFamily: FONT_STACK,
-          fontSize: '24px',
-          color: TEXT_COLOR.dim,
-        })
-        .setOrigin(0.5),
-    );
-    const closeHit = this.add
-      .zone(panelX + panelW / 2, closeY + 20, panelW - 48, 40)
-      .setInteractive({ useHandCursor: true });
-    layer.add(closeHit);
-    closeHit.on('pointerup', () => {
-      playSfx(this, SFX.tap);
-      layer.destroy();
     });
   }
 
@@ -3341,55 +3094,34 @@ export class ResultScene extends Phaser.Scene {
   private openMailInboxModal(): void {
     // 최근 메일부터 최대 10개 표시.
     const sorted = [...this.liveMails].sort((a, b) => b.receivedAt - a.receivedAt).slice(0, 10);
+    const unreadCount = this.liveMails.filter((m) => !m.read).length;
 
-    const layer = this.add.container(0, 0).setDepth(150);
-    const overlay = this.add
-      .rectangle(0, 0, 720, 1280, 0x000000, 0.7)
-      .setOrigin(0, 0)
-      .setInteractive();
-    layer.add(overlay);
-
-    const panelW = 620;
-    const panelX = this.contentX + (720 - panelW) / 2;
-    const panelY = 60;
-
-    // 행 높이 계산 — 헤더 + 메일 리스트.
     const rowH = 76;
     const rowGap = 6;
     const headerH = 90;
     const footerH = 60;
+    const panelW = 620;
     const listH = sorted.length > 0 ? sorted.length * (rowH + rowGap) - rowGap : 60;
     const panelH = Math.min(1160, headerH + listH + footerH + 16);
-    const panel = makePanel(this, panelX, panelY, panelW, panelH, COLOR.panel);
-    layer.add(panel);
-    this.addModalCloseX(layer, panelX, panelY, panelW);
 
-    // 헤더.
-    const unreadCount = this.liveMails.filter((m) => !m.read).length;
-    layer.add(
-      this.add.text(panelX + 24, panelY + 18, '📬 메일함', {
-        fontFamily: FONT_STACK,
-        fontSize: '21px',
-        fontStyle: 'bold',
-        color: TEXT_COLOR.warn,
-      }),
-    );
-    layer.add(
-      this.add.text(panelX + 24, panelY + 42, unreadCount > 0 ? `안 읽은 메일 ${unreadCount}건` : '모두 읽음', {
-        fontFamily: FONT_STACK,
-        fontSize: '26px',
-        fontStyle: 'bold',
-        color: unreadCount > 0 ? TEXT_COLOR.primary : TEXT_COLOR.dim,
-      }),
-    );
+    const modal = createModal(this, {
+      w: panelW,
+      h: panelH,
+      y: 60,
+      category: 'mail',
+      title: '📬 메일함',
+      subtitle: unreadCount > 0 ? `안 읽은 메일 ${unreadCount}건` : '모두 읽음',
+      depth: 150,
+    });
+    const { layer } = modal;
+    const { x: panelX, y: panelY } = modal.panel;
 
     // 메일 리스트.
     if (sorted.length === 0) {
       layer.add(
         this.add
           .text(panelX + panelW / 2, panelY + headerH + 30, '수신된 메일이 없습니다.', {
-            fontFamily: FONT_STACK,
-            fontSize: '24px',
+            ...TYPE.lead,
             color: TEXT_COLOR.dim,
           })
           .setOrigin(0.5),
@@ -3398,35 +3130,30 @@ export class ResultScene extends Phaser.Scene {
       sorted.forEach((mail, i) => {
         const rowY = panelY + headerH + i * (rowH + rowGap);
         this.buildMailRow(layer, panelX + 16, rowY, panelW - 32, rowH, mail, () => {
-          layer.destroy();
+          modal.close();
           this.openMailDetailModal(mail);
         });
       });
     }
 
-    // 닫기 버튼.
+    // 하단 닫기 버튼.
     const closeY = panelY + panelH - footerH + 8;
-    const closeBg = this.add.graphics();
-    closeBg.fillStyle(COLOR.btnSecondary, 1);
-    closeBg.fillRoundedRect(panelX + 24, closeY, panelW - 48, 40, 12);
-    layer.add(closeBg);
-    layer.add(
-      this.add
-        .text(panelX + panelW / 2, closeY + 20, '닫기', {
-          fontFamily: FONT_STACK,
-          fontSize: '24px',
-          color: TEXT_COLOR.dim,
-        })
-        .setOrigin(0.5),
-    );
-    const closeHit = this.add
-      .zone(panelX + panelW / 2, closeY + 20, panelW - 48, 40)
-      .setInteractive({ useHandCursor: true });
-    layer.add(closeHit);
-    closeHit.on('pointerup', () => {
-      playSfx(this, SFX.tap);
-      layer.destroy();
+    const closeBtn = createButton(this, {
+      x: panelX + 24,
+      y: closeY,
+      w: panelW - 48,
+      h: 40,
+      label: '닫기',
+      variant: 'secondary',
+      size: 'md',
+      onTap: () => {
+        playSfx(this, SFX.tap);
+        modal.close();
+      },
     });
+    layer.add(closeBtn.bg);
+    layer.add(closeBtn.text);
+    layer.add(closeBtn.hit);
   }
 
   /** 메일 한 row 렌더링. */
