@@ -294,6 +294,9 @@ export function saveData(input: {
   };
   try {
     storage.setItem(KEY, JSON.stringify(full));
+    // Cloud sync — 로그인되어 있고 Supabase 활성화 시 비동기 push (debounce).
+    // 동적 import로 순환 의존 회피 + cloud 모듈 미사용 시 트리쉐이크 가능.
+    void import('./cloud/sync').then((m) => m.schedulePush(full)).catch(() => {});
     return full;
   } catch {
     return null;

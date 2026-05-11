@@ -24,7 +24,18 @@ import { EMPTY_RND } from '@/domain/rnd';
 import { EMPTY_MARKETS } from '@/domain/markets';
 import { EMPTY_ACQUISITIONS } from '@/domain/acquisitions';
 import { COLOR, FONT_STACK, TEXT_COLOR } from '@/theme';
-import { formatGold } from '@/ui';
+import { formatGold, createModal, createButton } from '@/ui';
+import {
+  fetchOwnNickname,
+  getSessionUserId,
+  isLoggedIn,
+  loadCloudSave,
+  pushNow,
+  signInWithEmail,
+  signOut,
+  signUpWithEmail,
+} from '@/cloud/sync';
+import { isSupabaseEnabled } from '@/cloud/supabase';
 import { applyHiDPI } from '@/util/hidpi';
 import { makePanel } from '@/util/ui';
 import { fitCamera } from '@/util/cameraFit';
@@ -458,6 +469,25 @@ export class SettingsScene extends Phaser.Scene {
       playSfx(this, SFX.modal);
       this.showDeleteConfirm();
     });
+
+    // 클라우드 동기화 버튼 — 모달 오픈.
+    const cloudBtnY = delBtnY + delBtnH + 16;
+    const cloudBg = this.add.graphics();
+    cloudBg.fillStyle(COLOR.btn, 1);
+    cloudBg.fillRoundedRect(delBtnX, cloudBtnY, delBtnW, delBtnH, 12);
+    this.add.text(this.cx, cloudBtnY + delBtnH / 2, '☁ 클라우드 동기화', {
+      fontFamily: FONT_STACK,
+      fontSize: '24px',
+      fontStyle: 'bold',
+      color: TEXT_COLOR.primary,
+    }).setOrigin(0.5);
+    const cloudHit = this.add
+      .zone(this.cx, cloudBtnY + delBtnH / 2, delBtnW, delBtnH)
+      .setInteractive({ useHandCursor: true });
+    cloudHit.on('pointerup', () => {
+      playSfx(this, SFX.modal);
+      void this.openCloudModal();
+    });
   }
 
   // ────────────────────────── 게임 정보 ──────────────────────────
@@ -550,5 +580,249 @@ export class SettingsScene extends Phaser.Scene {
       bgmVolume: this.bgmSlider?.value ?? BGM.getVolume(),
       sfxVolume: this.sfxSlider?.value ?? getSfxVolume(),
     });
+  }
+
+  // ────────────────────────── 클라우드 동기화 모달 ──────────────────────────
+  /**
+   * Supabase 활성화 시 가입/로그인/sync UI. 미설정 시 안내만.
+   * Native HTML input 사용 (Phaser DOM과 동일 패턴).
+   */
+  private async openCloudModal(): Promise<void> {
+    if (!isSupabaseEnabled()) {
+      const modal = createModal(this, {
+        w: 600, h: 320,
+        category: 'office',
+        title: '☁ 클라우드 동기화',
+        subtitle: '환경변수 미설정 — 로컬만 사용',
+        depth: 200,
+      });
+      modal.layer.add(
+        this.add.text(modal.panel.x + 24, modal.panel.y + 110,
+          'VITE_SUPABASE_URL과 VITE_SUPABASE_ANON_KEY를\n.env에 설정해야 활성화됩니다.\n\n자세한 내용은 docs/supabase-schema.sql 참조.',
+          { fontFamily: FONT_STACK, fontSize: '20px', color: TEXT_COLOR.dim, wordWrap: { width: 540 } },
+        ),
+      );
+      return;
+    }
+
+    // 세션 조회 → 로그인 상태 분기.
+    await getSessionUserId();
+    if (isLoggedIn()) {
+      void this.openCloudLoggedInModal();
+    } else {
+      void this.openCloudAuthModal();
+    }
+  }
+
+  /** 비로그인 상태 — 가입/로그인 폼. */
+  private async openCloudAuthModal(): Promise<void> {
+    const modal = createModal(this, {
+      w: 620, h: 720,
+      category: 'office',
+      title: '☁ 클라우드 동기화',
+      subtitle: '회원가입 또는 로그인 후 자동 백업',
+      depth: 200,
+    });
+    const { layer } = modal;
+    const { x: panelX, y: panelY } = modal.panel;
+
+    // Native HTML inputs (Phaser DOM 우회).
+    const inputs: HTMLInputElement[] = [];
+    const makeInput = (placeholder: string, type: string, topPx: number): HTMLInputElement => {
+      const el = document.createElement('input');
+      el.type = type;
+      el.placeholder = placeholder;
+      el.autocomplete = 'off';
+      el.style.cssText = [
+        'position: fixed',
+        'left: 50%',
+        `top: ${topPx}px`,
+        'transform: translateX(-50%)',
+        'width: min(80vw, 360px)',
+        'height: 44px',
+        'padding: 0 14px',
+        'border: 2px solid #4a4a62',
+        'border-radius: 12px',
+        'background: #20202a',
+        'color: #f2f2f7',
+        'font-size: 17px',
+        'font-family: "Apple SD Gothic Neo","Malgun Gothic",sans-serif',
+        'outline: none',
+        'box-sizing: border-box',
+        'z-index: 9999',
+      ].join('; ');
+      document.body.appendChild(el);
+      inputs.push(el);
+      return el;
+    };
+
+    // viewport 좌표로 배치 — 화면 중앙 기준.
+    const baseTop = window.innerHeight / 2 - 140;
+    const emailInput = makeInput('이메일', 'email', baseTop);
+    const passwordInput = makeInput('비밀번호 (6자 이상)', 'password', baseTop + 56);
+    const nicknameInput = makeInput('닉네임 (가입 시만, 최대 20자)', 'text', baseTop + 112);
+    nicknameInput.maxLength = 20;
+
+    const cleanup = (): void => inputs.forEach((el) => el.remove());
+
+    // 상태 텍스트.
+    const statusY = panelY + 380;
+    const statusText = this.add.text(panelX + 24, statusY, '', {
+      fontFamily: FONT_STACK, fontSize: '18px', color: TEXT_COLOR.warn,
+      wordWrap: { width: 560 },
+    });
+    layer.add(statusText);
+
+    // 가입 버튼.
+    const signUpBtn = createButton(this, {
+      x: panelX + 24, y: panelY + 460, w: 264, h: 50,
+      label: '회원가입',
+      variant: 'primary',
+      onTap: async () => {
+        statusText.setText('가입 처리 중...');
+        const r = await signUpWithEmail(emailInput.value, passwordInput.value, nicknameInput.value);
+        if (r.ok) {
+          statusText.setColor(TEXT_COLOR.ok).setText('가입 성공! 잠시 후 동기화...');
+          // 가입 직후 로컬 save를 cloud에 push.
+          const local = loadData();
+          if (local) await pushNow(local);
+          this.time.delayedCall(800, () => {
+            cleanup();
+            modal.close();
+            void this.openCloudLoggedInModal();
+          });
+        } else {
+          statusText.setColor(TEXT_COLOR.bad).setText(`실패: ${r.reason}`);
+        }
+      },
+    });
+    layer.add([signUpBtn.bg, signUpBtn.text, signUpBtn.hit]);
+
+    // 로그인 버튼.
+    const signInBtn = createButton(this, {
+      x: panelX + 320, y: panelY + 460, w: 264, h: 50,
+      label: '로그인',
+      variant: 'secondary',
+      onTap: async () => {
+        statusText.setText('로그인 처리 중...');
+        const r = await signInWithEmail(emailInput.value, passwordInput.value);
+        if (r.ok) {
+          statusText.setColor(TEXT_COLOR.ok).setText('로그인 성공!');
+          this.time.delayedCall(600, () => {
+            cleanup();
+            modal.close();
+            void this.openCloudLoggedInModal();
+          });
+        } else {
+          statusText.setColor(TEXT_COLOR.bad).setText(`실패: ${r.reason}`);
+        }
+      },
+    });
+    layer.add([signInBtn.bg, signInBtn.text, signInBtn.hit]);
+
+    // 닫기 시 input 정리.
+    modal.onClose = (): void => cleanup();
+  }
+
+  /** 로그인 상태 — 닉네임/sync 상태/로그아웃. */
+  private async openCloudLoggedInModal(): Promise<void> {
+    const nick = (await fetchOwnNickname()) ?? '익명';
+    const cloud = await loadCloudSave();
+    const local = loadData();
+
+    const cloudUpdated = cloud
+      ? new Date(cloud.updatedAt).toLocaleString('ko-KR', {
+          month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
+        })
+      : '없음';
+    const localSavedAt = local?.savedAt
+      ? new Date(local.savedAt).toLocaleString('ko-KR', {
+          month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
+        })
+      : '없음';
+
+    const modal = createModal(this, {
+      w: 620, h: 600,
+      category: 'office',
+      title: '☁ 클라우드 동기화',
+      subtitle: `${nick} 님 · 자동 백업 활성`,
+      depth: 200,
+    });
+    const { layer } = modal;
+    const { x: panelX, y: panelY } = modal.panel;
+
+    // 상태 정보.
+    const infoLines = [
+      `로컬 저장: ${localSavedAt}`,
+      `클라우드 저장: ${cloudUpdated}`,
+      cloud && local && (cloud.data.savedAt ?? 0) > local.savedAt
+        ? '⚠ 클라우드가 더 최신 — [클라우드 사용]으로 덮어쓰기'
+        : '✓ 동기화 됨',
+    ];
+    layer.add(
+      this.add.text(panelX + 24, panelY + 110, infoLines.join('\n\n'), {
+        fontFamily: FONT_STACK, fontSize: '20px', color: TEXT_COLOR.primary,
+        lineSpacing: 6,
+      }),
+    );
+
+    const statusText = this.add.text(panelX + 24, panelY + 360, '', {
+      fontFamily: FONT_STACK, fontSize: '18px', color: TEXT_COLOR.warn,
+    });
+    layer.add(statusText);
+
+    // 지금 동기화 (push).
+    const pushBtn = createButton(this, {
+      x: panelX + 24, y: panelY + 410, w: 264, h: 50,
+      label: '↑ 지금 업로드',
+      variant: 'primary',
+      onTap: async () => {
+        if (!local) {
+          statusText.setColor(TEXT_COLOR.bad).setText('로컬 저장 없음');
+          return;
+        }
+        statusText.setText('업로드 중...');
+        const ok = await pushNow(local);
+        statusText.setColor(ok ? TEXT_COLOR.ok : TEXT_COLOR.bad)
+          .setText(ok ? '업로드 완료!' : '업로드 실패');
+      },
+    });
+    layer.add([pushBtn.bg, pushBtn.text, pushBtn.hit]);
+
+    // 클라우드 사용 (pull → 로컬 덮어쓰기).
+    const pullBtn = createButton(this, {
+      x: panelX + 320, y: panelY + 410, w: 264, h: 50,
+      label: '↓ 클라우드 사용',
+      variant: 'secondary',
+      disabled: !cloud,
+      onTap: () => {
+        if (!cloud) return;
+        try {
+          if (typeof localStorage === 'undefined') return;
+          localStorage.setItem('game2.save.v2', JSON.stringify(cloud.data));
+          statusText.setColor(TEXT_COLOR.ok).setText('적용 완료. Boot로 재시작...');
+          this.time.delayedCall(1000, () => this.scene.start(SCENE_KEYS.Boot));
+        } catch (e) {
+          statusText.setColor(TEXT_COLOR.bad).setText(`실패: ${(e as Error).message}`);
+        }
+      },
+    });
+    layer.add([pullBtn.bg, pullBtn.text, pullBtn.hit]);
+
+    // 로그아웃.
+    const signOutBtn = createButton(this, {
+      x: panelX + 24, y: panelY + 480, w: 560, h: 46,
+      label: '로그아웃',
+      variant: 'ghost',
+      onTap: async () => {
+        const r = await signOut();
+        statusText.setColor(r.ok ? TEXT_COLOR.dim : TEXT_COLOR.bad)
+          .setText(r.ok ? '로그아웃 됨' : `실패: ${r.reason}`);
+        if (r.ok) {
+          this.time.delayedCall(600, () => modal.close());
+        }
+      },
+    });
+    layer.add([signOutBtn.bg, signOutBtn.text, signOutBtn.hit]);
   }
 }
