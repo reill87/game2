@@ -409,6 +409,7 @@ function sanitizeEndingsShown(
     'ipo',
     'global-no1',
     'unicorn',
+    'global-hq',
   ];
   if (Array.isArray(raw)) {
     return (raw as unknown[]).filter(

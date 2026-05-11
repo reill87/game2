@@ -15,6 +15,9 @@ export type MilestoneId =
   | 'first-rnd'
   | 'first-office-2'
   | 'first-office-3'
+  | 'first-office-4'
+  | 'first-office-5'
+  | 'first-office-6'
   | 'first-100reputation';
 
 export interface Milestone {
@@ -34,6 +37,9 @@ export const MILESTONES: ReadonlyArray<Milestone> = [
   { id: 'first-rnd', title: '첫 R&D 도입', desc: '회사가 영구 능력치를 강화.', reputationBonus: 5 },
   { id: 'first-office-2', title: '판교 임대', desc: '분당 셰어를 떠나 판교로.', reputationBonus: 10 },
   { id: 'first-office-3', title: '강남 자가', desc: '회사가 자기 사옥을 갖다.', reputationBonus: 25 },
+  { id: 'first-office-4', title: '성수 글로벌 캠퍼스', desc: '성수에 자체 캠퍼스를 짓다.', reputationBonus: 50 },
+  { id: 'first-office-5', title: '판교 R&D 메가 캠퍼스', desc: 'R&D 전용 거대 캠퍼스 완공.', reputationBonus: 100 },
+  { id: 'first-office-6', title: '글로벌 본사 타워', desc: '자체 본사 타워 입주.', reputationBonus: 200 },
   { id: 'first-100reputation', title: '명성 100', desc: '업계에서 이름이 회자됨.', reputationBonus: 0 },
 ];
 
@@ -67,6 +73,9 @@ export function detectNewMilestones(opts: {
   if (opts.rndPurchasedCount >= 1) award('first-rnd');
   if (opts.state.officeLevel >= 2) award('first-office-2');
   if (opts.state.officeLevel >= 3) award('first-office-3');
+  if (opts.state.officeLevel >= 4) award('first-office-4');
+  if (opts.state.officeLevel >= 5) award('first-office-5');
+  if (opts.state.officeLevel >= 6) award('first-office-6');
   if (opts.state.reputation >= 100) award('first-100reputation');
 
   return earned;
