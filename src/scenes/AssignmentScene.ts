@@ -25,6 +25,7 @@ import type { SavedResult } from '@/save';
 import { playSfx, SFX } from '@/sounds';
 import { addMuteToggle } from '@/util/muteToggle';
 import { COLOR, FONT_STACK, TEXT_COLOR, TINT } from '@/theme';
+import { formatGold } from '@/ui';
 import { drawConditionFill } from '@/util/condition';
 import { applyHiDPI } from '@/util/hidpi';
 import { addIconLabel } from '@/util/iconLabel';
@@ -206,7 +207,7 @@ export class AssignmentScene extends Phaser.Scene {
   private buildCarryoverHint(): void {
     if (!this.lastResult && this.state.gold === 0) return;
     const parts: string[] = [];
-    if (this.state.gold > 0) parts.push(`이월 ${this.state.gold}g`);
+    if (this.state.gold > 0) parts.push(`이월 ${formatGold(this.state.gold)}`);
     if (this.lastResult) {
       const stars = '★'.repeat(this.lastResult.stars) + '☆'.repeat(5 - this.lastResult.stars);
       parts.push(`지난 프로젝트 ${stars} (${this.lastResult.reviewScore}점)`);

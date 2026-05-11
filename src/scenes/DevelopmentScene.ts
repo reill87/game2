@@ -42,6 +42,7 @@ import { ICONS } from '@/icons';
 import { loadData, DEFAULT_COMPANY_NAME, clearData } from '@/save';
 import { playSfx, SFX } from '@/sounds';
 import { COLOR, FONT_STACK, TEXT_COLOR, TINT } from '@/theme';
+import { formatGold } from '@/ui';
 import { addMuteToggle } from '@/util/muteToggle';
 import { drawConditionFill } from '@/util/condition';
 import { applyHiDPI } from '@/util/hidpi';
@@ -423,7 +424,7 @@ export class DevelopmentScene extends Phaser.Scene {
     this.sideBtnBg.fillStyle(fill, 1);
     this.sideBtnBg.fillRoundedRect(r.x, r.y, r.width, r.height, 12);
     this.sideBtnText
-      .setText(onCooldown ? `외주\n${this.sideProjectCooldown}주 후` : `외주\n+${SIDE_PROJECT.gold}g`)
+      .setText(onCooldown ? `외주\n${this.sideProjectCooldown}주 후` : `외주\n+${formatGold(SIDE_PROJECT.gold)}`)
       .setColor(onCooldown ? TEXT_COLOR.disabled : TEXT_COLOR.primary);
     if (this.sideBtnHit.input) this.sideBtnHit.input.enabled = !onCooldown;
   }
@@ -840,7 +841,7 @@ export class DevelopmentScene extends Phaser.Scene {
       const bg = this.add.graphics();
       const promo = PROMO[tier];
       const labelText =
-        tier === 'none' ? promo.label : `${promo.label} · -${promo.cost}g · +${Math.round((promo.revenueMul - 1) * 100)}%`;
+        tier === 'none' ? promo.label : `${promo.label} · -${formatGold(promo.cost)} · +${Math.round((promo.revenueMul - 1) * 100)}%`;
       const text = this.add
         .text(x + btnW / 2, y + btnH / 2, labelText, {
           fontFamily: FONT_STACK,
@@ -1405,7 +1406,7 @@ export class DevelopmentScene extends Phaser.Scene {
       const label = this.add.text(
         choiceX + 18,
         y + 14,
-        `면담으로 붙잡는다 (-${RETAIN_COST}g)`,
+        `면담으로 붙잡는다 (-${formatGold(RETAIN_COST)})`,
         {
           fontFamily: FONT_STACK,
           fontSize: '27px',
@@ -1781,7 +1782,7 @@ export class DevelopmentScene extends Phaser.Scene {
     // Burn rate — 매주 자동 차감되는 운영비.
     if (this.burnText) {
       const burn = computeBurnRate(this.state);
-      this.burnText.setText(`운영비 −${burn}g/주`);
+      this.burnText.setText(`운영비 −${formatGold(burn)}/주`);
     }
   }
 

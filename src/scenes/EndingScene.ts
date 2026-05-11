@@ -17,6 +17,7 @@ import { ENDING } from '@/domain/balance';
 import { clearData, incrementPrestige, loadData, loadPrestigeCount, DEFAULT_COMPANY_NAME } from '@/save';
 import { playSfx, SFX } from '@/sounds';
 import { COLOR, FONT_STACK, TEXT_COLOR } from '@/theme';
+import { formatGold } from '@/ui';
 import { applyHiDPI } from '@/util/hidpi';
 import { addMuteToggle } from '@/util/muteToggle';
 import { makePanel } from '@/util/ui';
@@ -409,7 +410,7 @@ export class EndingScene extends Phaser.Scene {
           this.cx,
           panelY + 90,
           `회사 진행 데이터를 초기화하고\n영구 보너스를 누적해 새 회차를 시작합니다.\n\n` +
-          `⬡ 시작 골드 +${nextCount * 500}g\n` +
+          `⬡ 시작 골드 +${formatGold(nextCount * 500)}\n` +
           `⬡ 전체 매출 ×${(1 + nextCount * 0.05).toFixed(2)}\n` +
           `⬡ 직원 skill +${(nextCount * 0.05).toFixed(2)}\n` +
           `⬡ burn rate ×${Math.max(0.5, 1 - nextCount * 0.05).toFixed(2)}`,
@@ -585,8 +586,8 @@ export class EndingScene extends Phaser.Scene {
     panel.setAlpha(0);
 
     const stats: ReadonlyArray<readonly [string, string, string]> = [
-      ['누적 매출', `${totalRevenue.toLocaleString()} g`, TEXT_COLOR.ok],
-      ['임계 도달', `${threshold.toLocaleString()} g`, TEXT_COLOR.warn],
+      ['누적 매출', formatGold(totalRevenue), TEXT_COLOR.ok],
+      ['임계 도달', formatGold(threshold), TEXT_COLOR.warn],
       ['출시 작품', `${productCount}개`, TEXT_COLOR.primary],
     ];
     const rowH = 70;

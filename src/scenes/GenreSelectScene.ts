@@ -35,6 +35,7 @@ import type { SavedResult } from '@/save';
 import { BGM } from '@/bgm';
 import { playSfx, SFX } from '@/sounds';
 import { COLOR, FONT_STACK, TEXT_COLOR, TINT } from '@/theme';
+import { formatGold } from '@/ui';
 import { addMuteToggle } from '@/util/muteToggle';
 import { applyHiDPI } from '@/util/hidpi';
 import { fitCamera } from '@/util/cameraFit';
@@ -175,7 +176,7 @@ export class GenreSelectScene extends Phaser.Scene {
     this.add.text(this.cx, 56, `${this.productIndex + 1}번째 프로젝트 — 장르·테마 선택`, titleStyle).setOrigin(0.5);
 
     // 코인 아이콘이 가장 왼쪽에 붙도록 골드를 첫 segment에 두고, 그 뒤에 지난 프로젝트.
-    const subParts: string[] = [`보유 ${this.gold}g`];
+    const subParts: string[] = [`보유 ${formatGold(this.gold)}`];
     if (this.lastResult) {
       const stars = '★'.repeat(this.lastResult.stars) + '☆'.repeat(5 - this.lastResult.stars);
       subParts.push(`지난 프로젝트 ${stars} (${this.lastResult.reviewScore}점)`);

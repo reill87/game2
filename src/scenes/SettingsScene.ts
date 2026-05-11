@@ -24,6 +24,7 @@ import { EMPTY_RND } from '@/domain/rnd';
 import { EMPTY_MARKETS } from '@/domain/markets';
 import { EMPTY_ACQUISITIONS } from '@/domain/acquisitions';
 import { COLOR, FONT_STACK, TEXT_COLOR } from '@/theme';
+import { formatGold } from '@/ui';
 import { applyHiDPI } from '@/util/hidpi';
 import { makePanel } from '@/util/ui';
 import { fitCamera } from '@/util/cameraFit';
@@ -422,7 +423,7 @@ export class SettingsScene extends Phaser.Scene {
       this.add.text(panelX + 20, sectionY + 38, `출시 작품: ${saved.productCount}개`, {
         fontFamily: FONT_STACK, fontSize: '23px', color: TEXT_COLOR.primary,
       });
-      this.add.text(panelX + 20, sectionY + 64, `누적 매출: ${totalRevenue.toLocaleString()}g`, {
+      this.add.text(panelX + 20, sectionY + 64, `누적 매출: ${formatGold(totalRevenue)}`, {
         fontFamily: FONT_STACK, fontSize: '23px', color: TEXT_COLOR.primary,
       });
       this.add.text(panelX + 20, sectionY + 90, `마지막 저장: ${savedAtStr}`, {

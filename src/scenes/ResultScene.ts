@@ -86,7 +86,7 @@ import { NPCS } from '@/domain/npcs';
 import { detectNewMilestones, type Milestone, type MilestoneId } from '@/domain/milestones';
 import { playSfx, SFX } from '@/sounds';
 import { COLOR, FONT_STACK, TEXT_COLOR, TINT } from '@/theme';
-import { formatGold, createModal, createButton, confettiBurst, showToast } from '@/ui';
+import { formatGold, formatNumber, createModal, createButton, confettiBurst, showToast, countUp, addCategoryStripe } from '@/ui';
 import { TYPE } from '@/theme';
 import { applyHiDPI } from '@/util/hidpi';
 import { addMuteToggle } from '@/util/muteToggle';
@@ -134,6 +134,10 @@ export class ResultScene extends Phaser.Scene {
   private yearEndReputationBonus = 0;
   /** 이번 출시 사이클에서 완료된 R&D 이름들 — create()에서 toast 발화. */
   private justCompletedRnd: ReadonlyArray<string> = [];
+  /** countUp 애니메이션 기준 — 이전에 표시된 골드 값. */
+  private lastShownGold = 0;
+  /** 진행 중인 골드 카운트업 트윈 — 새 액션 발생 시 stop. */
+  private goldCountTween: Phaser.Tweens.Tween | null = null;
   /** 수신 메일 목록 — 최대 30개 보관. */
   private liveMails: ReadonlyArray<MailMessage> = [];
 
@@ -243,6 +247,10 @@ export class ResultScene extends Phaser.Scene {
     // 업그레이드/채용 위젯은 매 init마다 다시 만들기 위해 null로 비움.
     this.officeStatusText = null;
     this.officeGoldText = null;
+    // countUp 시작 baseline — 새 씬은 outcome.state.gold에서 시작하지만,
+    // 기존 save에서 들어온 직후엔 곧바로 액션 발생하면 그 값에서 보간.
+    this.lastShownGold = this.liveGold;
+    this.goldCountTween = null;
     this.officeGoldIcon = null;
     this.officeIllustration = null;
     this.upgradeBtnBg = null;
@@ -550,7 +558,7 @@ export class ResultScene extends Phaser.Scene {
     const promoLabel =
       promo.tier === 'none'
         ? '없음'
-        : `${promo.tier === 'small' ? '소' : '중'} (-${promo.cost}g · ×${promo.revenueMul.toFixed(2)})`;
+        : `${promo.tier === 'small' ? '소' : '중'} (-${formatGold(promo.cost)} · ×${promo.revenueMul.toFixed(2)})`;
 
     const repMul = o.reputation.multiplier;
     const repValue =
@@ -983,7 +991,14 @@ export class ResultScene extends Phaser.Scene {
     const totalEmps = this.liveEmployees.length;
     const companyName = loadData()?.companyName ?? DEFAULT_COMPANY_NAME;
     this.officeStatusText.setText(`${companyName} — ${OFFICE_STAGE_LABEL[this.officeLevel] ?? '?'} — 고용 ${totalEmps}/${cap}명`);
-    this.officeGoldText.setText(formatGold(this.liveGold));
+    // countUp 애니메이션 — 변화 시에만, 같은 값이면 instant.
+    if (this.lastShownGold !== this.liveGold) {
+      if (this.goldCountTween && this.goldCountTween.isPlaying()) this.goldCountTween.stop();
+      this.goldCountTween = countUp(this, this.officeGoldText, this.lastShownGold, this.liveGold, formatGold);
+      this.lastShownGold = this.liveGold;
+    } else {
+      this.officeGoldText.setText(formatGold(this.liveGold));
+    }
     // 코인 아이콘은 골드 텍스트 좌측, 텍스트 폭이 변하므로 동적으로 위치 보정.
     if (this.officeGoldIcon) {
       const textLeft = this.officeGoldText.x - this.officeGoldText.width;
@@ -999,8 +1014,8 @@ export class ResultScene extends Phaser.Scene {
     if (nextCost !== undefined && nextLabel) {
       canUpgrade = this.liveGold >= nextCost;
       upgradeBtnLabel = canUpgrade
-        ? `${nextLabel}로 (-${nextCost}g)`
-        : `${nextLabel} (${this.liveGold}/${nextCost}g)`;
+        ? `${nextLabel}로 (-${formatGold(nextCost)})`
+        : `${nextLabel} (${formatGold(this.liveGold)}/${formatGold(nextCost)})`;
     } else {
       canUpgrade = false;
       upgradeBtnLabel = '사옥 최대 단계 ✓';
@@ -1087,7 +1102,7 @@ export class ResultScene extends Phaser.Scene {
         const price = PERK[btn.id].price;
         const perkLabel = PERK[btn.id].label;
         affordable = active || this.liveGold >= price;
-        label = active ? `${perkLabel}\n(완료)` : `${perkLabel}\n-${price}g`;
+        label = active ? `${perkLabel}\n(완료)` : `${perkLabel}\n-${formatGold(price)}`;
       }
       const fill = !affordable
         ? COLOR.btnDisabled
@@ -1431,7 +1446,7 @@ export class ResultScene extends Phaser.Scene {
     );
     layer.add(
       this.add
-        .text(x + w - 16, y + 30, effectiveCost < c.hireCost ? `-${effectiveCost}g (할인)` : `-${effectiveCost}g`, {
+        .text(x + w - 16, y + 30, effectiveCost < c.hireCost ? `-${formatGold(effectiveCost)} (할인)` : `-${formatGold(effectiveCost)}`, {
           fontFamily: FONT_STACK,
           fontSize: '26px',
           fontStyle: 'bold',
@@ -1680,6 +1695,7 @@ export class ResultScene extends Phaser.Scene {
     const otherInProgress = !!prog && prog.inProgress !== item.id;
 
     layer.add(makePanel(this, x, y, w, h, COLOR.panelEmpty, false));
+    layer.add(addCategoryStripe(this, x, y, h, 'rnd'));
 
     // 티어 배지 — 좌상단 작은 T1/T2/T3 칩.
     const tier = getRndTier(item.id);
@@ -1823,7 +1839,7 @@ export class ResultScene extends Phaser.Scene {
       buyBg.fillRoundedRect(btnX, btnY, btnW, btnH, 8);
       layer.add(buyBg);
       const totalWeeks = RND_RESEARCH_WEEKS[item.id];
-      const buyLabel = canBuy ? `연구 시작 (−${item.cost}g · ${totalWeeks}주)` : `골드 부족 (필요 ${item.cost}g)`;
+      const buyLabel = canBuy ? `연구 시작 (−${formatGold(item.cost)} · ${totalWeeks}주)` : `골드 부족 (필요 ${formatGold(item.cost)})`;
       layer.add(
         this.add
           .text(btnX + btnW / 2, btnY + btnH / 2, buyLabel, {
@@ -1978,7 +1994,7 @@ export class ResultScene extends Phaser.Scene {
             btnBg.fillStyle(canAfford ? COLOR.btn : COLOR.btnDisabled, 1);
             btnBg.fillRoundedRect(btnX, btnY2, btnW, btnH, 8);
             slotsContainer.add(btnBg);
-            const btnLabel = `Tier ${nextTier} ${nextDef.name} (−${nextDef.cost}g)`;
+            const btnLabel = `Tier ${nextTier} ${nextDef.name} (−${formatGold(nextDef.cost)})`;
             const btnTxt = this.add
               .text(btnX + btnW / 2, btnY2 + btnH / 2, btnLabel, {
                 fontFamily: FONT_STACK,
@@ -2144,6 +2160,7 @@ export class ResultScene extends Phaser.Scene {
     const affordable = this.liveGold >= item.cost;
 
     layer.add(makePanel(this, x, y, w, h, COLOR.panelEmpty, false));
+    layer.add(addCategoryStripe(this, x, y, h, 'facility'));
 
     // 이름.
     layer.add(
@@ -2232,7 +2249,7 @@ export class ResultScene extends Phaser.Scene {
       layer.add(
         this.add
           .text(btnX + btnW / 2, btnY + btnH / 2,
-            affordable ? `건설 (−${item.cost}g)` : `골드 부족 (필요 ${item.cost}g)`, {
+            affordable ? `건설 (−${formatGold(item.cost)})` : `골드 부족 (필요 ${formatGold(item.cost)})`, {
               fontFamily: FONT_STACK,
               fontSize: '20px',
               fontStyle: 'bold',
@@ -2434,7 +2451,7 @@ export class ResultScene extends Phaser.Scene {
         }).setOrigin(0, 0.5),
       );
       layer.add(
-        this.add.text(panelX + panelW - 28, y, `+${rev}g`, {
+        this.add.text(panelX + panelW - 28, y, `+${formatGold(rev)}`, {
           fontFamily: FONT_STACK,
           fontSize: '26px',
           fontStyle: 'bold',
@@ -2447,7 +2464,7 @@ export class ResultScene extends Phaser.Scene {
     const totalY = rowsY0 + 4 * 48 + 24;
     const targetColor = report.achieved ? TEXT_COLOR.ok : TEXT_COLOR.bad;
     layer.add(
-      this.add.text(panelX + 28, totalY, `합계 (목표 ${report.target}g)`, {
+      this.add.text(panelX + 28, totalY, `합계 (목표 ${formatGold(report.target)})`, {
         fontFamily: FONT_STACK,
         fontSize: '24px',
         fontStyle: 'bold',
@@ -2455,7 +2472,7 @@ export class ResultScene extends Phaser.Scene {
       }).setOrigin(0, 0.5),
     );
     layer.add(
-      this.add.text(panelX + panelW - 28, totalY, `${report.totalRevenue}g`, {
+      this.add.text(panelX + panelW - 28, totalY, formatGold(report.totalRevenue), {
         fontFamily: FONT_STACK,
         fontSize: '29px',
         fontStyle: 'bold',
@@ -2750,6 +2767,7 @@ export class ResultScene extends Phaser.Scene {
     const affordable = this.liveGold >= m.cost;
 
     layer.add(makePanel(this, x, y, w, h, COLOR.panelEmpty, false));
+    layer.add(addCategoryStripe(this, x, y, h, 'market'));
 
     // 시장 이름.
     layer.add(
@@ -2834,7 +2852,7 @@ export class ResultScene extends Phaser.Scene {
       layer.add(enterBg);
       layer.add(
         this.add
-          .text(btnX + btnW / 2, btnY + btnH / 2, canEnter ? `진출 (−${m.cost}g)` : `골드 부족 (필요 ${m.cost}g)`, {
+          .text(btnX + btnW / 2, btnY + btnH / 2, canEnter ? `진출 (−${formatGold(m.cost)})` : `골드 부족 (필요 ${formatGold(m.cost)})`, {
             fontFamily: FONT_STACK,
             fontSize: '21px',
             fontStyle: 'bold',
@@ -2919,6 +2937,7 @@ export class ResultScene extends Phaser.Scene {
     const affordable = this.liveGold >= acq.cost;
 
     layer.add(makePanel(this, x, y, w, h, COLOR.panelEmpty, false));
+    layer.add(addCategoryStripe(this, x, y, h, 'acquisition'));
 
     // 인수 대상 이름.
     layer.add(
@@ -2980,7 +2999,7 @@ export class ResultScene extends Phaser.Scene {
       layer.add(lockBg);
       layer.add(
         this.add
-          .text(btnX + btnW / 2, btnY + btnH / 2, `🔒 누적 매출 ${acq.minTotalRevenue.toLocaleString()} 필요`, {
+          .text(btnX + btnW / 2, btnY + btnH / 2, `🔒 누적 매출 ${formatNumber(acq.minTotalRevenue)} 필요`, {
             fontFamily: FONT_STACK,
             fontSize: '20px',
             color: TEXT_COLOR.disabled,
@@ -2999,7 +3018,7 @@ export class ResultScene extends Phaser.Scene {
           .text(
             btnX + btnW / 2,
             btnY + btnH / 2,
-            canBuy ? `인수 (−${acq.cost.toLocaleString()}g)` : `골드 부족 (필요 ${acq.cost.toLocaleString()}g)`,
+            canBuy ? `인수 (−${formatGold(acq.cost)})` : `골드 부족 (필요 ${formatGold(acq.cost)})`,
             {
               fontFamily: FONT_STACK,
               fontSize: '21px',

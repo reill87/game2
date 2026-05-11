@@ -15,6 +15,7 @@ import { ICONS } from '@/icons';
 import { loadData, loadPrestigeCount, DEFAULT_COMPANY_NAME, type SavedResult } from '@/save';
 import { playSfx, SFX } from '@/sounds';
 import { COLOR, FONT_STACK, TEXT_COLOR, TINT } from '@/theme';
+import { formatGold } from '@/ui';
 import { applyHiDPI } from '@/util/hidpi';
 import { addMuteToggle } from '@/util/muteToggle';
 import { makePanel } from '@/util/ui';
@@ -129,9 +130,9 @@ export class StatsScene extends Phaser.Scene {
     const cardW = (panelW - 60) / 2;
     const cardH = 88;
     const cards: ReadonlyArray<readonly [string, string, string]> = [
-      ['누적 매출', `${totalRevenue}g`, TEXT_COLOR.ok],
+      ['누적 매출', formatGold(totalRevenue), TEXT_COLOR.ok],
       ['평균 별점', `★ ${avgStars.toFixed(2)}`, TEXT_COLOR.warn],
-      ['최고 매출', `${bestRevenue}g`, TEXT_COLOR.ok],
+      ['최고 매출', formatGold(bestRevenue), TEXT_COLOR.ok],
       ['★5 출시', `${fiveStarCount}회`, TEXT_COLOR.warn],
     ];
 
@@ -255,7 +256,7 @@ export class StatsScene extends Phaser.Scene {
       })
       .setOrigin(1, 0);
     this.add
-      .text(x + w - 14, y + 36, `+${r.revenue}g`, {
+      .text(x + w - 14, y + 36, `+${formatGold(r.revenue)}`, {
         fontFamily: FONT_STACK,
         fontSize: '24px',
         fontStyle: 'bold',
@@ -313,7 +314,7 @@ export class StatsScene extends Phaser.Scene {
         color: TEXT_COLOR.primary,
       });
       const strengthLabel = { design: '디자인', tech: '기술', marketing: '마케팅', data: '데이터', operations: '운영' }[rival.strength];
-      this.add.text(panelX + 24, y + 26, `[${strengthLabel}]  최근 ★${rivalAvgStars.toFixed(1)}  ${rivalAvgRevenue}g`, {
+      this.add.text(panelX + 24, y + 26, `[${strengthLabel}]  최근 ★${rivalAvgStars.toFixed(1)}  ${formatGold(rivalAvgRevenue)}`, {
         fontFamily: FONT_STACK,
         fontSize: '17px',
         color: TEXT_COLOR.dim,
@@ -332,7 +333,7 @@ export class StatsScene extends Phaser.Scene {
         fontSize: '19px',
         color: starsColor,
       }).setOrigin(1, 0);
-      this.add.text(panelX + panelW - 24, y + 28, `${revSign}${revDiff}g`, {
+      this.add.text(panelX + panelW - 24, y + 28, `${revSign}${formatGold(Math.abs(revDiff))}`, {
         fontFamily: FONT_STACK,
         fontSize: '18px',
         color: revColor,
@@ -351,7 +352,7 @@ export class StatsScene extends Phaser.Scene {
     });
 
     // 범례 — 우측 값은 우리 평균 대비 차이
-    this.add.text(this.cx, panelY + panelH - 14, `우리 평균 ★${ourAvgStars.toFixed(1)} · ${ourAvgRevenue}g 기준`, {
+    this.add.text(this.cx, panelY + panelH - 14, `우리 평균 ★${ourAvgStars.toFixed(1)} · ${formatGold(ourAvgRevenue)} 기준`, {
       fontFamily: FONT_STACK,
       fontSize: '19px',
       color: TEXT_COLOR.dim,
