@@ -17,6 +17,8 @@ import { loadData, loadPrestigeCount, saveData, loadSettings, DEFAULT_COMPANY_NA
 import { setSfxVolume, preloadSfx } from '@/sounds';
 import { preloadUITextures } from '@/util/ui';
 import { fitCamera } from '@/util/cameraFit';
+import { isSupabaseEnabled } from '@/cloud/supabase';
+import { loadCloudSave, signInWithEmail, getSessionUserId, isLoggedIn } from '@/cloud/sync';
 import { SCENE_KEYS } from './keys';
 
 /**
@@ -124,11 +126,18 @@ export class BootScene extends Phaser.Scene {
       const carry: { lastResult?: SavedResult } = {};
       if (lastResult) carry.lastResult = lastResult;
 
-      // 첫 진입(저장 데이터 없음)에서 회사명 입력 모달 표시.
+      // 첫 진입(저장 데이터 없음)에서 환영 모달 — Supabase 활성화 시 "이어하기" 옵션 제공.
       if (!saved?.companyName) {
-        this.showCompanyNameModal(() => {
-          this.scene.start(SCENE_KEYS.Assignment, { state, ...carry });
-        });
+        // 이미 로그인되어 있으면(같은 브라우저) 자동으로 cloud pull 시도.
+        if (isSupabaseEnabled()) {
+          this.showWelcomeModal(
+            () => this.scene.start(SCENE_KEYS.Assignment, { state, ...carry }),
+          );
+        } else {
+          this.showCompanyNameModal(() => {
+            this.scene.start(SCENE_KEYS.Assignment, { state, ...carry });
+          });
+        }
         return;
       }
 
@@ -278,6 +287,221 @@ export class BootScene extends Phaser.Scene {
       }
       node.remove();
       onDone();
+    });
+  }
+
+  /**
+   * 환영 모달 — Supabase 활성화 시 첫 진입에서 보여 "이어하기/새로 시작" 선택.
+   * - 이어하기 → 로그인 폼 → cloud pull → 성공 시 localStorage 적용 후 Boot 재시작.
+   * - 새로 시작 → showCompanyNameModal 폴백.
+   */
+  private showWelcomeModal(onSkip: () => void): void {
+    fitCamera(this);
+    this.scale.on('resize', () => fitCamera(this));
+
+    // 어두운 배경.
+    const bg = this.add.graphics();
+    bg.fillStyle(0x0e0e12, 1);
+    bg.fillRect(0, 0, 720, 1280);
+
+    // 타이틀.
+    this.add.text(360, 380, '판교개발', {
+      fontFamily: '"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif',
+      fontSize: '48px',
+      fontStyle: 'bold',
+      color: '#f2f2f7',
+    }).setOrigin(0.5);
+
+    this.add.text(360, 440, 'IT 회사 시뮬', {
+      fontFamily: '"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif',
+      fontSize: '24px',
+      color: '#9b9bb0',
+    }).setOrigin(0.5);
+
+    // 안내.
+    this.add.text(360, 540, '이전에 플레이한 데이터가 있다면\n로그인해서 이어할 수 있습니다.', {
+      fontFamily: '"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif',
+      fontSize: '20px',
+      color: '#9b9bb0',
+      align: 'center',
+    }).setOrigin(0.5);
+
+    // 버튼 공통 헬퍼.
+    const makeBtn = (y: number, label: string, color: number, onTap: () => void): void => {
+      const w = 320;
+      const h = 60;
+      const x = 360 - w / 2;
+      const btnBg = this.add.graphics();
+      btnBg.fillStyle(color, 1);
+      btnBg.fillRoundedRect(x, y, w, h, 14);
+      this.add.text(360, y + h / 2, label, {
+        fontFamily: '"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif',
+        fontSize: '24px',
+        fontStyle: 'bold',
+        color: '#f2f2f7',
+      }).setOrigin(0.5);
+      const hit = this.add.zone(360, y + h / 2, w, h).setInteractive({ useHandCursor: true });
+      hit.on('pointerup', onTap);
+    };
+
+    // 이어하기 버튼.
+    makeBtn(680, '☁ 기존 계정으로 이어하기', 0x4f6fff, () => {
+      // 이미 같은 브라우저에 세션 있으면 바로 cloud pull 시도.
+      void this.tryAutoLoadFromCloud(onSkip);
+    });
+
+    // 새로 시작 버튼 — 환영 모달 제거 후 회사명 모달.
+    makeBtn(760, '✨ 새로 시작', 0x3a3a48, () => {
+      this.children.removeAll();
+      this.showCompanyNameModal(onSkip);
+    });
+  }
+
+  /**
+   * 환영 모달 → 이어하기 → 로그인 시도 → 성공 시 cloud save를 localStorage에 적용 후 Boot 재시작.
+   * 실패 시 로그인 폼 표시.
+   */
+  private async tryAutoLoadFromCloud(onSkip: () => void): Promise<void> {
+    // 이미 로그인된 세션이 있으면 바로 cloud pull.
+    await getSessionUserId();
+    if (isLoggedIn()) {
+      const cloud = await loadCloudSave();
+      if (cloud) {
+        try {
+          if (typeof localStorage !== 'undefined') {
+            localStorage.setItem('game2.save.v2', JSON.stringify(cloud.data));
+          }
+          this.scene.restart();
+          return;
+        } catch {
+          /* fall through to login form */
+        }
+      }
+    }
+    // 미로그인 또는 cloud save 없음 → 로그인 폼.
+    this.showLoginForm(onSkip);
+  }
+
+  /**
+   * 인라인 로그인 폼 — 이메일/비밀번호 입력 + 로그인.
+   * 성공 → cloud pull → localStorage 적용 후 Boot 재시작.
+   */
+  private showLoginForm(onSkip: () => void): void {
+    // 기존 환영 모달 제거 (간단히 화면 다시 그림).
+    this.children.removeAll();
+    fitCamera(this);
+    const bg = this.add.graphics();
+    bg.fillStyle(0x0e0e12, 1);
+    bg.fillRect(0, 0, 720, 1280);
+
+    this.add.text(360, 360, '로그인', {
+      fontFamily: '"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif',
+      fontSize: '36px',
+      fontStyle: 'bold',
+      color: '#f2f2f7',
+    }).setOrigin(0.5);
+
+    this.add.text(360, 410, '계정 정보를 입력하세요.', {
+      fontFamily: '"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif',
+      fontSize: '18px',
+      color: '#9b9bb0',
+    }).setOrigin(0.5);
+
+    // Native HTML inputs (Phaser DOM 우회).
+    const inputs: HTMLInputElement[] = [];
+    const baseTop = window.innerHeight / 2 - 60;
+    const makeInput = (placeholder: string, type: string, topPx: number): HTMLInputElement => {
+      const el = document.createElement('input');
+      el.type = type;
+      el.placeholder = placeholder;
+      el.autocomplete = 'off';
+      el.style.cssText = [
+        'position: fixed',
+        'left: 50%',
+        `top: ${topPx}px`,
+        'transform: translateX(-50%)',
+        'width: min(80vw, 360px)',
+        'height: 48px',
+        'padding: 0 14px',
+        'border: 2px solid #4a4a62',
+        'border-radius: 12px',
+        'background: #20202a',
+        'color: #f2f2f7',
+        'font-size: 18px',
+        'font-family: "Apple SD Gothic Neo","Malgun Gothic",sans-serif',
+        'outline: none',
+        'box-sizing: border-box',
+        'z-index: 9999',
+      ].join('; ');
+      document.body.appendChild(el);
+      inputs.push(el);
+      return el;
+    };
+    const cleanup = (): void => inputs.forEach((el) => el.remove());
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, cleanup);
+    this.events.once(Phaser.Scenes.Events.DESTROY, cleanup);
+
+    const emailInput = makeInput('이메일', 'email', baseTop);
+    const passwordInput = makeInput('비밀번호', 'password', baseTop + 60);
+
+    // 상태 텍스트.
+    const statusText = this.add.text(360, 720, '', {
+      fontFamily: '"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif',
+      fontSize: '20px',
+      color: '#f2c94c',
+      align: 'center',
+      wordWrap: { width: 600 },
+    }).setOrigin(0.5);
+
+    // 로그인 버튼.
+    const makeBtn = (y: number, label: string, color: number, onTap: () => void): void => {
+      const w = 320;
+      const h = 56;
+      const x = 360 - w / 2;
+      const btnBg = this.add.graphics();
+      btnBg.fillStyle(color, 1);
+      btnBg.fillRoundedRect(x, y, w, h, 14);
+      this.add.text(360, y + h / 2, label, {
+        fontFamily: '"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif',
+        fontSize: '22px',
+        fontStyle: 'bold',
+        color: '#f2f2f7',
+      }).setOrigin(0.5);
+      const hit = this.add.zone(360, y + h / 2, w, h).setInteractive({ useHandCursor: true });
+      hit.on('pointerup', onTap);
+    };
+
+    makeBtn(800, '로그인 + 데이터 불러오기', 0x4f6fff, () => {
+      void (async () => {
+        statusText.setText('로그인 중...').setColor('#f2c94c');
+        const r = await signInWithEmail(emailInput.value, passwordInput.value);
+        if (!r.ok) {
+          statusText.setText(`실패: ${r.reason}`).setColor('#e55f5f');
+          return;
+        }
+        statusText.setText('데이터 불러오는 중...').setColor('#3ec07b');
+        const cloud = await loadCloudSave();
+        if (!cloud) {
+          statusText.setText('계정에 저장된 데이터가 없습니다. 새로 시작하세요.').setColor('#f2c94c');
+          return;
+        }
+        try {
+          if (typeof localStorage !== 'undefined') {
+            localStorage.setItem('game2.save.v2', JSON.stringify(cloud.data));
+          }
+          statusText.setText('완료! 게임 시작...').setColor('#3ec07b');
+          cleanup();
+          this.time.delayedCall(600, () => this.scene.restart());
+        } catch (e) {
+          statusText.setText(`저장 실패: ${(e as Error).message}`).setColor('#e55f5f');
+        }
+      })();
+    });
+
+    makeBtn(880, '← 뒤로 (새로 시작)', 0x3a3a48, () => {
+      cleanup();
+      this.children.removeAll();
+      this.showCompanyNameModal(onSkip);
     });
   }
 }
