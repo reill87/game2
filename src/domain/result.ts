@@ -19,6 +19,7 @@ import {
 } from './economy';
 import { computeMarketShareEffect, tickRivalReleases } from './rivals';
 import type { RivalRelease } from './rivals';
+import { normalizeProjectSignals } from './projectSignals';
 import type { Employee, GameState, PromoTier, Rank } from './types';
 
 function clamp(n: number, lo: number, hi: number): number {
@@ -69,6 +70,8 @@ export interface ReleaseOutcome {
     readonly teamFitBonus: number;
     /** 큰 프로젝트 체급 보너스. */
     readonly scopeBonus: number;
+    /** 기술/UX/창의/시장 성공 요소 보너스. */
+    readonly signalBonus: number;
     /** 홍보 단계에 따른 리뷰 가산. */
     readonly promoBonus: number;
   };
@@ -141,6 +144,7 @@ function computeReview(state: GameState, polishCount: number): {
   conditionBonus: number;
   teamFitBonus: number;
   scopeBonus: number;
+  signalBonus: number;
 } {
   const { project } = state;
   const base = project.appealEnabled ? BALANCE.appealEnabledBaseScore : 80;
@@ -171,6 +175,16 @@ function computeReview(state: GameState, polishCount: number): {
   }
   const teamFitBonus = assigned > 0 ? Math.round((matched / assigned) * BALANCE.teamFitReviewBonusMax) : 0;
   const scopeBonus = Math.round((computeProjectScopeMultiplier(state) - 1) * BALANCE.scopeReviewBonusFactor);
+  const signals = normalizeProjectSignals(project.signals);
+  const signalAverage = (signals.tech + signals.ux + signals.creative + signals.market) / 4;
+  const signalMin = Math.min(signals.tech, signals.ux, signals.creative, signals.market);
+  const signalBonus = Math.min(
+    BALANCE.projectSignalReviewBonusMax,
+    Math.round(
+      signalAverage * BALANCE.projectSignalReviewFactor +
+      signalMin * BALANCE.projectSignalBalanceFactor,
+    ),
+  );
   // promo bonus는 shipProject에서 합쳐 clamp.
   const rawScore =
     base -
@@ -180,8 +194,9 @@ function computeReview(state: GameState, polishCount: number): {
     appealBonus +
     conditionBonus +
     teamFitBonus +
-    scopeBonus;
-  return { rawScore, base, bugPenalty, overrunPenalty, polishBonus, appealBonus, conditionBonus, teamFitBonus, scopeBonus };
+    scopeBonus +
+    signalBonus;
+  return { rawScore, base, bugPenalty, overrunPenalty, polishBonus, appealBonus, conditionBonus, teamFitBonus, scopeBonus, signalBonus };
 }
 
 /** BALANCE.md 첫 매출 대역 약 150~400 골드. */
@@ -322,6 +337,7 @@ export function shipProject(
       conditionBonus: r.conditionBonus,
       teamFitBonus: r.teamFitBonus,
       scopeBonus: r.scopeBonus,
+      signalBonus: r.signalBonus,
       promoBonus: eff.reviewBonus,
     },
     promo: {

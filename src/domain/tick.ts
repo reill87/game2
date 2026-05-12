@@ -29,7 +29,15 @@ import { getSprintPhase, SPRINT_SLOT_WEIGHT } from './sprintPhase';
 import { computeEquipmentBonuses } from './equipment';
 import { isFacilityBuilt } from './facilities';
 import { getEconomyPhase, getEconomyCostMul, EMPTY_ECONOMY } from './economy';
-import type { Assignment, Employee, GameState, SlotKind, SupportAssignment } from './types';
+import {
+  addProjectSignalDelta,
+  addScaledSignals,
+  EMPTY_PROJECT_SIGNALS,
+  signalWeightsForJob,
+  signalWeightsForSlot,
+  sumProjectSignalDelta,
+} from './projectSignals';
+import type { Assignment, Employee, GameState, ProjectSignals, SlotKind, SupportAssignment } from './types';
 
 /** support 직원이 primary 대비 기여하는 배수. */
 export const SUPPORT_CONTRIBUTION_FACTOR = 0.5;
@@ -50,11 +58,17 @@ export function computeProjectScopeMultiplier(state: GameState): number {
   if (state.productIndex === 0) return 1;
   const assigned = assignedEmployeeCount(state);
   const extraAssigned = Math.max(0, assigned - BALANCE.projectScopeLargeTeamThreshold);
-  const scope =
+  const baseScope =
     1 +
     state.productIndex * BALANCE.projectScopeProductStep +
     Math.max(0, state.officeLevel - 1) * BALANCE.projectScopeOfficeStep +
     extraAssigned * BALANCE.projectScopePerExtraAssigned;
+  const targetWeeksScale =
+    1 +
+    Math.max(0, state.project.weeksTarget - BALANCE.tutorialWeeksTarget) /
+    BALANCE.tutorialWeeksTarget *
+    BALANCE.projectScopeTargetWeeksFactor;
+  const scope = baseScope * targetWeeksScale;
   return Math.min(BALANCE.projectScopeMax, scope);
 }
 
@@ -335,6 +349,7 @@ export function advanceWeek(prev: GameState): GameState {
 
   let progressDelta = 0;
   let appealDelta = 0;
+  let signalDelta: ProjectSignals = { ...EMPTY_PROJECT_SIGNALS };
   let mismatchedCount = 0;
   const appealEnabled = prev.project.appealEnabled;
 
@@ -365,6 +380,11 @@ export function advanceWeek(prev: GameState): GameState {
     if (appealEnabled) {
       appealDelta += BALANCE.appealBySlot[slot] * eff * factor * phaseWeight;
     }
+    signalDelta = addScaledSignals(
+      signalDelta,
+      signalWeightsForSlot(slot),
+      BALANCE.projectSignalPerWeek * eff * factor * phaseWeight,
+    );
     if (!matched) mismatchedCount += 1;
 
     // support 직원 기여 — primary 기여의 ×0.5 (정배치 기준).
@@ -380,9 +400,32 @@ export function advanceWeek(prev: GameState): GameState {
         if (appealEnabled) {
           appealDelta += BALANCE.appealBySlot[slot] * suppEff * suppFactor * phaseWeight * SUPPORT_CONTRIBUTION_FACTOR;
         }
+        signalDelta = addScaledSignals(
+          signalDelta,
+          signalWeightsForSlot(slot),
+          BALANCE.projectSignalPerWeek * suppEff * suppFactor * phaseWeight * SUPPORT_CONTRIBUTION_FACTOR,
+        );
         if (!suppMatched) mismatchedCount += 1;
       }
     }
+  }
+
+  // 배치 슬롯 밖 직원은 핵심 진행도는 만들지 않지만, 백오피스/랩/리서치로 프로젝트 완성도를 보조한다.
+  const assignedIds = new Set(
+    [
+      ...SLOT_ORDER.map((s) => prev.assignment[s]),
+      ...SLOT_ORDER.map((s) => prev.support?.[s]),
+    ].filter((v): v is string => typeof v === 'string'),
+  );
+  const idleEmployees = prev.employees.filter((e) => !assignedIds.has(e.id));
+  const effectiveBenchCount = Math.min(idleEmployees.length, BALANCE.benchMaxEffectiveEmployees);
+  let benchSignalTotal = 0;
+  for (const emp of idleEmployees.slice(0, effectiveBenchCount)) {
+    const teamUnitsForOthers = totalUnits - teamWeight(emp);
+    const eff = effectiveSkill(emp, prev, teamUnitsForOthers);
+    const benchAmount = BALANCE.projectSignalPerWeek * BALANCE.benchSignalFactor * eff;
+    benchSignalTotal += benchAmount;
+    signalDelta = addScaledSignals(signalDelta, signalWeightsForJob(emp.job), benchAmount);
   }
 
   // 장르 × 테마 보정 — progress·bugDebt 둘 다 곱연산
@@ -422,6 +465,17 @@ export function advanceWeek(prev: GameState): GameState {
   }
   const scopeMul = computeProjectScopeMultiplier(prev);
   progressDelta /= scopeMul;
+  const signalScopeDivisor = 1 + (scopeMul - 1) * BALANCE.projectSignalScopeDampFactor;
+  signalDelta = {
+    tech: signalDelta.tech / signalScopeDivisor,
+    ux: signalDelta.ux / signalScopeDivisor,
+    creative: signalDelta.creative / signalScopeDivisor,
+    market: signalDelta.market / signalScopeDivisor,
+  };
+  if (appealEnabled) {
+    appealDelta += sumProjectSignalDelta(signalDelta) * BALANCE.appealFromSignalFactor;
+    appealDelta += benchSignalTotal * BALANCE.benchAppealFactor;
+  }
   appealDelta /= 1 + (scopeMul - 1) * BALANCE.appealScopeDampFactor;
   if (prev.productIndex > 0) {
     bugDebtDelta /= Math.min(scopeMul, BALANCE.projectScopeBugDebtDampMax);
@@ -490,18 +544,11 @@ export function advanceWeek(prev: GameState): GameState {
 
   // 남는 인력(슬롯 미배치) 보조 효과 — 매주 직원 1명당:
   //  - 사이드 컨설팅 +2g
-  //  - 백그라운드 유지 BugDebt −0.4
+  //  - 백그라운드 QA/운영 BugDebt 감소
   // primary + support 모두 배치 인원으로 간주한다.
-  // 배치된 직원 ID 수집 — SLOT_ORDER 순회로 6 슬롯 모두 포함.
-  const assignedIds = new Set(
-    [
-      ...SLOT_ORDER.map((s) => prev.assignment[s]),
-      ...SLOT_ORDER.map((s) => prev.support?.[s]),
-    ].filter((v): v is string => typeof v === 'string'),
-  );
-  const idleCount = prev.employees.filter((e) => !assignedIds.has(e.id)).length;
+  const idleCount = idleEmployees.length;
   const idleGold = idleCount * 2;
-  bugDebtDelta -= idleCount * 0.4;
+  bugDebtDelta -= effectiveBenchCount * BALANCE.benchBugDebtReductionPerEmployee;
 
   const weeksElapsed = prev.project.weeksElapsed + 1;
   const overdue = weeksElapsed > prev.project.weeksTarget;
@@ -562,6 +609,7 @@ export function advanceWeek(prev: GameState): GameState {
       progress: clamp(prev.project.progress + progressDelta, 0, 100),
       bugDebt: clamp(prev.project.bugDebt + bugDebtDelta, 0, 100),
       appeal: appealEnabled ? Math.max(0, prev.project.appeal + appealDelta) : prev.project.appeal,
+      signals: addProjectSignalDelta(prev.project.signals, signalDelta),
     },
   };
   // 파산 상태 갱신 — 골드 임계 연속 주차.

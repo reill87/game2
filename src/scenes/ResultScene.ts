@@ -4,6 +4,7 @@ import type { Types } from 'phaser';
 import { BALANCE, ENDING, inflationMultiplier } from '@/domain/balance';
 import { getExecPressure } from '@/domain/exec';
 import { computeSaturationMultiplier } from '@/domain/saturation';
+import { normalizeProjectSignals, PROJECT_SIGNAL_LABEL } from '@/domain/projectSignals';
 import type { ReleaseOutcome, ReviewStars } from '@/domain/result';
 import { RIVALS } from '@/domain/rivals';
 import {
@@ -658,6 +659,13 @@ export class ResultScene extends Phaser.Scene {
       ...(project.appealEnabled
         ? ([['Appeal', `${Math.round(project.appeal)} · Lv${Math.floor(Math.max(0, project.appeal) / 100) + 1}`, TEXT_COLOR.primary]] as const)
         : []),
+      [
+        '성공 요소',
+        Object.entries(normalizeProjectSignals(project.signals))
+          .map(([key, value]) => `${PROJECT_SIGNAL_LABEL[key as keyof typeof PROJECT_SIGNAL_LABEL]} ${Math.round(value)}`)
+          .join(' · '),
+        TEXT_COLOR.primary,
+      ],
       ['폴리싱', `${this.polishCount}주`, TEXT_COLOR.primary],
       ['연체', overrun > 0 ? `${overrun}주` : '없음', overrun > 0 ? TEXT_COLOR.warn : TEXT_COLOR.dim],
       ...(promo.tier !== 'none'
@@ -674,6 +682,7 @@ export class ResultScene extends Phaser.Scene {
     if (b.conditionBonus > 0) parts.push(`+컨디션 ${b.conditionBonus}`);
     if (b.teamFitBonus > 0) parts.push(`+팀핏 ${b.teamFitBonus}`);
     if (b.scopeBonus > 0) parts.push(`+체급 ${b.scopeBonus}`);
+    if (b.signalBonus > 0) parts.push(`+요소 ${b.signalBonus}`);
     if (b.promoBonus > 0) parts.push(`+홍보 ${b.promoBonus}`);
     const rows: ReadonlyArray<readonly [string, string, string]> = [
       ...baseRows,

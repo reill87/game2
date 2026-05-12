@@ -597,6 +597,12 @@ export function newProject(opts: {
       bugDebt: 0,
       appeal: 0,
       appealEnabled: opts.appealEnabled ?? false,
+      signals: {
+        tech: 0,
+        ux: 0,
+        creative: 0,
+        market: 0,
+      },
       released: false,
     },
     gold: opts.gold,

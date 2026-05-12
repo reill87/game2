@@ -140,6 +140,13 @@ export type Assignment = Partial<Record<SlotKind, string>>;
 /** 슬롯 → 지원 인력 id (support). 옵셔널. */
 export type SupportAssignment = Partial<Record<SlotKind, string>>;
 
+export interface ProjectSignals {
+  readonly tech: number;
+  readonly ux: number;
+  readonly creative: number;
+  readonly market: number;
+}
+
 export interface ProjectState {
   readonly genre: GenreId;
   readonly theme: ThemeId;
@@ -149,10 +156,12 @@ export interface ProjectState {
   progress: number;
   /** 0~100 */
   bugDebt: number;
-  /** 0~100, 튜토리얼 동안은 0 고정 */
+  /** 0 이상 누적, 튜토리얼 동안은 0 고정 */
   appeal: number;
   /** 두 번째 작품부터 true */
   appealEnabled: boolean;
+  /** 프로젝트 성공 요소 — 기술/UX/창의성/시장성. 옛 데이터와 이벤트 호환을 위해 옵셔널. */
+  readonly signals?: ProjectSignals;
   released: boolean;
 }
 

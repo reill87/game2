@@ -14,19 +14,21 @@ export const BALANCE = {
   /** 첫 3작품 매출 보정. 사옥 2단계/첫 채용까지의 골드 벽을 낮춘다. */
   earlyRevenueBonusByProduct: { 0: 120, 1: 80, 2: 40 } as Record<number, number>,
   /** 회사가 커질수록 제품 규모도 커지는 보정. productIndex 1당 scope 증가. */
-  projectScopeProductStep: 0.04,
+  projectScopeProductStep: 0.06,
   /** 사옥 단계가 커질수록 더 큰 프로젝트를 맡는 보정. */
-  projectScopeOfficeStep: 0.08,
+  projectScopeOfficeStep: 0.12,
+  /** 목표 기간이 긴 프로젝트일수록 실제 작업량도 커진다. 30주 프로젝트가 5주 컷 나는 것을 막는다. */
+  projectScopeTargetWeeksFactor: 1.5,
   /** 이 인원 초과부터 커뮤니케이션 비용이 의미 있게 붙는다(primary+support 배치 기준). */
   projectScopeLargeTeamThreshold: 6,
   /** largeTeamThreshold 초과 배치 인원 1명당 scope 증가. */
-  projectScopePerExtraAssigned: 0.12,
-  /** scope 보정 상한. 후반 자동화/R&D 보상이 완전히 사라지지 않게 제한. */
-  projectScopeMax: 2.8,
+  projectScopePerExtraAssigned: 0.16,
+  /** scope 보정 상한. 후반 자동화/R&D 보상이 있어도 대형 프로젝트는 한 시즌 이상 걸리게 제한. */
+  projectScopeMax: 12,
   /** 큰 프로젝트는 기간이 길어도 QA/프로세스도 커진다고 보고 BugDebt 주간 증가를 완화한다. */
   projectScopeBugDebtDampMax: 1.8,
   /** 큰 프로젝트 매출 보상. scope 1 초과분 중 이 비율만큼 매출 배수로 환산한다. */
-  projectScopeRevenueFactor: 0.65,
+  projectScopeRevenueFactor: 0.9,
   /** 정배치 직원 1명이 1주에 내는 진행도(%) — (밸런스 v2) 3.5 → 2.5 (~30% 느려짐). */
   matchedProgressPerWeek: 2.5,
   /** 오배치 시 진행 기여 배수. (밸런스 v2) 0.5 → 0.4. */
@@ -34,7 +36,7 @@ export const BALANCE = {
   /** 오배치 직원 1명당 추가 BugDebt. (밸런스 v2) 2 → 3. */
   mismatchBugDebt: 3,
   /** 매주 기본 BugDebt 증가. (밸런스 v2) 6 → 8. */
-  baseBugDebtPerWeek: 8,
+  baseBugDebtPerWeek: 5,
   /** 야근 ON 시 BugDebt 가산. (밸런스 v2) 4 → 6. */
   crunchBugDebtBonus: 6,
   /** 야근 ON 시 Progress 배수. (밸런스 v2) 1.18 → 1.12 (좀 덜 강력). */
@@ -53,12 +55,12 @@ export const BALANCE = {
    * data: 백엔드 데이터 직군 — 간접 기여(0.5).
    */
   appealBySlot: {
-    planning: 0.6,
-    graphics: 1.5,
-    qa: 1.2,
-    programming: 0.2,
-    marketing: 1.0,
-    data: 0.5,
+    planning: 0.9,
+    graphics: 2.2,
+    qa: 1.5,
+    programming: 0.35,
+    marketing: 1.6,
+    data: 0.8,
   },
   /** QA 슬롯이 비어 있을 때 매 주 Appeal 페널티 (테스트 부족 → 마감 디테일 ↓). */
   appealSoundEmpty: -0.3,
@@ -69,7 +71,27 @@ export const BALANCE = {
   /** Appeal은 무제한 누적되지만 리뷰 반영은 완만하게 증가한다. */
   appealReviewSoftCap: 120,
   /** 큰 scope 프로젝트는 Appeal 누적 속도를 일부 낮춰 100+ 성장이 장기 목표가 되게 한다. */
-  appealScopeDampFactor: 0.5,
+  appealScopeDampFactor: 0.15,
+  /** 기술/UX/창의/시장 지표는 주차마다 각 슬롯 기여로 축적된다. */
+  projectSignalPerWeek: 2.4,
+  /** 큰 프로젝트에서도 성공 요소는 진행률보다 덜 희석된다. */
+  projectSignalScopeDampFactor: 0.35,
+  /** 프로젝트 성공 요소가 Appeal 성장으로 이어지는 비율. */
+  appealFromSignalFactor: 0.55,
+  /** 리뷰 점수에서 성공 요소 평균이 주는 보너스. */
+  projectSignalReviewFactor: 0.18,
+  /** 네 성공 요소를 고르게 키웠을 때 붙는 균형 보너스. */
+  projectSignalBalanceFactor: 0.07,
+  /** 성공 요소 리뷰 보너스 상한. */
+  projectSignalReviewBonusMax: 25,
+  /** 직접 배치되지 않은 직원이 백오피스/랩/리서치로 성공 요소를 보조하는 비율. */
+  benchSignalFactor: 0.32,
+  /** 백오피스 성공 요소가 Appeal 성장으로 이어지는 추가 비율. */
+  benchAppealFactor: 0.35,
+  /** 미배치 직원 1명당 백그라운드 QA/운영으로 줄이는 BugDebt. */
+  benchBugDebtReductionPerEmployee: 0.45,
+  /** 백오피스 기여에 반영되는 최대 미배치 직원 수. 정원 24명 후반부까지 의미를 준다. */
+  benchMaxEffectiveEmployees: 12,
   /** 팀 컨디션이 좋을 때 리뷰에 붙는 최대 보너스. */
   conditionReviewBonusMax: 8,
   /** 정배치율이 좋을 때 리뷰에 붙는 최대 보너스. */

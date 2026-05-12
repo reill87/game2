@@ -29,6 +29,12 @@ import {
 import { pickOpsDecision, type OpsDecision } from '@/domain/postRelease';
 import { AP_CAP, WEEKLY_ACTIONS, type WeeklyAction } from '@/domain/weeklyActions';
 import {
+  applyEventProjectSignals,
+  normalizeProjectSignals,
+  PROJECT_SIGNAL_LABEL,
+  type ProjectSignalKey,
+} from '@/domain/projectSignals';
+import {
   CRISIS_COOLDOWN_WEEKS,
   CRISIS_MIN_PRODUCT_COUNT,
   CRISIS_TRIGGER_PROBABILITY,
@@ -118,6 +124,7 @@ export class DevelopmentScene extends Phaser.Scene {
   private bugText!: Phaser.GameObjects.Text;
   private appealBar: Phaser.GameObjects.Graphics | null = null;
   private appealText: Phaser.GameObjects.Text | null = null;
+  private projectSignalTexts: Partial<Record<ProjectSignalKey, Phaser.GameObjects.Text>> = {};
   private goldText!: Phaser.GameObjects.Text;
   private slotSummaryViews = new Map<
     SlotKind,
@@ -277,6 +284,7 @@ export class DevelopmentScene extends Phaser.Scene {
     this.lastSprintPhase = null;
     this.sprintToastText = null;
     this.slotPhaseWeightTexts.clear();
+    this.projectSignalTexts = {};
     // 표시 값을 현재 state로 즉시 동기화 (다음 tween 시작점).
     this.displayStats = {
       p: this.state.project.progress,
@@ -488,7 +496,7 @@ export class DevelopmentScene extends Phaser.Scene {
     const panelX = this.contentX + (720 - 690) / 2;
     const panelY = 120;
     const panelW = 690;
-    const panelH = appealEnabled ? 320 : 260;
+    const panelH = appealEnabled ? 390 : 340;
 
     makePanel(this, panelX, panelY, panelW, panelH, COLOR.panel);
 
@@ -537,8 +545,34 @@ export class DevelopmentScene extends Phaser.Scene {
       this.drawGauge(this.appealBar, panelX + 24, panelY + 212, 0, COLOR.gaugeFillAppeal);
     }
 
+    const signalsY = appealEnabled ? panelY + 258 : panelY + 178;
+    this.add.text(panelX + 24, signalsY - 22, '성공 요소', {
+      fontFamily: FONT_STACK,
+      fontSize: '19px',
+      fontStyle: 'bold',
+      color: TEXT_COLOR.dim,
+    });
+    const signalKeys: ProjectSignalKey[] = ['tech', 'ux', 'creative', 'market'];
+    signalKeys.forEach((key, i) => {
+      const x = panelX + 24 + i * 160;
+      this.add.text(x, signalsY, PROJECT_SIGNAL_LABEL[key], {
+        fontFamily: FONT_STACK,
+        fontSize: '17px',
+        fontStyle: 'bold',
+        color: TEXT_COLOR.dim,
+      });
+      this.projectSignalTexts[key] = this.add
+        .text(x + 72, signalsY, '0', {
+          fontFamily: FONT_STACK,
+          fontSize: '17px',
+          fontStyle: 'bold',
+          color: TEXT_COLOR.primary,
+        })
+        .setOrigin(1, 0);
+    });
+
     // Gold
-    const goldY = appealEnabled ? panelY + 260 : panelY + 180;
+    const goldY = appealEnabled ? panelY + 320 : panelY + 240;
     this.addLabelIcon(panelX + 24, goldY + 8, ICONS.coins.key, TINT.warn);
     this.add.text(labelX, goldY, 'Gold', labelStyle);
     this.goldText = this.add
@@ -555,7 +589,7 @@ export class DevelopmentScene extends Phaser.Scene {
       .setOrigin(1, 0);
 
     // Hint
-    const hintY = appealEnabled ? panelY + 298 : panelY + 218;
+    const hintY = appealEnabled ? panelY + 360 : panelY + 298;
     this.add.text(
       panelX + 24,
       hintY,
@@ -588,7 +622,7 @@ export class DevelopmentScene extends Phaser.Scene {
 
   // ────────────────────────── assignment recap ──────────────────────────
   private buildAssignmentRecap(): void {
-    const startY = this.state.project.appealEnabled ? 470 : 410;
+    const startY = this.state.project.appealEnabled ? 540 : 470;
     this.add
       .text(this.cx, startY, '배치 요약', {
         fontFamily: FONT_STACK,
@@ -1377,7 +1411,9 @@ export class DevelopmentScene extends Phaser.Scene {
   private handleEventChoice(ev: GameEvent, index: number): void {
     const choice = ev.choices[index];
     if (!choice) return;
-    this.state = choice.apply(this.state);
+    const before = this.state;
+    const after = choice.apply(before);
+    this.state = applyEventProjectSignals(before, after, categoryOf(ev));
     this.eventModalContainer?.destroy(true);
     this.eventModalContainer = null;
     this.redraw();
@@ -1857,6 +1893,13 @@ export class DevelopmentScene extends Phaser.Scene {
       this.drawGauge(this.appealBar, panelX, 332, tierProgress, COLOR.gaugeFillAppeal);
       const level = Math.floor(Math.max(0, a) / 100) + 1;
       this.appealText.setText(`${Math.round(a)} · Lv${level}`);
+    }
+    const signals = normalizeProjectSignals(this.state.project.signals);
+    for (const key of ['tech', 'ux', 'creative', 'market'] as const) {
+      const value = Math.round(signals[key]);
+      this.projectSignalTexts[key]?.setText(String(value)).setColor(
+        value >= 70 ? TEXT_COLOR.ok : value >= 35 ? TEXT_COLOR.warn : TEXT_COLOR.primary,
+      );
     }
 
     // Burn rate — 매주 자동 차감되는 운영비.

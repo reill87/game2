@@ -800,6 +800,12 @@ export class AssignmentScene extends Phaser.Scene {
       if (s) placedIds.add(s);
     }
     const idleCount = this.state.employees.filter((e) => !placedIds.has(e.id)).length;
+    let openSupportCount = 0;
+    for (const slot of SLOT_ORDER) {
+      if (isSupportSlotActive(this.state.officeLevel, slot) && !this.state.support?.[slot]) {
+        openSupportCount += 1;
+      }
+    }
 
     const mismatches = this.countMismatches();
     if (mismatches > 0) {
@@ -807,11 +813,12 @@ export class AssignmentScene extends Phaser.Scene {
         .setText(`오배치 ${mismatches}건. 시작은 가능하지만 일정·버그 페널티가 누적됩니다.`)
         .setColor(TEXT_COLOR.bad);
     } else if (idleCount > 0) {
-      // 정배치 OK + 미배치 직원 있음 → 지원 인력 안내.
+      const msg =
+        openSupportCount > 0
+          ? `미배치 직원 ${idleCount}명 — 지원 슬롯 ${openSupportCount}칸 또는 백오피스로 기여합니다.`
+          : `미배치 직원 ${idleCount}명 — 백오피스/랩으로 성공 요소와 버그 억제에 기여합니다.`;
       this.statusText
-        .setText(
-          `미배치 직원 ${idleCount}명 — 직원 카드 → "+ 지원 인력" 영역 클릭으로 배치 가능 (효율 ↑)`,
-        )
+        .setText(msg)
         .setColor(TEXT_COLOR.warn);
     } else {
       this.statusText
