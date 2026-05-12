@@ -632,7 +632,7 @@ export function newTutorialGame(rnd?: RndState, prestige?: PrestigeBonus): GameS
     productIndex: 0,
     genre: 'G1',
     theme: 'T1',
-    gold: pb.startingGoldBonus,
+    gold: BALANCE.tutorialStartingGold + pb.startingGoldBonus,
     employees,
     appealEnabled: false,
     officeLevel: 1,

@@ -211,7 +211,8 @@ export function shipProject(
     prev.productIndex,
     prev.rivals,
   );
-  const revenue = Math.round(preRivalRevenue * ms.revenueMul);
+  const earlyRevenueBonus = BALANCE.earlyRevenueBonusByProduct[prev.productIndex] ?? 0;
+  const revenue = Math.round(preRivalRevenue * ms.revenueMul) + earlyRevenueBonus;
   // 경기 tickEconomy — 출시마다 카운터 +1, 주기 도달 시 새 index 추첨.
   const prevEconomy = prev.economy ?? EMPTY_ECONOMY;
   const newEconomy = tickEconomy(prevEconomy);
@@ -308,4 +309,3 @@ export function shipProject(
     state,
   };
 }
-

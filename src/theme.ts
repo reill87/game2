@@ -24,6 +24,9 @@
 export const FONT_STACK =
   '"Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", Pretendard, system-ui, sans-serif';
 
+export const NUMBER_FONT_STACK =
+  '"SFMono-Regular", "Roboto Mono", "Cascadia Mono", Consolas, Pretendard, monospace';
+
 // ──────────────────────────────────────────────────────────────────
 // COLOR — Phaser Graphics (number)
 // ──────────────────────────────────────────────────────────────────
@@ -35,6 +38,10 @@ export const COLOR = {
   panelStroke: 0x4a4a62,
   /** 비활성/비어있는 카드 배경. */
   panelEmpty: 0x20202a,
+  /** 떠 있는 패널 하단 그림자. */
+  panelShadow: 0x070812,
+  /** 패널 상단 빛 반사선. */
+  panelHighlight: 0x5d627a,
   /** 게이지 트랙 배경. */
   gaugeBg: 0x1a1a22,
   /** 모달 overlay scrim. */
@@ -49,6 +56,7 @@ export const COLOR = {
   btnDown: 0x3d58cc,
   /** 진행 게이지 채움. */
   gaugeFillProgress: 0x4f6fff,
+  gaugeFillProgressTop: 0x8aa1ff,
 
   // ── 강조(accent) — secondary / disabled ───────────────────────
   /** 보조 버튼 배경(폴리싱 등 비파괴 액션). */
@@ -67,6 +75,10 @@ export const COLOR = {
   /** 오배치·경고·BugDebt 게이지 채움. */
   matchBad: 0xe55f5f,
   gaugeFillBug: 0xe55f5f,
+  gaugeFillBugTop: 0xff9a9a,
+  /** Appeal/quality 게이지. */
+  gaugeFillAppeal: 0x14b8a6,
+  gaugeFillAppealTop: 0x5eead4,
 } as const;
 
 // ──────────────────────────────────────────────────────────────────
@@ -186,6 +198,8 @@ export const TYPE = {
   h2:        make(28, 'bold'),
   h1:        make(36, 'bold'),
   hero:      make(48, 'bold'),
+  number:    { fontFamily: NUMBER_FONT_STACK, fontSize: '30px', fontStyle: 'bold' },
+  numberHero:{ fontFamily: NUMBER_FONT_STACK, fontSize: '40px', fontStyle: 'bold' },
 } as const;
 
 export type TypeKey = keyof typeof TYPE;

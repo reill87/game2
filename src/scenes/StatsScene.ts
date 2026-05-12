@@ -18,7 +18,7 @@ import { COLOR, FONT_STACK, TEXT_COLOR, TINT } from '@/theme';
 import { formatGold } from '@/ui';
 import { applyHiDPI } from '@/util/hidpi';
 import { addMuteToggle } from '@/util/muteToggle';
-import { makePanel } from '@/util/ui';
+import { addEmptyState, makePanel } from '@/util/ui';
 import { fitCamera } from '@/util/cameraFit';
 import { onResize } from '@/util/viewport';
 
@@ -173,13 +173,12 @@ export class StatsScene extends Phaser.Scene {
     });
 
     if (history.length === 0) {
-      this.add
-        .text(this.cx, panelY + panelH / 2, '아직 출시 이력이 없습니다.', {
-          fontFamily: FONT_STACK,
-          fontSize: '24px',
-          color: TEXT_COLOR.dim,
-        })
-        .setOrigin(0.5);
+      addEmptyState(this, this.cx, panelY + panelH / 2, {
+        iconKey: ICONS.progress.key,
+        title: '출시 이력 없음',
+        body: '첫 프로젝트를 출시하면 리뷰와 매출 기록이 여기에 쌓입니다.',
+        tint: TINT.dim,
+      });
       return;
     }
 

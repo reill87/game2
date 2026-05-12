@@ -110,6 +110,7 @@ export function computeSlotContributions(state: GameState): SlotContribution[] {
     // R&D: 지속 통합 강화 — Progress 배수 추가 ×1.05. (밸런스 v2) 1.08 → 1.05.
     if (isRndPurchased(state.rnd, 'continuous-integration')) progressDelta *= 1.05;
     if (state.crunch) progressDelta *= BALANCE.crunchProgressMul;
+    if (state.productIndex === 0) progressDelta *= BALANCE.tutorialProgressMul;
 
     let appealDelta = state.project.appealEnabled
       ? BALANCE.appealBySlot[slot] * eff * factor
@@ -387,6 +388,10 @@ export function advanceWeek(prev: GameState): GameState {
     progressDelta *= BALANCE.crunchProgressMul;
     bugDebtDelta += BALANCE.crunchBugDebtBonus;
     if (appealEnabled) appealDelta += BALANCE.appealCrunchBonus;
+  }
+  if (prev.productIndex === 0) {
+    progressDelta *= BALANCE.tutorialProgressMul;
+    bugDebtDelta *= BALANCE.tutorialBugDebtMul;
   }
   // R&D: 테스트 자동화 — BugDebt 자연 증가 −1/주.
   if (isRndPurchased(prev.rnd, 'test-automation')) {

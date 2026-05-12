@@ -5,6 +5,14 @@
 import type { DressCode, GenreId, OfficeLevel, PromoTier, Rank, ThemeId, TrendId } from './types';
 
 export const BALANCE = {
+  /** 첫 플레이 완충 자금. 초반은 파산 공포보다 선택지를 먼저 열어준다. */
+  tutorialStartingGold: 240,
+  /** 튜토리얼 진행 보정. QA/마케팅/데이터 부재로 후반 sprint가 과하게 늘어지는 것을 완화한다. */
+  tutorialProgressMul: 1.55,
+  /** 튜토리얼 BugDebt 보정. 첫 작품은 품질 학습 구간이라 30~70대 출시를 목표로 한다. */
+  tutorialBugDebtMul: 0.55,
+  /** 첫 3작품 매출 보정. 사옥 2단계/첫 채용까지의 골드 벽을 낮춘다. */
+  earlyRevenueBonusByProduct: { 0: 120, 1: 80, 2: 40 } as Record<number, number>,
   /** 정배치 직원 1명이 1주에 내는 진행도(%) — (밸런스 v2) 3.5 → 2.5 (~30% 느려짐). */
   matchedProgressPerWeek: 2.5,
   /** 오배치 시 진행 기여 배수. (밸런스 v2) 0.5 → 0.4. */

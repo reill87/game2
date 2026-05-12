@@ -86,11 +86,11 @@ import { NPCS } from '@/domain/npcs';
 import { detectNewMilestones, type Milestone, type MilestoneId } from '@/domain/milestones';
 import { playSfx, SFX } from '@/sounds';
 import { COLOR, FONT_STACK, TEXT_COLOR, TINT } from '@/theme';
-import { formatGold, formatNumber, createModal, createButton, confettiBurst, showToast, countUp, addCategoryStripe } from '@/ui';
+import { formatGold, formatNumber, createModal, createButton, confettiBurst, showToast, countUp, microPulse, addCategoryStripe } from '@/ui';
 import { TYPE } from '@/theme';
 import { applyHiDPI } from '@/util/hidpi';
 import { addMuteToggle } from '@/util/muteToggle';
-import { makePanel } from '@/util/ui';
+import { addEmptyState, drawRaisedRect, makePanel } from '@/util/ui';
 import { fitCamera } from '@/util/cameraFit';
 import { onResize } from '@/util/viewport';
 
@@ -469,14 +469,40 @@ export class ResultScene extends Phaser.Scene {
       color: TEXT_COLOR.dim,
     };
 
-    this.add.text(this.cx, 60, '출시 완료', titleStyle).setOrigin(0.5);
+    const companyName = loadData()?.companyName ?? DEFAULT_COMPANY_NAME;
+    this.add.text(this.cx, 42, companyName, {
+      ...titleStyle,
+      fontSize: '34px',
+    }).setOrigin(0.5);
+
+    const cap = BALANCE.officeHireCap[this.officeLevel] ?? 3;
+    const badges = [
+      { label: '출시 완료', color: COLOR.btn },
+      { label: OFFICE_STAGE_LABEL[this.officeLevel] ?? '사무실', color: COLOR.btnSecondary },
+      { label: `고용 ${this.liveEmployees.length}/${cap}`, color: COLOR.panelEmpty },
+    ];
+    let badgeX = this.cx - badges.reduce((sum, b) => sum + b.label.length * 13 + 34, 0) / 2;
+    for (const badge of badges) {
+      const w = badge.label.length * 13 + 24;
+      const bg = this.add.graphics();
+      drawRaisedRect(bg, badgeX, 70, w, 30, badge.color, {
+        radius: 15,
+        shadow: false,
+        gloss: true,
+      });
+      this.add.text(badgeX + w / 2, 85, badge.label, {
+        ...TYPE.metaBold,
+        color: TEXT_COLOR.primary,
+      }).setOrigin(0.5);
+      badgeX += w + 10;
+    }
 
     const { project } = this.outcome.state;
     const overdue = project.weeksElapsed > project.weeksTarget;
     // 막 출시한 작품 포함 분기 산출 (productIndex + 1).
     const cal = calendarFor(this.outcome.state.productIndex + 1);
     const sub = `${project.genre} × ${project.theme} · Week ${project.weeksElapsed} / ${project.weeksTarget}${overdue ? ' (연체)' : ''} · ${cal.year}년차 ${cal.quarter}`;
-    this.add.text(this.cx, 92, sub, subStyle).setOrigin(0.5);
+    this.add.text(this.cx, 112, sub, subStyle).setOrigin(0.5);
   }
 
   // ────────────────────────── headline panel ──────────────────────────
@@ -609,7 +635,7 @@ export class ResultScene extends Phaser.Scene {
         : [];
 
     const baseRows: ReadonlyArray<readonly [string, string, string]> = [
-      ['매출', `+${o.revenue} 골드`, TEXT_COLOR.ok],
+      ['매출', `+${formatGold(o.revenue)}`, TEXT_COLOR.ok],
       ['명성', repValue, TEXT_COLOR.warn],
       ...marketShareRows,
       ...trendRow,
@@ -655,13 +681,14 @@ export class ResultScene extends Phaser.Scene {
     rows.forEach(([label, value, color], i) => {
       const y = panelY + 14 + i * rowH + rowH / 2;
       this.add.text(panelX + 20, y, label, labelStyle).setOrigin(0, 0.5);
-      const initial = label === '매출' ? '+0 골드' : value;
+      const initial = label === '매출' ? '+0g' : value;
       // 점수 분해 row는 값이 길어 라벨 위로 넘치므로 작은 폰트로.
-      const valueFontSize = label === '점수 분해' ? '17px' : '26px';
+      const valueFontSize = label === '매출' ? '32px' : label === '점수 분해' ? '17px' : '26px';
       const valueText = this.add
         .text(panelX + panelW - 20, y, initial, {
-          fontFamily: FONT_STACK,
+          fontFamily: label === '매출' ? TYPE.number.fontFamily : FONT_STACK,
           fontSize: valueFontSize,
+          fontStyle: label === '매출' ? 'bold' : undefined,
           color,
         })
         .setOrigin(1, 0.5);
@@ -679,8 +706,11 @@ export class ResultScene extends Phaser.Scene {
         duration: 1500,
         delay: 250,
         ease: 'Cubic.easeOut',
-        onUpdate: () => ref.setText(`+${Math.round(counter.v)} 골드`),
-        onComplete: () => ref.setText(`+${target} 골드`),
+        onUpdate: () => ref.setText(`+${formatGold(Math.round(counter.v))}`),
+        onComplete: () => {
+          ref.setText(`+${formatGold(target)}`);
+          microPulse(this, ref, 1.1);
+        },
       });
     }
   }
@@ -1110,8 +1140,11 @@ export class ResultScene extends Phaser.Scene {
           ? COLOR.btn
           : COLOR.btnSecondary;
       btn.bg.clear();
-      btn.bg.fillStyle(fill, 1);
-      btn.bg.fillRoundedRect(btn.rect.x, btn.rect.y, btn.rect.width, btn.rect.height, 10);
+      drawRaisedRect(btn.bg, btn.rect.x, btn.rect.y, btn.rect.width, btn.rect.height, fill, {
+        radius: 10,
+        gloss: affordable,
+        shadow: affordable,
+      });
       btn.text.setText(label).setColor(affordable ? TEXT_COLOR.primary : TEXT_COLOR.disabled);
       if (btn.hit.input) btn.hit.input.enabled = affordable && !active;
     }
@@ -1126,8 +1159,11 @@ export class ResultScene extends Phaser.Scene {
   ): void {
     if (!bg || !text || !rect || !hit) return;
     bg.clear();
-    bg.fillStyle(enabled ? COLOR.btn : COLOR.btnDisabled, 1);
-    bg.fillRoundedRect(rect.x, rect.y, rect.width, rect.height, 12);
+    drawRaisedRect(bg, rect.x, rect.y, rect.width, rect.height, enabled ? COLOR.btn : COLOR.btnDisabled, {
+      radius: 12,
+      gloss: enabled,
+      shadow: enabled,
+    });
     text.setColor(enabled ? TEXT_COLOR.primary : TEXT_COLOR.disabled);
     if (hit.input) hit.input.enabled = enabled;
   }
@@ -1139,13 +1175,73 @@ export class ResultScene extends Phaser.Scene {
     const nextIllust = OFFICE_ILLUSTRATION[nextLevel];
     if (cost === undefined || !nextIllust) return; // 최대 단계.
     if (this.liveGold < cost) return;
+    const prevLevel = this.officeLevel;
     this.liveGold -= cost;
     this.officeLevel = nextLevel;
     this.crossfadeIllustration(nextIllust);
+    this.showOfficeUpgradeCinema(prevLevel, nextLevel);
     this.persistResult();
     playSfx(this, SFX.success, 0.5);
     this.refreshOfficePanel();
     this.refreshSaveFooter();
+  }
+
+  private showOfficeUpgradeCinema(prevLevel: OfficeLevel, nextLevel: OfficeLevel): void {
+    const layer = this.add.container(0, 0).setDepth(260);
+    const scrim = this.add
+      .rectangle(0, 0, 720, 1280, 0x05060d, 0.94)
+      .setOrigin(0, 0)
+      .setInteractive();
+    const title = this.add.text(360, 190, '사옥 이전 완료', {
+      ...TYPE.hero,
+      color: TEXT_COLOR.primary,
+    }).setOrigin(0.5);
+    const subtitle = this.add.text(360, 246, `${OFFICE_STAGE_LABEL[prevLevel]} → ${OFFICE_STAGE_LABEL[nextLevel]}`, {
+      ...TYPE.leadBold,
+      color: TEXT_COLOR.warn,
+    }).setOrigin(0.5);
+    const oldImg = this.add
+      .image(360, 470, OFFICE_ILLUSTRATION[prevLevel] ?? OFFICE_ILLUSTRATION[1])
+      .setDisplaySize(560, 92)
+      .setOrigin(0.5)
+      .setAlpha(0.45);
+    const newImg = this.add
+      .image(360, 650, OFFICE_ILLUSTRATION[nextLevel] ?? OFFICE_ILLUSTRATION[1])
+      .setDisplaySize(640, 110)
+      .setOrigin(0.5)
+      .setAlpha(0);
+    const caption = this.add.text(360, 790, '월세는 올랐지만, 팀도 더 커질 수 있습니다.', {
+      ...TYPE.lead,
+      color: TEXT_COLOR.dim,
+    }).setOrigin(0.5);
+    layer.add([scrim, title, subtitle, oldImg, newImg, caption]);
+
+    this.tweens.add({
+      targets: oldImg,
+      y: 425,
+      scaleX: oldImg.scaleX * 0.92,
+      scaleY: oldImg.scaleY * 0.92,
+      alpha: 0.18,
+      duration: 620,
+      ease: 'Cubic.easeInOut',
+    });
+    this.tweens.add({
+      targets: newImg,
+      y: 590,
+      alpha: 1,
+      duration: 760,
+      delay: 260,
+      ease: 'Back.easeOut',
+    });
+    this.time.delayedCall(1650, () => {
+      this.tweens.add({
+        targets: layer,
+        alpha: 0,
+        duration: 360,
+        ease: 'Cubic.easeIn',
+        onComplete: () => layer.destroy(),
+      });
+    });
   }
 
   private handleHire(): void {
@@ -2331,6 +2427,7 @@ export class ResultScene extends Phaser.Scene {
       w: statsW,
       h,
       label: '통계',
+      iconKey: ICONS.chartLine.key,
       primary: false,
       onTap: () => {
         playSfx(this, SFX.tap);
@@ -2345,6 +2442,7 @@ export class ResultScene extends Phaser.Scene {
       w: nextW,
       h,
       label: '다음 프로젝트로',
+      iconKey: ICONS.progress.key,
       primary: true,
       onTap: () => {
         playSfx(this, SFX.click);
@@ -2360,12 +2458,13 @@ export class ResultScene extends Phaser.Scene {
     w: number;
     h: number;
     label: string;
+    iconKey?: string;
     primary: boolean;
     onTap: () => void;
   }): void {
     const rect = new Phaser.Geom.Rectangle(opts.x, opts.y, opts.w, opts.h);
     const bg = this.add.graphics();
-    this.add
+    const text = this.add
       .text(opts.x + opts.w / 2, opts.y + opts.h / 2, opts.label, {
         fontFamily: FONT_STACK,
         fontSize: opts.primary ? '18px' : '15px',
@@ -2373,12 +2472,22 @@ export class ResultScene extends Phaser.Scene {
         color: TEXT_COLOR.primary,
       })
       .setOrigin(0.5);
+    const icon = opts.iconKey
+      ? this.add
+          .image(text.x - text.width / 2 - 8, text.y, opts.iconKey)
+          .setDisplaySize(opts.primary ? 20 : 16, opts.primary ? 20 : 16)
+          .setOrigin(1, 0.5)
+          .setTint(TINT.dim)
+      : null;
     const draw = (pressed: boolean): void => {
       const base = opts.primary ? COLOR.btn : COLOR.btnSecondary;
       const down = opts.primary ? COLOR.btnDown : COLOR.btnSecondaryDown;
       bg.clear();
-      bg.fillStyle(pressed ? down : base, 1);
-      bg.fillRoundedRect(rect.x, rect.y, rect.width, rect.height, 14);
+      drawRaisedRect(bg, rect.x, rect.y, rect.width, rect.height, pressed ? down : base, {
+        radius: 14,
+        pressed,
+        gloss: true,
+      });
     };
     draw(false);
     const hit = this.add
@@ -2388,6 +2497,8 @@ export class ResultScene extends Phaser.Scene {
     hit.on('pointerout', () => draw(false));
     hit.on('pointerup', () => {
       draw(false);
+      microPulse(this, text, 1.04);
+      if (icon) microPulse(this, icon, 1.04);
       opts.onTap();
     });
   }
@@ -3149,7 +3260,7 @@ export class ResultScene extends Phaser.Scene {
     const headerH = 90;
     const footerH = 60;
     const panelW = 620;
-    const listH = sorted.length > 0 ? sorted.length * (rowH + rowGap) - rowGap : 60;
+    const listH = sorted.length > 0 ? sorted.length * (rowH + rowGap) - rowGap : 170;
     const panelH = Math.min(1160, headerH + listH + footerH + 16);
 
     const modal = createModal(this, {
@@ -3166,14 +3277,12 @@ export class ResultScene extends Phaser.Scene {
 
     // 메일 리스트.
     if (sorted.length === 0) {
-      layer.add(
-        this.add
-          .text(panelX + panelW / 2, panelY + headerH + 30, '수신된 메일이 없습니다.', {
-            ...TYPE.lead,
-            color: TEXT_COLOR.dim,
-          })
-          .setOrigin(0.5),
-      );
+      layer.add(addEmptyState(this, panelX + panelW / 2, panelY + headerH + 38, {
+        iconKey: ICONS.chat.key,
+        title: '메일 없음',
+        body: '출시를 거듭하면 투자자와 라이벌의 소식이 도착합니다.',
+        tint: TINT.dim,
+      }));
     } else {
       sorted.forEach((mail, i) => {
         const rowY = panelY + headerH + i * (rowH + rowGap);

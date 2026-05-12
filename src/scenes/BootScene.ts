@@ -15,8 +15,9 @@ import { ICON_DIR, ICONS } from '@/icons';
 import { preloadIllustrations } from '@/illustrations';
 import { loadData, loadPrestigeCount, saveData, loadSettings, DEFAULT_COMPANY_NAME, type SavedResult } from '@/save';
 import { setSfxVolume, preloadSfx } from '@/sounds';
-import { preloadUITextures } from '@/util/ui';
+import { drawRaisedRect, drawScreenBackdrop, preloadUITextures } from '@/util/ui';
 import { fitCamera } from '@/util/cameraFit';
+import { COLOR, TEXT_COLOR, TYPE } from '@/theme';
 import { isSupabaseEnabled } from '@/cloud/supabase';
 import { loadCloudSave, signInWithEmail, getSessionUserId, isLoggedIn } from '@/cloud/sync';
 import { SCENE_KEYS } from './keys';
@@ -131,17 +132,17 @@ export class BootScene extends Phaser.Scene {
         // 이미 로그인되어 있으면(같은 브라우저) 자동으로 cloud pull 시도.
         if (isSupabaseEnabled()) {
           this.showWelcomeModal(
-            () => this.scene.start(SCENE_KEYS.Assignment, { state, ...carry }),
+            () => this.routeAfterSplash(SCENE_KEYS.Assignment, { state, ...carry }),
           );
         } else {
           this.showCompanyNameModal(() => {
-            this.scene.start(SCENE_KEYS.Assignment, { state, ...carry });
+            this.routeAfterSplash(SCENE_KEYS.Assignment, { state, ...carry });
           });
         }
         return;
       }
 
-      this.scene.start(SCENE_KEYS.Assignment, { state, ...carry });
+      this.routeAfterSplash(SCENE_KEYS.Assignment, { state, ...carry });
       return;
     }
 
@@ -150,7 +151,7 @@ export class BootScene extends Phaser.Scene {
     const exec: ExecState | undefined = saved?.exec;
     const economy = saved?.economy;
     const rivals = saved?.rivals;
-    this.scene.start(SCENE_KEYS.GenreSelect, {
+    this.routeAfterSplash(SCENE_KEYS.GenreSelect, {
       productIndex,
       gold,
       officeLevel,
@@ -173,6 +174,36 @@ export class BootScene extends Phaser.Scene {
     });
   }
 
+  private routeAfterSplash(sceneKey: string, data?: object): void {
+    fitCamera(this);
+    this.children.removeAll();
+    const layer = this.add.container(0, 0);
+    layer.add(drawScreenBackdrop(this, 0.98));
+    const mark = this.add.text(360, 502, '(주)판교개발', {
+      ...TYPE.hero,
+      color: TEXT_COLOR.primary,
+    }).setOrigin(0.5);
+    const tag = this.add.text(360, 560, '출시하고, 버티고, 더 큰 사무실로', {
+      ...TYPE.lead,
+      color: TEXT_COLOR.dim,
+    }).setOrigin(0.5);
+    const bar = this.add.graphics();
+    drawRaisedRect(bar, 220, 630, 280, 10, COLOR.btn, {
+      radius: 5,
+      shadow: false,
+      gloss: true,
+    });
+    layer.add([mark, tag, bar]);
+    this.tweens.add({
+      targets: [mark, tag, bar],
+      alpha: { from: 0, to: 1 },
+      y: '-=10',
+      duration: 280,
+      ease: 'Cubic.easeOut',
+    });
+    this.time.delayedCall(520, () => this.scene.start(sceneKey, data));
+  }
+
   /**
    * 회사명 입력 모달. DOM input 사용. 완료 시 onDone() 호출.
    * 첫 진입(productIndex=0, companyName 없음)에서 한 번만 표시.
@@ -184,9 +215,7 @@ export class BootScene extends Phaser.Scene {
     this.scale.on('resize', () => fitCamera(this));
 
     // 어두운 배경
-    const bg = this.add.graphics();
-    bg.fillStyle(0x0e0e12, 1);
-    bg.fillRect(0, 0, 720, 1280);
+    drawScreenBackdrop(this);
 
     // 텍스트
     this.add.text(360, 460, '회사명을 입력하세요', {
@@ -244,8 +273,7 @@ export class BootScene extends Phaser.Scene {
     const btnX = 360 - btnW / 2;
     const btnY = 820;
     const btnBg = this.add.graphics();
-    btnBg.fillStyle(0x4f6fff, 1);
-    btnBg.fillRoundedRect(btnX, btnY, btnW, btnH, 14);
+    drawRaisedRect(btnBg, btnX, btnY, btnW, btnH, COLOR.btn, { radius: 14 });
     this.add.text(360, btnY + btnH / 2, '게임 시작', {
       fontFamily: '"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif',
       fontSize: '28px',
@@ -300,9 +328,7 @@ export class BootScene extends Phaser.Scene {
     this.scale.on('resize', () => fitCamera(this));
 
     // 어두운 배경.
-    const bg = this.add.graphics();
-    bg.fillStyle(0x0e0e12, 1);
-    bg.fillRect(0, 0, 720, 1280);
+    drawScreenBackdrop(this);
 
     // 타이틀.
     this.add.text(360, 380, '판교개발', {
@@ -332,8 +358,7 @@ export class BootScene extends Phaser.Scene {
       const h = 60;
       const x = 360 - w / 2;
       const btnBg = this.add.graphics();
-      btnBg.fillStyle(color, 1);
-      btnBg.fillRoundedRect(x, y, w, h, 14);
+      drawRaisedRect(btnBg, x, y, w, h, color, { radius: 14 });
       this.add.text(360, y + h / 2, label, {
         fontFamily: '"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif',
         fontSize: '24px',
@@ -390,9 +415,7 @@ export class BootScene extends Phaser.Scene {
     // 기존 환영 모달 제거 (간단히 화면 다시 그림).
     this.children.removeAll();
     fitCamera(this);
-    const bg = this.add.graphics();
-    bg.fillStyle(0x0e0e12, 1);
-    bg.fillRect(0, 0, 720, 1280);
+    drawScreenBackdrop(this);
 
     this.add.text(360, 360, '로그인', {
       fontFamily: '"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif',
@@ -459,8 +482,7 @@ export class BootScene extends Phaser.Scene {
       const h = 56;
       const x = 360 - w / 2;
       const btnBg = this.add.graphics();
-      btnBg.fillStyle(color, 1);
-      btnBg.fillRoundedRect(x, y, w, h, 14);
+      drawRaisedRect(btnBg, x, y, w, h, color, { radius: 14 });
       this.add.text(360, y + h / 2, label, {
         fontFamily: '"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif',
         fontSize: '22px',

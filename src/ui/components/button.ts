@@ -19,7 +19,7 @@
  */
 import Phaser from 'phaser';
 import { COLOR, RADIUS, TEXT_COLOR, TYPE } from '@/theme';
-import { pressTap } from '../animations';
+import { drawRaisedRect } from '@/util/ui';
 
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
 export type ButtonSize = 'sm' | 'md' | 'lg';
@@ -74,11 +74,21 @@ function variantColors(variant: ButtonVariant, enabled: boolean): { bg: number; 
   }
 }
 
+function lighten(color: number, amount: number): number {
+  const r = Math.min(255, ((color >> 16) & 0xff) + amount);
+  const g = Math.min(255, ((color >> 8) & 0xff) + amount);
+  const b = Math.min(255, (color & 0xff) + amount);
+  return (r << 16) | (g << 8) | b;
+}
+
 export function createButton(scene: Phaser.Scene, cfg: ButtonConfig): ButtonHandle {
   const variant: ButtonVariant = cfg.variant ?? 'primary';
   const size: ButtonSize = cfg.size ?? 'md';
   let enabled = !cfg.disabled;
   let currentVariant = variant;
+  let hovered = false;
+  let pressed = false;
+  let pressOffsetApplied = false;
 
   const cx = cfg.x + cfg.w / 2;
   const cy = cfg.y + cfg.h / 2;
@@ -90,11 +100,18 @@ export function createButton(scene: Phaser.Scene, cfg: ButtonConfig): ButtonHand
     const { bg: bgColor } = variantColors(currentVariant, enabled);
     if (currentVariant === 'ghost') {
       // ghost는 배경 없이 테두리만.
-      bg.lineStyle(1.5, COLOR.panelStroke, 0.8);
+      bg.lineStyle(1.5, hovered ? COLOR.selected : COLOR.panelStroke, hovered ? 0.95 : 0.8);
       bg.strokeRoundedRect(cfg.x, cfg.y, cfg.w, cfg.h, RADIUS.md);
     } else {
-      bg.fillStyle(bgColor, 1);
-      bg.fillRoundedRect(cfg.x, cfg.y, cfg.w, cfg.h, RADIUS.md);
+      const hoverFill = enabled && hovered && !pressed && currentVariant !== 'danger'
+        ? lighten(bgColor, 10)
+        : bgColor;
+      drawRaisedRect(bg, cfg.x, cfg.y, cfg.w, cfg.h, hoverFill, {
+        radius: RADIUS.md,
+        pressed,
+        gloss: enabled,
+        shadow: true,
+      });
     }
   };
   drawBg();
@@ -122,8 +139,40 @@ export function createButton(scene: Phaser.Scene, cfg: ButtonConfig): ButtonHand
     .zone(cx, cy, cfg.w, cfg.h)
     .setInteractive({ useHandCursor: true });
 
-  hit.on('pointerdown', () => { if (enabled) pressTap(scene, bg); });
-  hit.on('pointerup', () => { if (enabled && cfg.onTap) cfg.onTap(); });
+  hit.on('pointerover', () => {
+    hovered = true;
+    drawBg();
+  });
+  hit.on('pointerout', () => {
+    hovered = false;
+    pressed = false;
+    drawBg();
+    if (pressOffsetApplied) {
+      text.setY(text.y - 2);
+      if (icon) icon.setY(icon.y - 2);
+      pressOffsetApplied = false;
+    }
+  });
+  hit.on('pointerdown', () => {
+    if (!enabled) return;
+    pressed = true;
+    drawBg();
+    if (!pressOffsetApplied) {
+      text.setY(text.y + 2);
+      if (icon) icon.setY(icon.y + 2);
+      pressOffsetApplied = true;
+    }
+  });
+  hit.on('pointerup', () => {
+    pressed = false;
+    drawBg();
+    if (pressOffsetApplied) {
+      text.setY(text.y - 2);
+      if (icon) icon.setY(icon.y - 2);
+      pressOffsetApplied = false;
+    }
+    if (enabled && cfg.onTap) cfg.onTap();
+  });
 
   return {
     bg, text, hit, icon,

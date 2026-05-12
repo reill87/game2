@@ -88,3 +88,20 @@ export function bloomBurst(
     yoyo: true,
   });
 }
+
+export function microPulse(
+  scene: Phaser.Scene,
+  target: Phaser.GameObjects.Components.Transform & Phaser.GameObjects.GameObject,
+  scale = 1.08,
+): Phaser.Tweens.Tween {
+  const baseX = target.scaleX;
+  const baseY = target.scaleY;
+  return scene.tweens.add({
+    targets: target,
+    scaleX: baseX * scale,
+    scaleY: baseY * scale,
+    duration: MOTION.duration.base,
+    ease: MOTION.ease.bounce,
+    yoyo: true,
+  });
+}

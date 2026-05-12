@@ -46,7 +46,7 @@ import { formatGold } from '@/ui';
 import { addMuteToggle } from '@/util/muteToggle';
 import { drawConditionFill } from '@/util/condition';
 import { applyHiDPI } from '@/util/hidpi';
-import { makePanel } from '@/util/ui';
+import { drawGaugeBar, drawRaisedRect, makePanel } from '@/util/ui';
 import { fitCamera } from '@/util/cameraFit';
 import { onResize } from '@/util/viewport';
 import { showHint } from '@/util/onboarding';
@@ -317,29 +317,44 @@ export class DevelopmentScene extends Phaser.Scene {
     const genre = GENRE_LABEL[this.state.project.genre].name;
     const theme = THEME_LABEL[this.state.project.theme].name;
     const companyName = loadData()?.companyName ?? DEFAULT_COMPANY_NAME;
-    this.add.text(this.cx, 50, `${companyName} — 개발 중`, titleStyle).setOrigin(0.5);
-    this.add.text(this.cx, 84, `${genre} × ${theme}`, {
+    const titleBg = this.add.graphics();
+    drawRaisedRect(titleBg, this.cx - 200, 24, 400, 42, COLOR.panelEmpty, {
+      radius: 21,
+      shadow: false,
+      gloss: true,
+      stroke: COLOR.panelStroke,
+      strokeAlpha: 0.55,
+    });
+    this.add.text(this.cx, 45, companyName, titleStyle).setOrigin(0.5);
+    const chipBg = this.add.graphics();
+    drawRaisedRect(chipBg, this.cx - 170, 76, 340, 30, COLOR.btnSecondary, {
+      radius: 15,
+      shadow: false,
+      gloss: true,
+    });
+    this.add.text(this.cx, 91, `개발 중 · ${genre} × ${theme}`, {
       fontFamily: FONT_STACK,
-      fontSize: '22px',
+      fontSize: '19px',
+      fontStyle: 'bold',
       color: TEXT_COLOR.dim,
     }).setOrigin(0.5);
 
     this.weekText = this.add
-      .text(this.cx, 112, '', {
+      .text(this.cx, 110, '', {
         fontFamily: FONT_STACK,
         fontSize: '24px',
         color: TEXT_COLOR.dim,
       })
       .setOrigin(0.5);
     this.weekIcon = this.add
-      .image(0, 112, ICONS.calendar.key)
+      .image(0, 110, ICONS.calendar.key)
       .setDisplaySize(14, 14)
       .setOrigin(1, 0.5)
       .setTint(TINT.dim);
 
     // Sprint 단계 텍스트 — 헤더 Week 텍스트 우측에 표시.
     this.sprintPhaseText = this.add
-      .text(this.contentX + 720 - 14, 112, '', {
+      .text(this.contentX + 720 - 14, 110, '', {
         fontFamily: FONT_STACK,
         fontSize: '23px',
         fontStyle: 'bold',
@@ -507,7 +522,7 @@ export class DevelopmentScene extends Phaser.Scene {
         .text(panelX + panelW - 24, panelY + 180, '0 / 100', valueStyle)
         .setOrigin(1, 0);
       this.appealBar = this.add.graphics();
-      this.drawGauge(this.appealBar, panelX + 24, panelY + 212, 0, COLOR.gaugeFillProgress);
+      this.drawGauge(this.appealBar, panelX + 24, panelY + 212, 0, COLOR.gaugeFillAppeal);
     }
 
     // Gold
@@ -550,14 +565,13 @@ export class DevelopmentScene extends Phaser.Scene {
   }
 
   private drawGauge(g: Phaser.GameObjects.Graphics, x: number, y: number, ratio: number, fill: number): void {
-    g.clear();
-    g.fillStyle(COLOR.gaugeBg, 1);
-    g.fillRoundedRect(x, y, GAUGE_W, GAUGE_H, GAUGE_H / 2);
-    const w = Math.max(0, Math.min(1, ratio)) * GAUGE_W;
-    if (w > 0) {
-      g.fillStyle(fill, 1);
-      g.fillRoundedRect(x, y, w, GAUGE_H, GAUGE_H / 2);
-    }
+    const topFill =
+      fill === COLOR.gaugeFillBug
+        ? COLOR.gaugeFillBugTop
+        : fill === COLOR.gaugeFillAppeal
+          ? COLOR.gaugeFillAppealTop
+          : COLOR.gaugeFillProgressTop;
+    drawGaugeBar(g, x, y, GAUGE_W, GAUGE_H, ratio, fill, topFill);
   }
 
   // ────────────────────────── assignment recap ──────────────────────────
@@ -776,8 +790,11 @@ export class DevelopmentScene extends Phaser.Scene {
           ? COLOR.btn
           : COLOR.btnSecondary;
       bg.clear();
-      bg.fillStyle(color, 1);
-      bg.fillRoundedRect(rect.x, rect.y, rect.width, rect.height, 12);
+      drawRaisedRect(bg, rect.x, rect.y, rect.width, rect.height, color, {
+        radius: 12,
+        pressed,
+        gloss: true,
+      });
       text.setColor(active ? TEXT_COLOR.primary : TEXT_COLOR.dim);
     };
     const hit = this.add
@@ -876,8 +893,13 @@ export class DevelopmentScene extends Phaser.Scene {
           ? COLOR.btn
           : COLOR.btnSecondary;
       view.bg.clear();
-      view.bg.fillStyle(fill, 1);
-      view.bg.fillRoundedRect(view.rect.x, view.rect.y, view.rect.width, view.rect.height, 12);
+      drawRaisedRect(view.bg, view.rect.x, view.rect.y, view.rect.width, view.rect.height, fill, {
+        radius: 12,
+        gloss: affordable,
+        shadow: affordable,
+        stroke: selected ? COLOR.selected : undefined,
+        strokeAlpha: selected ? 0.9 : undefined,
+      });
       view.text.setColor(affordable ? TEXT_COLOR.primary : TEXT_COLOR.disabled);
       if (view.hit.input) view.hit.input.enabled = affordable;
     }
@@ -927,8 +949,11 @@ export class DevelopmentScene extends Phaser.Scene {
         const downColor = opts.primary ? COLOR.btnDown : COLOR.btnSecondaryDown;
         const color = !view.enabled ? COLOR.btnDisabled : pressed ? downColor : baseColor;
         bg.clear();
-        bg.fillStyle(color, 1);
-        bg.fillRoundedRect(rect.x, rect.y, rect.width, rect.height, 14);
+        drawRaisedRect(bg, rect.x, rect.y, rect.width, rect.height, color, {
+          radius: 14,
+          pressed,
+          gloss: view.enabled,
+        });
         text.setColor(view.enabled ? TEXT_COLOR.primary : TEXT_COLOR.disabled);
       },
     };
@@ -1031,6 +1056,7 @@ export class DevelopmentScene extends Phaser.Scene {
     }
     // tick 직전 기여도를 캡쳐해 floating 팝업으로 띄움.
     const contributions = computeSlotContributions(this.state);
+    const prevAp = this.state.availableAp ?? 0;
     this.state = advanceWeek(this.state);
     this.weeksSinceEvent += 1;
     if (this.sideProjectCooldown > 0) {
@@ -1071,6 +1097,15 @@ export class DevelopmentScene extends Phaser.Scene {
         this.releaseHintShown = true;
         this.showReleaseHint();
       }
+      return;
+    }
+
+    const nextAp = this.state.availableAp ?? 0;
+    if (prevAp < AP_CAP && nextAp >= AP_CAP) {
+      this.handlePause();
+      this.statusText
+        .setText(`행동 AP가 가득 찼습니다 (${AP_CAP}/${AP_CAP}) — 행동을 쓰고 다시 진행하세요.`)
+        .setColor(TEXT_COLOR.warn);
       return;
     }
 
@@ -1775,7 +1810,7 @@ export class DevelopmentScene extends Phaser.Scene {
     this.drawGauge(this.progressBar, panelX, 172, p / 100, COLOR.gaugeFillProgress);
     this.drawGauge(this.bugBar, panelX, 252, b / 100, COLOR.gaugeFillBug);
     if (this.appealBar && this.appealText) {
-      this.drawGauge(this.appealBar, panelX, 332, a / 100, COLOR.gaugeFillProgress);
+      this.drawGauge(this.appealBar, panelX, 332, a / 100, COLOR.gaugeFillAppeal);
       this.appealText.setText(`${Math.round(a)} / 100`);
     }
 
@@ -1969,7 +2004,7 @@ export class DevelopmentScene extends Phaser.Scene {
     );
     c.add(
       this.add
-        .text(panelX + 30, panelY + 94, 'AP를 소비해 팀에 즉발 효과를 적용합니다. 남은 AP는 누적(최대 3)됩니다.', {
+        .text(panelX + 30, panelY + 94, 'AP를 소비해 팀에 즉발 효과를 적용합니다. AP가 남아 있으면 이어서 여러 행동을 선택할 수 있습니다.', {
           fontFamily: FONT_STACK,
           fontSize: '23px',
           color: TEXT_COLOR.dim,
@@ -2073,6 +2108,13 @@ export class DevelopmentScene extends Phaser.Scene {
     this.weeklyActionModalContainer?.destroy(true);
     this.weeklyActionModalContainer = null;
     this.redraw();
+    if ((this.state.availableAp ?? 0) > 0) {
+      this.showWeeklyActionModal();
+      return;
+    }
+    this.statusText
+      .setText('행동 AP를 모두 사용했습니다. 진행을 다시 시작하세요.')
+      .setColor(TEXT_COLOR.ok);
   }
 
   // ────────────────────────── 위기 모먼트 모달 ──────────────────────────
