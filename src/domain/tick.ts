@@ -24,7 +24,7 @@ import { NO_PRESTIGE } from './prestige';
 import { AP_CAP, AP_PER_WEEK } from './weeklyActions';
 import { isMatched, SLOT_ORDER } from './match';
 import { tickExitStreak } from './retention';
-import { isRndPurchased, type RndProgress } from './rnd';
+import { RND_RESEARCH_WEEKS, isRndPurchased, type RndProgress } from './rnd';
 import { getSprintPhase, SPRINT_SLOT_WEIGHT } from './sprintPhase';
 import { computeEquipmentBonuses } from './equipment';
 import { isFacilityBuilt } from './facilities';
@@ -490,10 +490,22 @@ export function advanceWeek(prev: GameState): GameState {
   if (rndProgress && rndProgress.inProgress && rndProgress.weeksRemaining > 0) {
     const newWeeks = rndProgress.weeksRemaining - 1;
     if (newWeeks <= 0) {
+      const [nextQueued, ...restQueue] = prev.rnd.queue ?? [];
+      const nextProgress = nextQueued
+        ? {
+            inProgress: nextQueued,
+            weeksRemaining: Math.max(
+              1,
+              RND_RESEARCH_WEEKS[nextQueued] -
+                (isFacilityBuilt(prev.facilities, 'innovation-lab') ? 2 : 0),
+            ),
+          }
+        : { inProgress: null, weeksRemaining: 0 };
       // 연구 완료 — purchased에 추가, progress idle.
       nextRnd = {
         purchased: [...prev.rnd.purchased, rndProgress.inProgress],
-        progress: { inProgress: null, weeksRemaining: 0 },
+        progress: nextProgress,
+        ...(restQueue.length > 0 ? { queue: restQueue } : {}),
       };
     } else {
       nextRnd = {

@@ -534,13 +534,27 @@ function sanitizeRndProgress(raw: unknown): RndProgress | undefined {
 
 function sanitizeRnd(raw: unknown): RndState {
   if (!raw || typeof raw !== 'object') return EMPTY_RND;
-  const obj = raw as { purchased?: unknown; progress?: unknown };
+  const obj = raw as { purchased?: unknown; progress?: unknown; queue?: unknown };
   if (!Array.isArray(obj.purchased)) return EMPTY_RND;
   const purchased = (obj.purchased as unknown[]).filter(
     (id): id is RndId => typeof id === 'string' && (VALID_RND_IDS as string[]).includes(id),
   );
   const progress = sanitizeRndProgress(obj.progress);
-  return progress ? { purchased, progress } : { purchased };
+  const reserved = new Set<RndId>(purchased);
+  if (progress?.inProgress) reserved.add(progress.inProgress);
+  const queue = Array.isArray(obj.queue)
+    ? (obj.queue as unknown[]).filter((id): id is RndId => {
+        if (typeof id !== 'string' || !(VALID_RND_IDS as string[]).includes(id)) return false;
+        if (reserved.has(id as RndId)) return false;
+        reserved.add(id as RndId);
+        return true;
+      })
+    : [];
+  return {
+    purchased,
+    ...(progress ? { progress } : {}),
+    ...(queue.length > 0 ? { queue } : {}),
+  };
 }
 
 /** 경쟁사 출시 이력 sanitize — rivalId 화이트리스트 + 필수 필드 검증. */

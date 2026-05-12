@@ -157,6 +157,16 @@ export class DevelopmentScene extends Phaser.Scene {
 
   // 주간 액션(AP) 모달
   private weeklyActionModalContainer: Phaser.GameObjects.Container | null = null;
+  private weeklyActionApText: Phaser.GameObjects.Text | null = null;
+  private weeklyActionCardViews: Array<{
+    action: WeeklyAction;
+    bg: Phaser.GameObjects.Graphics;
+    labelText: Phaser.GameObjects.Text;
+    descText: Phaser.GameObjects.Text;
+    costBadge: Phaser.GameObjects.Text;
+    hit: Phaser.GameObjects.Zone;
+    rect: Phaser.Geom.Rectangle;
+  }> = [];
   private apBtnBg: Phaser.GameObjects.Graphics | null = null;
   private apBtnText: Phaser.GameObjects.Text | null = null;
   private apBtnRect: Phaser.Geom.Rectangle | null = null;
@@ -1968,6 +1978,8 @@ export class DevelopmentScene extends Phaser.Scene {
   /** 주간 행동 모달 — 5개 액션 카드 세로 리스트. */
   private showWeeklyActionModal(): void {
     const c = this.add.container(0, 0).setDepth(100);
+    this.weeklyActionCardViews = [];
+    this.weeklyActionApText = null;
     const overlay = this.add
       .rectangle(0, 0, 720, 1280, 0x000000, 0.7)
       .setOrigin(0, 0)
@@ -1992,16 +2004,15 @@ export class DevelopmentScene extends Phaser.Scene {
         })
         .setOrigin(0, 0),
     );
-    c.add(
-      this.add
-        .text(panelX + panelW / 2, panelY + 56, `행동 포인트 AP: ${ap} / ${AP_CAP}`, {
-          fontFamily: FONT_STACK,
-          fontSize: '30px',
-          fontStyle: 'bold',
-          color: TEXT_COLOR.primary,
-        })
-        .setOrigin(0.5, 0),
-    );
+    this.weeklyActionApText = this.add
+      .text(panelX + panelW / 2, panelY + 56, `행동 포인트 AP: ${ap} / ${AP_CAP}`, {
+        fontFamily: FONT_STACK,
+        fontSize: '30px',
+        fontStyle: 'bold',
+        color: TEXT_COLOR.primary,
+      })
+      .setOrigin(0.5, 0);
+    c.add(this.weeklyActionApText);
     c.add(
       this.add
         .text(panelX + 30, panelY + 94, 'AP를 소비해 팀에 즉발 효과를 적용합니다. AP가 남아 있으면 이어서 여러 행동을 선택할 수 있습니다.', {
@@ -2022,9 +2033,9 @@ export class DevelopmentScene extends Phaser.Scene {
 
     WEEKLY_ACTIONS.forEach((action, i) => {
       const y = cardsStartY + i * (cardH + cardGap);
-      const canUse = ap >= action.apCost;
       const bg = this.add.graphics();
       const drawCard = (pressed: boolean): void => {
+        const canUse = (this.state.availableAp ?? 0) >= action.apCost;
         bg.clear();
         if (!canUse) {
           bg.fillStyle(COLOR.btnDisabled, 1);
@@ -2039,12 +2050,12 @@ export class DevelopmentScene extends Phaser.Scene {
         fontFamily: FONT_STACK,
         fontSize: '27px',
         fontStyle: 'bold',
-        color: canUse ? TEXT_COLOR.primary : TEXT_COLOR.disabled,
+        color: TEXT_COLOR.primary,
       });
       const descText = this.add.text(cardX + 18, y + 42, action.desc, {
         fontFamily: FONT_STACK,
         fontSize: '21px',
-        color: canUse ? TEXT_COLOR.dim : TEXT_COLOR.disabled,
+        color: TEXT_COLOR.dim,
         wordWrap: { width: cardW - 100, useAdvancedWrap: true },
       });
       const costBadge = this.add
@@ -2052,24 +2063,31 @@ export class DevelopmentScene extends Phaser.Scene {
           fontFamily: FONT_STACK,
           fontSize: '23px',
           fontStyle: 'bold',
-          color: canUse ? TEXT_COLOR.ok : TEXT_COLOR.disabled,
+          color: TEXT_COLOR.ok,
         })
         .setOrigin(1, 0.5);
 
       c.add([bg, labelText, descText, costBadge]);
 
-      if (canUse) {
-        const hit = this.add
-          .zone(cardX + cardW / 2, y + cardH / 2, cardW, cardH)
-          .setInteractive({ useHandCursor: true });
-        hit.on('pointerdown', () => drawCard(true));
-        hit.on('pointerout', () => drawCard(false));
-        hit.on('pointerup', () => {
-          drawCard(false);
-          this.handleWeeklyActionChoice(action);
-        });
-        c.add(hit);
-      }
+      const hit = this.add
+        .zone(cardX + cardW / 2, y + cardH / 2, cardW, cardH)
+        .setInteractive({ useHandCursor: true });
+      hit.on('pointerdown', () => drawCard(true));
+      hit.on('pointerout', () => drawCard(false));
+      hit.on('pointerup', () => {
+        drawCard(false);
+        this.handleWeeklyActionChoice(action);
+      });
+      c.add(hit);
+      this.weeklyActionCardViews.push({
+        action,
+        bg,
+        labelText,
+        descText,
+        costBadge,
+        hit,
+        rect: new Phaser.Geom.Rectangle(cardX, y, cardW, cardH),
+      });
     });
 
     // 닫기 버튼
@@ -2089,15 +2107,38 @@ export class DevelopmentScene extends Phaser.Scene {
       .zone(panelX + panelW / 2, closeBtnY + 22, cardW, 44)
       .setInteractive({ useHandCursor: true });
     closeHit.on('pointerup', () => {
-      this.weeklyActionModalContainer?.destroy(true);
-      this.weeklyActionModalContainer = null;
+      this.closeWeeklyActionModal();
     });
     c.add([closeBg, closeText, closeHit]);
 
     this.weeklyActionModalContainer = c;
     applyHiDPI(this);
+    this.updateWeeklyActionModal();
     c.setAlpha(0);
     this.tweens.add({ targets: c, alpha: 1, duration: 180, ease: 'Cubic.easeOut' });
+  }
+
+  private closeWeeklyActionModal(): void {
+    this.weeklyActionModalContainer?.destroy(true);
+    this.weeklyActionModalContainer = null;
+    this.weeklyActionApText = null;
+    this.weeklyActionCardViews = [];
+  }
+
+  private updateWeeklyActionModal(): void {
+    if (!this.weeklyActionModalContainer) return;
+    const ap = this.state.availableAp ?? 0;
+    this.weeklyActionApText?.setText(`행동 포인트 AP: ${ap} / ${AP_CAP}`);
+    for (const view of this.weeklyActionCardViews) {
+      const canUse = ap >= view.action.apCost;
+      view.bg.clear();
+      view.bg.fillStyle(canUse ? COLOR.btnSecondary : COLOR.btnDisabled, 1);
+      view.bg.fillRoundedRect(view.rect.x, view.rect.y, view.rect.width, view.rect.height, 12);
+      view.labelText.setColor(canUse ? TEXT_COLOR.primary : TEXT_COLOR.disabled);
+      view.descText.setColor(canUse ? TEXT_COLOR.dim : TEXT_COLOR.disabled);
+      view.costBadge.setColor(canUse ? TEXT_COLOR.ok : TEXT_COLOR.disabled);
+      if (view.hit.input) view.hit.input.enabled = canUse;
+    }
   }
 
   private handleWeeklyActionChoice(action: WeeklyAction): void {
@@ -2105,13 +2146,12 @@ export class DevelopmentScene extends Phaser.Scene {
     if (ap < action.apCost) return;
     playSfx(this, SFX.success, 0.5);
     this.state = action.apply({ ...this.state, availableAp: ap - action.apCost });
-    this.weeklyActionModalContainer?.destroy(true);
-    this.weeklyActionModalContainer = null;
     this.redraw();
     if ((this.state.availableAp ?? 0) > 0) {
-      this.showWeeklyActionModal();
+      this.updateWeeklyActionModal();
       return;
     }
+    this.closeWeeklyActionModal();
     this.statusText
       .setText('행동 AP를 모두 사용했습니다. 진행을 다시 시작하세요.')
       .setColor(TEXT_COLOR.ok);

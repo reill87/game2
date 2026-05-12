@@ -360,12 +360,27 @@ export interface RndState {
   readonly purchased: ReadonlyArray<RndId>;
   /** 진행 중인 연구. 옛 데이터 호환을 위해 옵셔널. */
   readonly progress?: RndProgress;
+  /** 진행 중 연구가 끝나면 자동 시작할 예약 연구 목록. 비용은 예약 시 선결제. */
+  readonly queue?: ReadonlyArray<RndId>;
 }
 
 export const EMPTY_RND: RndState = { purchased: [] };
 
 export function isRndPurchased(rnd: RndState | undefined, id: RndId): boolean {
   return !!rnd?.purchased.includes(id);
+}
+
+export function isRndInProgress(rnd: RndState | undefined, id: RndId): boolean {
+  return rnd?.progress?.inProgress === id && (rnd.progress?.weeksRemaining ?? 0) > 0;
+}
+
+export function isRndQueued(rnd: RndState | undefined, id: RndId): boolean {
+  return !!rnd?.queue?.includes(id);
+}
+
+/** 구매/진행/예약 중이면 다시 시작할 수 없는 R&D로 간주. */
+export function isRndReserved(rnd: RndState | undefined, id: RndId): boolean {
+  return isRndPurchased(rnd, id) || isRndInProgress(rnd, id) || isRndQueued(rnd, id);
 }
 
 export function isRndAvailable(
@@ -378,6 +393,25 @@ export function isRndAvailable(
   if (item.minOfficeLevel !== undefined && (officeLevel ?? 1) < item.minOfficeLevel) return false;
   if (item.requires) {
     for (const req of item.requires) if (!isRndPurchased(rnd, req)) return false;
+  }
+  return true;
+}
+
+/** 예약 대기열까지 선행 조건으로 인정해 긴 프로젝트 중 R&D가 끊기지 않게 한다. */
+export function isRndAvailableWithQueue(
+  rnd: RndState | undefined,
+  item: RndItem,
+  productCount: number,
+  officeLevel?: number,
+): boolean {
+  if (item.minProductCount !== undefined && productCount < item.minProductCount) return false;
+  if (item.minOfficeLevel !== undefined && (officeLevel ?? 1) < item.minOfficeLevel) return false;
+  const planned = new Set<RndId>(rnd?.purchased ?? []);
+  const active = rnd?.progress;
+  if (active?.inProgress && active.weeksRemaining > 0) planned.add(active.inProgress);
+  for (const queued of rnd?.queue ?? []) planned.add(queued);
+  if (item.requires) {
+    for (const req of item.requires) if (!planned.has(req)) return false;
   }
   return true;
 }
@@ -422,5 +456,5 @@ export function getRndTier(id: RndId): 1 | 2 | 3 | 4 | 5 {
 /** RndState에 새 항목 추가 (불변 복사). */
 export function purchaseRnd(rnd: RndState, id: RndId): RndState {
   if (rnd.purchased.includes(id)) return rnd;
-  return { purchased: [...rnd.purchased, id] };
+  return { ...rnd, purchased: [...rnd.purchased, id] };
 }

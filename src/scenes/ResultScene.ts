@@ -25,10 +25,13 @@ import { PERK } from '@/domain/balance';
 import {
   EMPTY_RND,
   getRndTier,
-  isRndAvailable,
+  isRndAvailableWithQueue,
   isRndPurchased,
+  isRndQueued,
+  isRndReserved,
   RND_ITEMS,
   RND_RESEARCH_WEEKS,
+  type RndId,
   type RndState,
 } from '@/domain/rnd';
 import {
@@ -210,6 +213,17 @@ export class ResultScene extends Phaser.Scene {
       const p = this.liveRnd.progress;
       if (p && (!p.inProgress || p.weeksRemaining <= 0 || !RND_ITEMS.some((r) => r.id === p.inProgress))) {
         this.liveRnd = { ...this.liveRnd, progress: { inProgress: null, weeksRemaining: 0 } };
+      }
+      const reserved = new Set(this.liveRnd.purchased);
+      if (this.liveRnd.progress?.inProgress) reserved.add(this.liveRnd.progress.inProgress);
+      const queue = (this.liveRnd.queue ?? []).filter((id) => {
+        if (reserved.has(id)) return false;
+        if (!RND_ITEMS.some((r) => r.id === id)) return false;
+        reserved.add(id);
+        return true;
+      });
+      if (queue.length !== (this.liveRnd.queue?.length ?? 0)) {
+        this.liveRnd = { ...this.liveRnd, ...(queue.length > 0 ? { queue } : { queue: undefined }) };
       }
     }
     // economy: outcome.state가 shipProject에서 tickEconomy 적용된 최신 값.
@@ -1079,6 +1093,8 @@ export class ResultScene extends Phaser.Scene {
         const shortName = progItem ? progItem.name : '연구';
         rndBtnLabel = `R&D ${rndCount}/${rndTotal} (연구중: ${shortName} ${rndProg.weeksRemaining}주)`;
       }
+      const queuedCount = this.liveRnd.queue?.length ?? 0;
+      if (queuedCount > 0) rndBtnLabel += ` · 대기 ${queuedCount}`;
       this.rndBtnText.setText(rndBtnLabel);
     }
     this.drawSecondaryButton(this.rndBtnBg, this.rndBtnText, this.rndBtnRect, this.rndBtnHit, true);
@@ -1776,8 +1792,9 @@ export class ResultScene extends Phaser.Scene {
     onBuy: () => void,
   ): void {
     const purchased = isRndPurchased(this.liveRnd, item.id);
-    const available = isRndAvailable(this.liveRnd, item, productCount, this.officeLevel);
+    const available = isRndAvailableWithQueue(this.liveRnd, item, productCount, this.officeLevel);
     const affordable = this.liveGold >= item.cost;
+    const queued = isRndQueued(this.liveRnd, item.id);
     // 연구 진행 상태 확인.
     // stale progress 방어: weeksRemaining<=0이거나 inProgress가 RND_ITEMS에 없으면 무효.
     const rawProg = this.liveRnd.progress;
@@ -1882,6 +1899,22 @@ export class ResultScene extends Phaser.Scene {
           })
           .setOrigin(0.5),
       );
+    } else if (queued) {
+      const queuedIdx = (this.liveRnd.queue ?? []).indexOf(item.id) + 1;
+      const queuedBg = this.add.graphics();
+      queuedBg.fillStyle(0x203047, 1);
+      queuedBg.fillRoundedRect(btnX, btnY, btnW, btnH, 8);
+      layer.add(queuedBg);
+      layer.add(
+        this.add
+          .text(btnX + btnW / 2, btnY + btnH / 2, `📌 예약됨 (대기 ${queuedIdx}번째)`, {
+            fontFamily: FONT_STACK,
+            fontSize: '21px',
+            fontStyle: 'bold',
+            color: TEXT_COLOR.warn,
+          })
+          .setOrigin(0.5),
+      );
     } else if (!available) {
       // 잠금 — 선행 R&D 또는 productCount 조건 미충족.
       const lockBg = this.add.graphics();
@@ -1909,24 +1942,41 @@ export class ResultScene extends Phaser.Scene {
           .setOrigin(0.5),
       );
     } else if (otherInProgress) {
-      // 다른 R&D 연구 중 — 비활성.
-      const busyBg = this.add.graphics();
-      busyBg.fillStyle(COLOR.btnDisabled, 1);
-      busyBg.fillRoundedRect(btnX, btnY, btnW, btnH, 8);
-      layer.add(busyBg);
+      // 다른 R&D 연구 중 — 다음 연구로 예약 가능.
       const progId = prog?.inProgress;
       const progItem = progId ? RND_ITEMS.find((r) => r.id === progId) : null;
       const progName = progItem ? progItem.name : '연구';
       const progRemaining = prog?.weeksRemaining ?? 0;
+      const canQueue = affordable && !isRndReserved(this.liveRnd, item.id);
+      const busyBg = this.add.graphics();
+      busyBg.fillStyle(canQueue ? COLOR.btn : COLOR.btnDisabled, 1);
+      busyBg.fillRoundedRect(btnX, btnY, btnW, btnH, 8);
+      layer.add(busyBg);
+      const label = canQueue
+        ? `다음 연구 예약 (−${formatGold(item.cost)} · ${this.getRndResearchWeeks(item.id)}주)`
+        : affordable
+          ? `⏳ ${progName} 연구 중 (${progRemaining}주 남음)`
+          : `골드 부족 (필요 ${formatGold(item.cost)})`;
       layer.add(
         this.add
-          .text(btnX + btnW / 2, btnY + btnH / 2, `⏳ ${progName} 연구 중 (${progRemaining}주 남음)`, {
+          .text(btnX + btnW / 2, btnY + btnH / 2, label, {
             fontFamily: FONT_STACK,
             fontSize: '20px',
-            color: TEXT_COLOR.disabled,
+            fontStyle: canQueue ? 'bold' : undefined,
+            color: canQueue ? TEXT_COLOR.primary : TEXT_COLOR.disabled,
           })
           .setOrigin(0.5),
       );
+      if (canQueue) {
+        const hit = this.add
+          .zone(btnX + btnW / 2, btnY + btnH / 2, btnW, btnH)
+          .setInteractive({ useHandCursor: true });
+        layer.add(hit);
+        hit.on('pointerup', () => {
+          playSfx(this, SFX.buy);
+          onBuy();
+        });
+      }
     } else {
       // 구매 가능 또는 골드 부족.
       const canBuy = affordable;
@@ -1934,7 +1984,7 @@ export class ResultScene extends Phaser.Scene {
       buyBg.fillStyle(canBuy ? COLOR.btn : COLOR.btnDisabled, 1);
       buyBg.fillRoundedRect(btnX, btnY, btnW, btnH, 8);
       layer.add(buyBg);
-      const totalWeeks = RND_RESEARCH_WEEKS[item.id];
+      const totalWeeks = this.getRndResearchWeeks(item.id);
       const buyLabel = canBuy ? `연구 시작 (−${formatGold(item.cost)} · ${totalWeeks}주)` : `골드 부족 (필요 ${formatGold(item.cost)})`;
       layer.add(
         this.add
@@ -1960,32 +2010,44 @@ export class ResultScene extends Phaser.Scene {
     }
   }
 
-  private applyRndPurchase(id: (typeof RND_ITEMS)[number]['id']): void {
+  private getRndResearchWeeks(id: RndId): number {
+    const weeks = RND_RESEARCH_WEEKS[id];
+    return isFacilityBuilt(this.liveFacilities, 'innovation-lab')
+      ? Math.max(1, weeks - 2)
+      : weeks;
+  }
+
+  private applyRndPurchase(id: RndId): void {
     const item = RND_ITEMS.find((r) => r.id === id);
     if (!item) return;
-    if (isRndPurchased(this.liveRnd, id)) return;
-    // 이미 다른 R&D 연구 중이면 시작 불가.
+    if (isRndReserved(this.liveRnd, id)) return;
+    const productCount = this.outcome.state.productIndex + 1;
+    if (!isRndAvailableWithQueue(this.liveRnd, item, productCount, this.officeLevel)) return;
     const prog = this.liveRnd.progress;
-    if (prog && prog.inProgress !== null) return;
     if (this.liveGold < item.cost) return;
     this.liveGold -= item.cost;
-    // 즉시 구매 대신 연구 시작 — advanceWeek���서 매��� 카운트다운.
-    let weeks = RND_RESEARCH_WEEKS[id];
-    // 시설: 이노베이션 랩 — 모든 R&D 연구 시간 −2주(최소 1주).
-    if (isFacilityBuilt(this.liveFacilities, 'innovation-lab')) {
-      weeks = Math.max(1, weeks - 2);
+    const weeks = this.getRndResearchWeeks(id);
+    const activeProgress = prog && prog.inProgress !== null && prog.weeksRemaining > 0;
+    if (activeProgress) {
+      this.liveRnd = {
+        ...this.liveRnd,
+        queue: [...(this.liveRnd.queue ?? []), id],
+      };
+    } else {
+      this.liveRnd = {
+        ...this.liveRnd,
+        progress: { inProgress: id, weeksRemaining: weeks },
+      };
     }
-    this.liveRnd = {
-      ...this.liveRnd,
-      progress: { inProgress: id, weeksRemaining: weeks },
-    };
     this.persistResult();
     this.refreshOfficePanel();
     this.refreshSaveFooter();
 
     // 셀러브레이션 + 토스트 — 연구 시작 피드백.
     confettiBurst(this, 360, 640, { count: 20 });
-    showToast(this, `🔬 ${item.name} 연구 시작 (${weeks}주)`, { tone: 'ok' });
+    showToast(this, activeProgress
+      ? `📌 ${item.name} 연구 예약 (${weeks}주)`
+      : `🔬 ${item.name} 연구 시작 (${weeks}주)`, { tone: 'ok' });
   }
 
   // ────────────────────────── 장비 modal ──────────────────────────
