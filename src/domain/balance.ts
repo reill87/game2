@@ -13,6 +13,20 @@ export const BALANCE = {
   tutorialBugDebtMul: 0.55,
   /** 첫 3작품 매출 보정. 사옥 2단계/첫 채용까지의 골드 벽을 낮춘다. */
   earlyRevenueBonusByProduct: { 0: 120, 1: 80, 2: 40 } as Record<number, number>,
+  /** 회사가 커질수록 제품 규모도 커지는 보정. productIndex 1당 scope 증가. */
+  projectScopeProductStep: 0.04,
+  /** 사옥 단계가 커질수록 더 큰 프로젝트를 맡는 보정. */
+  projectScopeOfficeStep: 0.08,
+  /** 이 인원 초과부터 커뮤니케이션 비용이 의미 있게 붙는다(primary+support 배치 기준). */
+  projectScopeLargeTeamThreshold: 6,
+  /** largeTeamThreshold 초과 배치 인원 1명당 scope 증가. */
+  projectScopePerExtraAssigned: 0.12,
+  /** scope 보정 상한. 후반 자동화/R&D 보상이 완전히 사라지지 않게 제한. */
+  projectScopeMax: 2.8,
+  /** 큰 프로젝트는 기간이 길어도 QA/프로세스도 커진다고 보고 BugDebt 주간 증가를 완화한다. */
+  projectScopeBugDebtDampMax: 1.8,
+  /** 큰 프로젝트 매출 보상. scope 1 초과분 중 이 비율만큼 매출 배수로 환산한다. */
+  projectScopeRevenueFactor: 0.65,
   /** 정배치 직원 1명이 1주에 내는 진행도(%) — (밸런스 v2) 3.5 → 2.5 (~30% 느려짐). */
   matchedProgressPerWeek: 2.5,
   /** 오배치 시 진행 기여 배수. (밸런스 v2) 0.5 → 0.4. */
@@ -52,6 +66,16 @@ export const BALANCE = {
   appealCrunchBonus: 0.4,
   /** 리뷰 점수에서 Appeal 가중. score += round(appeal * factor). */
   appealReviewFactor: 0.3,
+  /** Appeal은 무제한 누적되지만 리뷰 반영은 완만하게 증가한다. */
+  appealReviewSoftCap: 120,
+  /** 큰 scope 프로젝트는 Appeal 누적 속도를 일부 낮춰 100+ 성장이 장기 목표가 되게 한다. */
+  appealScopeDampFactor: 0.5,
+  /** 팀 컨디션이 좋을 때 리뷰에 붙는 최대 보너스. */
+  conditionReviewBonusMax: 8,
+  /** 정배치율이 좋을 때 리뷰에 붙는 최대 보너스. */
+  teamFitReviewBonusMax: 8,
+  /** 큰 프로젝트를 완주했을 때 붙는 체급 보너스. */
+  scopeReviewBonusFactor: 4,
   /** Appeal 활성 시 리뷰 base score (튜토리얼은 80, 2작부터 70 + appeal). */
   appealEnabledBaseScore: 70,
   /** 사무실 1→2 업그레이드 비용 (골드). @deprecated officeUpgradeCostBy 사용 권장. */

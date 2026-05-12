@@ -53,6 +53,7 @@ import type { RivalId } from './domain/rivals';
 
 const KEY = 'game2.save';
 const LEGACY_KEY_V1 = 'game2.save.v1';
+const LEGACY_KEY_V2_MISWRITE = 'game2.save.v2';
 const UNKNOWN_BACKUP_KEY = 'game2.save.unknown';
 /** 프레스티지 회수 전용 키 — clearData(메인 키 삭제)와 독립적으로 보존. */
 const PRESTIGE_KEY = 'game2.prestige';
@@ -310,10 +311,28 @@ export function loadData(): SaveData | null {
   const primary = readAndParse(storage, KEY);
   if (primary !== null) return interpret(storage, primary, /* fromLegacy */ false);
 
+  // 2026-05 이전 일부 cloud pull 경로가 현재 키가 아닌 game2.save.v2에 썼다.
+  // 해당 데이터를 발견하면 현재 키로 승격해 이후 로더/업로더가 같은 저장소를 보게 한다.
+  const miswrittenV2 = readAndParse(storage, LEGACY_KEY_V2_MISWRITE);
+  if (miswrittenV2 !== null) return interpret(storage, miswrittenV2, /* fromLegacy */ true);
+
   const legacy = readAndParse(storage, LEGACY_KEY_V1);
   if (legacy !== null) return interpret(storage, legacy, /* fromLegacy */ true);
 
   return null;
+}
+
+/** 클라우드 pull 등 외부 SaveData를 현재 localStorage 키에 적용한다. */
+export function replaceLocalSave(data: SaveData): boolean {
+  const storage = getStorage();
+  if (!storage) return false;
+  try {
+    storage.setItem(KEY, JSON.stringify(data));
+    storage.removeItem(LEGACY_KEY_V2_MISWRITE);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function clearData(): void {
@@ -703,6 +722,7 @@ function interpret(storage: Storage, parsed: unknown, fromLegacy: boolean): Save
     if (fromLegacy) {
       saveDataDirect(storage, sanitized);
       removeKey(storage, LEGACY_KEY_V1);
+      removeKey(storage, LEGACY_KEY_V2_MISWRITE);
     }
     return sanitized;
   }
@@ -719,7 +739,10 @@ function interpret(storage: Storage, parsed: unknown, fromLegacy: boolean): Save
     };
     // 새 키로 즉시 옮기고 legacy 정리해 동일 데이터의 두 키 공존을 막는다.
     saveDataDirect(storage, upgraded);
-    if (fromLegacy) removeKey(storage, LEGACY_KEY_V1);
+    if (fromLegacy) {
+      removeKey(storage, LEGACY_KEY_V1);
+      removeKey(storage, LEGACY_KEY_V2_MISWRITE);
+    }
     return upgraded;
   }
 

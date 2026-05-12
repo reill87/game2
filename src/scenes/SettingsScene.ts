@@ -18,7 +18,15 @@ import Phaser from 'phaser';
 
 import { BGM } from '@/bgm';
 import { setSfxVolume, getSfxVolume, playSfx, SFX } from '@/sounds';
-import { clearData, loadData, saveData, saveSettings, loadSettings, DEFAULT_COMPANY_NAME } from '@/save';
+import {
+  clearData,
+  loadData,
+  replaceLocalSave,
+  saveData,
+  saveSettings,
+  loadSettings,
+  DEFAULT_COMPANY_NAME,
+} from '@/save';
 import { DEFAULT_POLICY } from '@/domain/seed';
 import { EMPTY_RND } from '@/domain/rnd';
 import { EMPTY_MARKETS } from '@/domain/markets';
@@ -755,7 +763,9 @@ export class SettingsScene extends Phaser.Scene {
     const infoLines = [
       `로컬 저장: ${localSavedAt}`,
       `클라우드 저장: ${cloudUpdated}`,
-      cloud && local && (cloud.data.savedAt ?? 0) > local.savedAt
+      !cloud
+        ? '클라우드에 저장 없음 — [지금 업로드]로 생성'
+        : cloud && local && (cloud.data.savedAt ?? 0) > local.savedAt
         ? '⚠ 클라우드가 더 최신 — [클라우드 사용]으로 덮어쓰기'
         : '✓ 동기화 됨',
     ];
@@ -798,8 +808,10 @@ export class SettingsScene extends Phaser.Scene {
       onTap: () => {
         if (!cloud) return;
         try {
-          if (typeof localStorage === 'undefined') return;
-          localStorage.setItem('game2.save.v2', JSON.stringify(cloud.data));
+          if (!replaceLocalSave(cloud.data)) {
+            statusText.setColor(TEXT_COLOR.bad).setText('로컬 저장 적용 실패');
+            return;
+          }
           statusText.setColor(TEXT_COLOR.ok).setText('적용 완료. Boot로 재시작...');
           this.time.delayedCall(1000, () => this.scene.start(SCENE_KEYS.Boot));
         } catch (e) {

@@ -656,7 +656,7 @@ export class ResultScene extends Phaser.Scene {
       ...ecoRow,
       ['BugDebt', `${Math.round(project.bugDebt)} / 100`, project.bugDebt >= 70 ? TEXT_COLOR.bad : TEXT_COLOR.primary],
       ...(project.appealEnabled
-        ? ([['Appeal', `${Math.round(project.appeal)} / 100`, TEXT_COLOR.primary]] as const)
+        ? ([['Appeal', `${Math.round(project.appeal)} · Lv${Math.floor(Math.max(0, project.appeal) / 100) + 1}`, TEXT_COLOR.primary]] as const)
         : []),
       ['폴리싱', `${this.polishCount}주`, TEXT_COLOR.primary],
       ['연체', overrun > 0 ? `${overrun}주` : '없음', overrun > 0 ? TEXT_COLOR.warn : TEXT_COLOR.dim],
@@ -671,6 +671,9 @@ export class ResultScene extends Phaser.Scene {
       `+폴리싱 ${b.polishBonus}`,
     ];
     if (project.appealEnabled) parts.push(`+매력 ${b.appealBonus}`);
+    if (b.conditionBonus > 0) parts.push(`+컨디션 ${b.conditionBonus}`);
+    if (b.teamFitBonus > 0) parts.push(`+팀핏 ${b.teamFitBonus}`);
+    if (b.scopeBonus > 0) parts.push(`+체급 ${b.scopeBonus}`);
     if (b.promoBonus > 0) parts.push(`+홍보 ${b.promoBonus}`);
     const rows: ReadonlyArray<readonly [string, string, string]> = [
       ...baseRows,

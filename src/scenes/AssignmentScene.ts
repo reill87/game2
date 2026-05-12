@@ -26,7 +26,7 @@ import { playSfx, SFX } from '@/sounds';
 import { addMuteToggle } from '@/util/muteToggle';
 import { COLOR, FONT_STACK, TEXT_COLOR, TINT } from '@/theme';
 import { formatGold } from '@/ui';
-import { drawConditionFill } from '@/util/condition';
+import { conditionTextColor, drawConditionFill } from '@/util/condition';
 import { applyHiDPI } from '@/util/hidpi';
 import { addIconLabel } from '@/util/iconLabel';
 import { fitCamera } from '@/util/cameraFit';
@@ -105,6 +105,8 @@ interface EmployeeView {
   moraleFill: Phaser.GameObjects.Graphics;
   /** 체력 게이지 채움. */
   staminaFill: Phaser.GameObjects.Graphics;
+  moraleValueText: Phaser.GameObjects.Text;
+  staminaValueText: Phaser.GameObjects.Text;
   /** 게이지 위치·크기 (redraw 시 사용). */
   barX: number;
   barW: number;
@@ -449,20 +451,45 @@ export class AssignmentScene extends Phaser.Scene {
         .setOrigin(0.5);
     }
 
-    // 컨디션 미니바 — 가로 50, 두께 3, 카드 하단 가운데 두 줄.
+    // 컨디션 미니바 — 사기/체력 라벨과 숫자를 같이 표시해 직원별 상태를 즉시 구분.
     const barW = ultraCompact ? 44 : 56;
     const barH = 3;
     const barX = x + w / 2 - barW / 2;
     const moraleBarY = ultraCompact ? y + h - 28 : y + h - 38;
     const staminaBarY = ultraCompact ? y + h - 22 : y + h - 30;
+    const conditionFontSize = ultraCompact ? '10px' : compact ? '11px' : '12px';
+    this.add.text(barX - 4, moraleBarY - 7, '사기', {
+      fontFamily: FONT_STACK,
+      fontSize: conditionFontSize,
+      fontStyle: 'bold',
+      color: TEXT_COLOR.dim,
+    }).setOrigin(1, 0);
     const moraleBg = this.add.graphics();
     moraleBg.fillStyle(COLOR.gaugeBg, 1);
     moraleBg.fillRect(barX, moraleBarY, barW, barH);
     const moraleFill = this.add.graphics();
+    this.add.text(barX - 4, staminaBarY - 7, '체력', {
+      fontFamily: FONT_STACK,
+      fontSize: conditionFontSize,
+      fontStyle: 'bold',
+      color: TEXT_COLOR.dim,
+    }).setOrigin(1, 0);
     const staminaBg = this.add.graphics();
     staminaBg.fillStyle(COLOR.gaugeBg, 1);
     staminaBg.fillRect(barX, staminaBarY, barW, barH);
     const staminaFill = this.add.graphics();
+    const moraleValueText = this.add.text(barX + barW + 4, moraleBarY - 8, '', {
+      fontFamily: FONT_STACK,
+      fontSize: conditionFontSize,
+      fontStyle: 'bold',
+      color: TEXT_COLOR.primary,
+    });
+    const staminaValueText = this.add.text(barX + barW + 4, staminaBarY - 8, '', {
+      fontFamily: FONT_STACK,
+      fontSize: conditionFontSize,
+      fontStyle: 'bold',
+      color: TEXT_COLOR.primary,
+    });
 
     const placedText = this.add
       .text(x + w / 2, ultraCompact ? y + h - 10 : y + h - 16, '', {
@@ -482,6 +509,8 @@ export class AssignmentScene extends Phaser.Scene {
       placedText,
       moraleFill,
       staminaFill,
+      moraleValueText,
+      staminaValueText,
       barX,
       barW,
       moraleBarY,
@@ -728,6 +757,12 @@ export class AssignmentScene extends Phaser.Scene {
 
       drawConditionFill(view.moraleFill, view.barX, view.moraleBarY, view.barW, view.barH, emp.morale);
       drawConditionFill(view.staminaFill, view.barX, view.staminaBarY, view.barW, view.barH, emp.stamina);
+      view.moraleValueText
+        .setText(`${Math.round(emp.morale)}`)
+        .setColor(conditionTextColor(emp.morale));
+      view.staminaValueText
+        .setText(`${Math.round(emp.stamina)}`)
+        .setColor(conditionTextColor(emp.stamina));
     }
   }
 

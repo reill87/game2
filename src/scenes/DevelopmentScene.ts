@@ -44,7 +44,7 @@ import { playSfx, SFX } from '@/sounds';
 import { COLOR, FONT_STACK, TEXT_COLOR, TINT } from '@/theme';
 import { formatGold } from '@/ui';
 import { addMuteToggle } from '@/util/muteToggle';
-import { drawConditionFill } from '@/util/condition';
+import { conditionTextColor, drawConditionFill } from '@/util/condition';
 import { applyHiDPI } from '@/util/hidpi';
 import { drawGaugeBar, drawRaisedRect, makePanel } from '@/util/ui';
 import { fitCamera } from '@/util/cameraFit';
@@ -126,6 +126,8 @@ export class DevelopmentScene extends Phaser.Scene {
       contribText: Phaser.GameObjects.Text;
       moraleFill: Phaser.GameObjects.Graphics;
       staminaFill: Phaser.GameObjects.Graphics;
+      moraleValueText: Phaser.GameObjects.Text;
+      staminaValueText: Phaser.GameObjects.Text;
       barX: number;
       barW: number;
       moraleBarY: number;
@@ -529,7 +531,7 @@ export class DevelopmentScene extends Phaser.Scene {
       this.addLabelIcon(panelX + 24, panelY + 188, ICONS.sparkle.key, TINT.dim);
       this.add.text(labelX, panelY + 180, 'Appeal', labelStyle);
       this.appealText = this.add
-        .text(panelX + panelW - 24, panelY + 180, '0 / 100', valueStyle)
+        .text(panelX + panelW - 24, panelY + 180, '0', valueStyle)
         .setOrigin(1, 0);
       this.appealBar = this.add.graphics();
       this.drawGauge(this.appealBar, panelX + 24, panelY + 212, 0, COLOR.gaugeFillAppeal);
@@ -633,8 +635,9 @@ export class DevelopmentScene extends Phaser.Scene {
 
       const t = this.add.text(x + 14, y + 32, '', {
         fontFamily: FONT_STACK,
-        fontSize: '24px',
+        fontSize: '21px',
         color: TEXT_COLOR.primary,
+        wordWrap: { width: 176, useAdvancedWrap: true },
       });
 
       // 이번 주 기여 — 직원 이름 아래 (왼쪽 정렬, 작은 노란 텍스트)
@@ -645,26 +648,54 @@ export class DevelopmentScene extends Phaser.Scene {
         color: TEXT_COLOR.warn,
       });
 
-      // 컨디션 미니바 — 우측에 두 줄 (사기 위, 체력 아래)
-      const barW = 56;
+      // 컨디션 미니바 — 라벨/숫자/막대를 한 줄씩 표시 (사기 위, 체력 아래)
+      const barW = 48;
       const barH = 3;
-      const barX = x + tileW - 14 - barW;
-      const moraleBarY = y + 30;
-      const staminaBarY = y + 38;
+      const labelX = x + tileW - 108;
+      const barX = x + tileW - 72;
+      const valueX = x + tileW - 14;
+      const moraleBarY = y + 34;
+      const staminaBarY = y + 48;
+      this.add.text(labelX, moraleBarY - 8, '사기', {
+        fontFamily: FONT_STACK,
+        fontSize: '13px',
+        fontStyle: 'bold',
+        color: TEXT_COLOR.dim,
+      });
       const moraleBg = this.add.graphics();
       moraleBg.fillStyle(COLOR.gaugeBg, 1);
       moraleBg.fillRect(barX, moraleBarY, barW, barH);
       const moraleFill = this.add.graphics();
+      this.add.text(labelX, staminaBarY - 8, '체력', {
+        fontFamily: FONT_STACK,
+        fontSize: '13px',
+        fontStyle: 'bold',
+        color: TEXT_COLOR.dim,
+      });
       const staminaBg = this.add.graphics();
       staminaBg.fillStyle(COLOR.gaugeBg, 1);
       staminaBg.fillRect(barX, staminaBarY, barW, barH);
       const staminaFill = this.add.graphics();
+      const moraleValueText = this.add.text(valueX, moraleBarY - 9, '', {
+        fontFamily: FONT_STACK,
+        fontSize: '14px',
+        fontStyle: 'bold',
+        color: TEXT_COLOR.primary,
+      }).setOrigin(1, 0);
+      const staminaValueText = this.add.text(valueX, staminaBarY - 9, '', {
+        fontFamily: FONT_STACK,
+        fontSize: '14px',
+        fontStyle: 'bold',
+        color: TEXT_COLOR.primary,
+      }).setOrigin(1, 0);
 
       this.slotSummaryViews.set(slot, {
         text: t,
         contribText,
         moraleFill,
         staminaFill,
+        moraleValueText,
+        staminaValueText,
         barX,
         barW,
         moraleBarY,
@@ -1820,8 +1851,12 @@ export class DevelopmentScene extends Phaser.Scene {
     this.drawGauge(this.progressBar, panelX, 172, p / 100, COLOR.gaugeFillProgress);
     this.drawGauge(this.bugBar, panelX, 252, b / 100, COLOR.gaugeFillBug);
     if (this.appealBar && this.appealText) {
-      this.drawGauge(this.appealBar, panelX, 332, a / 100, COLOR.gaugeFillAppeal);
-      this.appealText.setText(`${Math.round(a)} / 100`);
+      const tierProgress = a > 0 && Math.round(a) % 100 === 0
+        ? 1
+        : (Math.max(0, a) % 100) / 100;
+      this.drawGauge(this.appealBar, panelX, 332, tierProgress, COLOR.gaugeFillAppeal);
+      const level = Math.floor(Math.max(0, a) / 100) + 1;
+      this.appealText.setText(`${Math.round(a)} · Lv${level}`);
     }
 
     // Burn rate — 매주 자동 차감되는 운영비.
@@ -1847,6 +1882,8 @@ export class DevelopmentScene extends Phaser.Scene {
       if (!emp) {
         view.text.setText('비어 있음').setColor(TEXT_COLOR.disabled);
         view.contribText.setText('');
+        view.moraleValueText.setText('');
+        view.staminaValueText.setText('');
         view.moraleFill.clear();
         view.staminaFill.clear();
         continue;
@@ -1869,6 +1906,12 @@ export class DevelopmentScene extends Phaser.Scene {
 
       drawConditionFill(view.moraleFill, view.barX, view.moraleBarY, view.barW, view.barH, emp.morale);
       drawConditionFill(view.staminaFill, view.barX, view.staminaBarY, view.barW, view.barH, emp.stamina);
+      view.moraleValueText
+        .setText(`${Math.round(emp.morale)}`)
+        .setColor(conditionTextColor(emp.morale));
+      view.staminaValueText
+        .setText(`${Math.round(emp.stamina)}`)
+        .setColor(conditionTextColor(emp.stamina));
     }
   }
 

@@ -1,11 +1,18 @@
 import Phaser from 'phaser';
-import { COLOR, TINT } from '@/theme';
+import { COLOR, TEXT_COLOR, TINT } from '@/theme';
 
 /** 컨디션 값(0~100)을 의미 색으로 매핑 — 70+ 양호, 40+ 주의, 그 미만 위험. */
 export function conditionTint(value: number): number {
   if (value >= 70) return TINT.ok;
   if (value >= 40) return TINT.warn;
   return TINT.bad;
+}
+
+/** Text 객체에 쓰는 컨디션 의미 색. */
+export function conditionTextColor(value: number): string {
+  if (value >= 70) return TEXT_COLOR.ok;
+  if (value >= 40) return TEXT_COLOR.warn;
+  return TEXT_COLOR.bad;
 }
 
 /**

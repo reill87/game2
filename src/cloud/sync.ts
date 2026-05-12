@@ -65,6 +65,29 @@ export function clearCachedUserId(): void {
 // 인증
 // ──────────────────────────────────────────────────────────────────
 
+async function ensureUserProfile(userId: string, nicknameHint?: string): Promise<AuthResult> {
+  if (!supabase) return { ok: false, reason: 'Supabase 환경변수(.env) 미설정' };
+
+  const { data: existing, error: selectError } = await supabase
+    .from('game2_users')
+    .select('id')
+    .eq('id', userId)
+    .maybeSingle();
+  if (selectError) {
+    return { ok: false, reason: `프로필 확인 실패: ${selectError.message}` };
+  }
+  if (existing) return { ok: true };
+
+  const nickname = (nicknameHint?.trim().slice(0, 20) || '익명');
+  const { error: insertError } = await supabase
+    .from('game2_users')
+    .insert({ id: userId, nickname });
+  if (insertError) {
+    return { ok: false, reason: `프로필 생성 실패: ${insertError.message}` };
+  }
+  return { ok: true };
+}
+
 export async function signUpWithEmail(
   email: string,
   password: string,
@@ -117,6 +140,11 @@ export async function signInWithEmail(
     return { ok: false, reason: error.message };
   }
   cachedUserId = data.user?.id ?? null;
+  if (cachedUserId) {
+    const emailPrefix = data.user?.email?.split('@')[0];
+    const profile = await ensureUserProfile(cachedUserId, emailPrefix);
+    if (!profile.ok) return profile;
+  }
   return { ok: true };
 }
 
@@ -207,26 +235,42 @@ export async function pushCloudSave(save: SaveData): Promise<boolean> {
   if (!isSupabaseEnabled() || !supabase) return false;
   const userId = await getSessionUserId();
   if (!userId) return false;
+  const profile = await ensureUserProfile(userId);
+  if (!profile.ok) {
+    // eslint-disable-next-line no-console
+    console.warn('[cloud] ensure profile failed', profile.reason);
+    return false;
+  }
 
   // 동시 push 직렬화.
   if (savePromise) await savePromise;
 
+  let ok = true;
   savePromise = (async () => {
     if (!supabase) return;
-    const cols = deriveLeaderboardCols(save);
-    const payload = { user_id: userId, data: save, ...cols };
-    const { error } = await supabase
-      .from('game2_saves')
-      .upsert(payload, { onConflict: 'user_id' });
-    if (error) {
+    try {
+      const cols = deriveLeaderboardCols(save);
+      const payload = { user_id: userId, data: save, ...cols };
+      const { error } = await supabase
+        .from('game2_saves')
+        .upsert(payload, { onConflict: 'user_id' });
+      if (!error) return;
+      ok = false;
       // eslint-disable-next-line no-console
       console.warn('[cloud] push save failed', error.message);
+    } catch (error) {
+      ok = false;
+      // eslint-disable-next-line no-console
+      console.warn('[cloud] push save failed', error);
     }
   })();
 
-  await savePromise;
-  savePromise = null;
-  return true;
+  try {
+    await savePromise;
+  } finally {
+    savePromise = null;
+  }
+  return ok;
 }
 
 // ──────────────────────────────────────────────────────────────────

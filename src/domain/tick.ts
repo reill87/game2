@@ -34,6 +34,30 @@ import type { Assignment, Employee, GameState, SlotKind, SupportAssignment } fro
 /** support 직원이 primary 대비 기여하는 배수. */
 export const SUPPORT_CONTRIBUTION_FACTOR = 0.5;
 
+function assignedEmployeeCount(state: GameState): number {
+  const ids = new Set<string>();
+  for (const slot of SLOT_ORDER) {
+    const primary = state.assignment[slot];
+    const support = state.support?.[slot];
+    if (primary) ids.add(primary);
+    if (support) ids.add(support);
+  }
+  return ids.size;
+}
+
+/** 회사/팀 규모에 따른 프로젝트 scope 보정. 값이 클수록 같은 기여로 채우는 진행도가 낮아진다. */
+export function computeProjectScopeMultiplier(state: GameState): number {
+  if (state.productIndex === 0) return 1;
+  const assigned = assignedEmployeeCount(state);
+  const extraAssigned = Math.max(0, assigned - BALANCE.projectScopeLargeTeamThreshold);
+  const scope =
+    1 +
+    state.productIndex * BALANCE.projectScopeProductStep +
+    Math.max(0, state.officeLevel - 1) * BALANCE.projectScopeOfficeStep +
+    extraAssigned * BALANCE.projectScopePerExtraAssigned;
+  return Math.min(BALANCE.projectScopeMax, scope);
+}
+
 /** 매주 자동 차감되는 회사 운영비(인건비 + 사옥 임대료). */
 export function computeBurnRate(state: GameState): number {
   const payroll = state.employees.reduce(
@@ -78,6 +102,7 @@ export function computeSlotContributions(state: GameState): SlotContribution[] {
   const totalUnits = totalTeamWeight(state.employees);
   const gMod = GENRE_MOD[state.project.genre];
   const tMod = THEME_MOD[state.project.theme];
+  const scopeMul = computeProjectScopeMultiplier(state);
   const result: SlotContribution[] = [];
 
   // Sprint 단계 — 현재 진행률 기반.
@@ -140,6 +165,8 @@ export function computeSlotContributions(state: GameState): SlotContribution[] {
       }
     }
 
+    progressDelta /= scopeMul;
+    appealDelta /= 1 + (scopeMul - 1) * BALANCE.appealScopeDampFactor;
     result.push({ slot, empId, matched, progressDelta, appealDelta });
   }
   return result;
@@ -393,6 +420,12 @@ export function advanceWeek(prev: GameState): GameState {
     progressDelta *= BALANCE.tutorialProgressMul;
     bugDebtDelta *= BALANCE.tutorialBugDebtMul;
   }
+  const scopeMul = computeProjectScopeMultiplier(prev);
+  progressDelta /= scopeMul;
+  appealDelta /= 1 + (scopeMul - 1) * BALANCE.appealScopeDampFactor;
+  if (prev.productIndex > 0) {
+    bugDebtDelta /= Math.min(scopeMul, BALANCE.projectScopeBugDebtDampMax);
+  }
   // R&D: 테스트 자동화 — BugDebt 자연 증가 −1/주.
   if (isRndPurchased(prev.rnd, 'test-automation')) {
     bugDebtDelta -= 1;
@@ -528,7 +561,7 @@ export function advanceWeek(prev: GameState): GameState {
       weeksElapsed,
       progress: clamp(prev.project.progress + progressDelta, 0, 100),
       bugDebt: clamp(prev.project.bugDebt + bugDebtDelta, 0, 100),
-      appeal: appealEnabled ? clamp(prev.project.appeal + appealDelta, 0, 100) : prev.project.appeal,
+      appeal: appealEnabled ? Math.max(0, prev.project.appeal + appealDelta) : prev.project.appeal,
     },
   };
   // 파산 상태 갱신 — 골드 임계 연속 주차.

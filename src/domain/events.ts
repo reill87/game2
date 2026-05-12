@@ -1307,7 +1307,7 @@ export const EVENTS: ReadonlyArray<GameEvent> = [
               ...s.project,
               bugDebt: clamp(s.project.bugDebt - jit(5), 0, 100),
               appeal: s.project.appealEnabled
-                ? clamp(s.project.appeal + jit(3), 0, 100)
+                ? clamp(s.project.appeal + jit(3), 0, MAX)
                 : s.project.appeal,
             },
           };
@@ -1327,7 +1327,7 @@ export const EVENTS: ReadonlyArray<GameEvent> = [
             gold: clamp(s.gold - 40, 0, MAX),
             project: {
               ...s.project,
-              appeal: clamp(s.project.appeal - jit(3), 0, 100),
+              appeal: clamp(s.project.appeal - jit(3), 0, MAX),
             },
           };
           return applyToAll(next, (e) => ({
@@ -1468,7 +1468,7 @@ export const EVENTS: ReadonlyArray<GameEvent> = [
             ...s.project,
             progress: clamp(s.project.progress + jit(3), 0, 100),
             appeal: s.project.appealEnabled
-              ? clamp(s.project.appeal - jit(3), 0, 100)
+              ? clamp(s.project.appeal - jit(3), 0, MAX)
               : s.project.appeal,
           },
         }),
@@ -1482,7 +1482,7 @@ export const EVENTS: ReadonlyArray<GameEvent> = [
           project: {
             ...s.project,
             appeal: s.project.appealEnabled
-              ? clamp(s.project.appeal + jit(5), 0, 100)
+              ? clamp(s.project.appeal + jit(5), 0, MAX)
               : s.project.appeal,
             bugDebt: clamp(s.project.bugDebt + jit(5), 0, 100),
           },
@@ -1505,7 +1505,7 @@ export const EVENTS: ReadonlyArray<GameEvent> = [
           const next = {
             ...s,
             gold: clamp(s.gold - 80, 0, MAX),
-            project: { ...s.project, appeal: clamp(s.project.appeal + jit(12), 0, 100) },
+            project: { ...s.project, appeal: clamp(s.project.appeal + jit(12), 0, MAX) },
           };
           return applyToAll(next, (e) => ({
             ...e,
@@ -1522,7 +1522,7 @@ export const EVENTS: ReadonlyArray<GameEvent> = [
           project: {
             ...s.project,
             appeal: s.project.appealEnabled
-              ? clamp(s.project.appeal - jit(4), 0, 100)
+              ? clamp(s.project.appeal - jit(4), 0, MAX)
               : s.project.appeal,
           },
         }),
@@ -2113,7 +2113,7 @@ export const EVENTS: ReadonlyArray<GameEvent> = [
               ...s.project,
               bugDebt: clamp(s.project.bugDebt - jit(12), 0, 100),
               appeal: s.project.appealEnabled
-                ? clamp(s.project.appeal + jit(5), 0, 100)
+                ? clamp(s.project.appeal + jit(5), 0, MAX)
                 : s.project.appeal,
             },
           };
@@ -2129,7 +2129,7 @@ export const EVENTS: ReadonlyArray<GameEvent> = [
             project: {
               ...s.project,
               bugDebt: clamp(s.project.bugDebt - jit(5), 0, 100),
-              appeal: clamp(s.project.appeal - jit(5), 0, 100),
+              appeal: clamp(s.project.appeal - jit(5), 0, MAX),
             },
           };
           return applyToJob(next, 'programmer', (e) => ({

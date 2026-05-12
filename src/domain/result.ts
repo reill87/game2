@@ -7,7 +7,7 @@ import { isMatched, SLOT_ORDER } from './match';
 import { isRndPurchased } from './rnd';
 import { isFacilityBuilt } from './facilities';
 import { computeMarketRevenueMul } from './markets';
-import { release } from './tick';
+import { computeProjectScopeMultiplier, release } from './tick';
 import { NO_PRESTIGE } from './prestige';
 import { tickExec } from './exec';
 import {
@@ -63,6 +63,12 @@ export interface ReleaseOutcome {
     readonly polishBonus: number;
     /** Appeal이 활성화된 작품에서만 0보다 큼. */
     readonly appealBonus: number;
+    /** 팀 평균 컨디션 보너스. */
+    readonly conditionBonus: number;
+    /** 슬롯-직무 정배치율 보너스. */
+    readonly teamFitBonus: number;
+    /** 큰 프로젝트 체급 보너스. */
+    readonly scopeBonus: number;
     /** 홍보 단계에 따른 리뷰 가산. */
     readonly promoBonus: number;
   };
@@ -132,6 +138,9 @@ function computeReview(state: GameState, polishCount: number): {
   overrunPenalty: number;
   polishBonus: number;
   appealBonus: number;
+  conditionBonus: number;
+  teamFitBonus: number;
+  scopeBonus: number;
 } {
   const { project } = state;
   const base = project.appealEnabled ? BALANCE.appealEnabledBaseScore : 80;
@@ -140,11 +149,39 @@ function computeReview(state: GameState, polishCount: number): {
   const overrunPenalty = overrun * 3;
   const polishBonus = Math.min(polishCount * 2, 6);
   const appealBonus = project.appealEnabled
-    ? Math.round(project.appeal * BALANCE.appealReviewFactor)
+    ? Math.round(
+        BALANCE.appealReviewSoftCap *
+        (1 - Math.exp(-project.appeal / BALANCE.appealReviewSoftCap)) *
+        BALANCE.appealReviewFactor,
+      )
     : 0;
+  const avgCondition = state.employees.length > 0
+    ? state.employees.reduce((sum, e) => sum + (e.morale + e.stamina) / 2, 0) / state.employees.length
+    : 100;
+  const conditionRatio = Math.min(1, Math.max(0, (avgCondition - 60) / 40));
+  const conditionBonus = Math.round(conditionRatio * BALANCE.conditionReviewBonusMax);
+  let assigned = 0;
+  let matched = 0;
+  for (const slot of SLOT_ORDER) {
+    const empId = state.assignment[slot];
+    if (!empId) continue;
+    assigned += 1;
+    const emp = state.employees.find((e) => e.id === empId);
+    if (emp && isMatched(slot, emp.job)) matched += 1;
+  }
+  const teamFitBonus = assigned > 0 ? Math.round((matched / assigned) * BALANCE.teamFitReviewBonusMax) : 0;
+  const scopeBonus = Math.round((computeProjectScopeMultiplier(state) - 1) * BALANCE.scopeReviewBonusFactor);
   // promo bonus는 shipProject에서 합쳐 clamp.
-  const rawScore = base - bugPenalty - overrunPenalty + polishBonus + appealBonus;
-  return { rawScore, base, bugPenalty, overrunPenalty, polishBonus, appealBonus };
+  const rawScore =
+    base -
+    bugPenalty -
+    overrunPenalty +
+    polishBonus +
+    appealBonus +
+    conditionBonus +
+    teamFitBonus +
+    scopeBonus;
+  return { rawScore, base, bugPenalty, overrunPenalty, polishBonus, appealBonus, conditionBonus, teamFitBonus, scopeBonus };
 }
 
 /** BALANCE.md 첫 매출 대역 약 150~400 골드. */
@@ -184,9 +221,12 @@ export function shipProject(
   }
   // 글로벌 시장 진출 — 진출한 시장 매출 곱연산.
   const marketMul = computeMarketRevenueMul(prev.markets);
+  // 프로젝트 scope — 커진 팀/사옥/제품 규모만큼 매출 체급도 커진다.
+  const scopeRevenueMul =
+    1 + (computeProjectScopeMultiplier(prev) - 1) * BALANCE.projectScopeRevenueFactor;
   // 프레스티지 매출 보너스 — 프레스티지 N회: 매출 × (1 + N×0.05).
   const prestigeRevenueMul = (prev.prestigeBonus ?? NO_PRESTIGE).revenueMul;
-  const baseCalculated = Math.round(baseRevenue * eff.revenueMul * reputationMul * trendMul * marketMul * prestigeRevenueMul);
+  const baseCalculated = Math.round(baseRevenue * eff.revenueMul * reputationMul * trendMul * marketMul * scopeRevenueMul * prestigeRevenueMul);
   // R&D: 다국어화 플랫폼 ×1.25 / 글로벌 진출 ×1.15 — 둘 다 보유 시 1.25 우선.
   // R&D T4: 위성 네트워크 ×1.3 — i18n-platform과 중첩 곱.
   const globalRevMul = isRndPurchased(prev.rnd, 'i18n-platform')
@@ -279,6 +319,9 @@ export function shipProject(
       overrunPenalty: r.overrunPenalty,
       polishBonus: r.polishBonus,
       appealBonus: r.appealBonus,
+      conditionBonus: r.conditionBonus,
+      teamFitBonus: r.teamFitBonus,
+      scopeBonus: r.scopeBonus,
       promoBonus: eff.reviewBonus,
     },
     promo: {

@@ -5,7 +5,7 @@ import { EMPTY_FACILITIES, type FacilityState } from '@/domain/facilities';
 import { EMPTY_MARKETS, type MarketState } from '@/domain/markets';
 import { EMPTY_ACQUISITIONS, type AcquisitionState } from '@/domain/acquisitions';
 import { computePrestigeBonus } from '@/domain/prestige';
-import type { CompanyPolicy, Employee, OfficeLevel, TrendStatus } from '@/domain/types';
+import type { CompanyPolicy, Employee, GameState, OfficeLevel, TrendStatus } from '@/domain/types';
 import type { BankruptcyState } from '@/domain/bankruptcy';
 import type { ExecState } from '@/domain/exec';
 import { preloadAvatars } from '@/avatars';
@@ -13,7 +13,15 @@ import { BGM } from '@/bgm';
 import { preloadEventCategories } from '@/eventCategoryAssets';
 import { ICON_DIR, ICONS } from '@/icons';
 import { preloadIllustrations } from '@/illustrations';
-import { loadData, loadPrestigeCount, saveData, loadSettings, DEFAULT_COMPANY_NAME, type SavedResult } from '@/save';
+import {
+  loadData,
+  loadPrestigeCount,
+  replaceLocalSave,
+  saveData,
+  loadSettings,
+  DEFAULT_COMPANY_NAME,
+  type SavedResult,
+} from '@/save';
 import { setSfxVolume, preloadSfx } from '@/sounds';
 import { drawRaisedRect, drawScreenBackdrop, preloadUITextures } from '@/util/ui';
 import { fitCamera } from '@/util/cameraFit';
@@ -21,6 +29,37 @@ import { COLOR, TEXT_COLOR, TYPE } from '@/theme';
 import { isSupabaseEnabled } from '@/cloud/supabase';
 import { loadCloudSave, signInWithEmail, getSessionUserId, isLoggedIn } from '@/cloud/sync';
 import { SCENE_KEYS } from './keys';
+
+type QaBootTarget = 'assignment' | 'development';
+
+function getQaBootTarget(): QaBootTarget | null {
+  if (!import.meta.env.DEV || typeof window === 'undefined') return null;
+  const params = new URLSearchParams(window.location.search);
+  const raw = params.get('qa') ?? params.get('dev');
+  if (raw === 'assignment') return 'assignment';
+  if (raw === 'development' || raw === 'dev') return 'development';
+  return null;
+}
+
+function makeQaState(): GameState {
+  const base = newTutorialGame();
+  return {
+    ...base,
+    gold: 640,
+    productIndex: 1,
+    availableAp: 4,
+    assignment: {
+      planning: 'emp-planner',
+      graphics: 'emp-designer',
+      programming: 'emp-programmer',
+    },
+    project: {
+      ...base.project,
+      appeal: 35,
+      appealEnabled: true,
+    },
+  };
+}
 
 /**
  * 진입점. localStorage에서 진행 상태를 읽어 라우팅을 결정한다:
@@ -59,6 +98,16 @@ export class BootScene extends Phaser.Scene {
       BGM.resume();
       BGM.setMood('calm');
     });
+
+    const qaTarget = getQaBootTarget();
+    if (qaTarget) {
+      this.scene.start(qaTarget === 'assignment' ? SCENE_KEYS.Assignment : SCENE_KEYS.Development, {
+        state: makeQaState(),
+        isOnboarding: false,
+      });
+      return;
+    }
+
     const saved = loadData();
     const productIndex = saved?.productCount ?? 0;
     const gold = saved?.gold ?? 0;
@@ -393,8 +442,8 @@ export class BootScene extends Phaser.Scene {
       const cloud = await loadCloudSave();
       if (cloud) {
         try {
-          if (typeof localStorage !== 'undefined') {
-            localStorage.setItem('game2.save.v2', JSON.stringify(cloud.data));
+          if (!replaceLocalSave(cloud.data)) {
+            throw new Error('local save apply failed');
           }
           this.scene.restart();
           return;
@@ -508,8 +557,9 @@ export class BootScene extends Phaser.Scene {
           return;
         }
         try {
-          if (typeof localStorage !== 'undefined') {
-            localStorage.setItem('game2.save.v2', JSON.stringify(cloud.data));
+          if (!replaceLocalSave(cloud.data)) {
+            statusText.setText('로컬 저장 적용 실패').setColor('#e55f5f');
+            return;
           }
           statusText.setText('완료! 게임 시작...').setColor('#3ec07b');
           cleanup();
