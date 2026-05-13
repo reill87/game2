@@ -91,24 +91,52 @@ export interface RivalState {
 
 export const EMPTY_RIVALS: RivalState = { recentReleases: [] };
 
+function seededUnit(seed: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < seed.length; i++) {
+    h ^= seed.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return ((h >>> 0) % 10000) / 10000;
+}
+
+function pickSeeded<T>(items: ReadonlyArray<T>, seed: string): T | undefined {
+  if (items.length === 0) return undefined;
+  const idx = Math.min(items.length - 1, Math.floor(seededUnit(seed) * items.length));
+  return items[idx];
+}
+
 /**
- * 매 출시마다 호출. 각 라이벌마다 50% 확률로 신규 출시.
- * 라이벌별 strength + 선호 장르/테마 활용해 별점·매출 변동성 부여.
+ * 이번 분기 라이벌 출시 예고. productCount+rivalId 기반 결정값이라
+ * 장르 선택 화면에서 본 예고와 결과 화면의 실제 경쟁작이 일치한다.
+ */
+export function forecastRivalReleases(productCount: number): ReadonlyArray<RivalRelease> {
+  const releases: RivalRelease[] = [];
+  const scaleMul = 1 + Math.max(0, productCount) * 0.045;
+  const qualityRamp = Math.min(0.8, Math.max(0, productCount) * 0.025);
+
+  for (const rival of RIVALS) {
+    const releaseChance = Math.min(0.72, 0.42 + productCount * 0.012);
+    if (seededUnit(`${productCount}:${rival.id}:release`) > releaseChance) continue;
+
+    const genre = pickSeeded(rival.preferredGenres, `${productCount}:${rival.id}:genre`) ?? 'G1';
+    const theme = pickSeeded(rival.preferredThemes, `${productCount}:${rival.id}:theme`) ?? 'T1';
+    const volatility = (seededUnit(`${productCount}:${rival.id}:stars`) - 0.5) * 1.4;
+    const stars = Math.max(1, Math.min(5, Math.round(rival.avgStars + qualityRamp + volatility)));
+    const revenueVariance = 0.75 + seededUnit(`${productCount}:${rival.id}:revenue`) * 0.65;
+    const revenue = Math.round(rival.avgRevenue * scaleMul * revenueVariance);
+
+    releases.push({ rivalId: rival.id, genre, theme, stars, revenue, quarter: productCount });
+  }
+  return releases;
+}
+
+/**
+ * 매 출시마다 호출. 이번 분기 예고된 라이벌 출시를 최근 이력에 반영한다.
  */
 export function tickRivalReleases(prev: RivalState | undefined, productCount: number): RivalState {
   const cur = prev ?? EMPTY_RIVALS;
-  const newReleases: RivalRelease[] = [];
-  for (const rival of RIVALS) {
-    if (Math.random() > 0.5) continue; // 50% 확률
-    // 선호 장르·테마 중에서 sampling
-    const genre = rival.preferredGenres[Math.floor(Math.random() * rival.preferredGenres.length)] ?? 'G1';
-    const theme = rival.preferredThemes[Math.floor(Math.random() * rival.preferredThemes.length)] ?? 'T1';
-    // 별점 ±1 변동
-    const stars = Math.max(1, Math.min(5, Math.round(rival.avgStars + (Math.random() - 0.5) * 2)));
-    // 매출 ±30% 변동
-    const revenue = Math.round(rival.avgRevenue * (0.7 + Math.random() * 0.6));
-    newReleases.push({ rivalId: rival.id, genre, theme, stars, revenue, quarter: productCount });
-  }
+  const newReleases = forecastRivalReleases(productCount);
   // 누적 + cap 20
   const allReleases = [...cur.recentReleases, ...newReleases].slice(-20);
   return { recentReleases: allReleases };
@@ -140,7 +168,43 @@ export function computeMarketShareEffect(
   });
   if (matched.length === 0) return { revenueMul: 1, betterRivalCount: 0, matchedReleases: [] };
   // 매치 라이벌 수에 따라 점유율 ↓ (3개 매치 시 0.7, 5개 시 0.5).
-  const revenueMul = Math.max(0.5, 1 - matched.length * 0.1);
+  const revenueMul = rivalPressureRevenueMul(matched.length);
   const betterRivalCount = matched.filter((r) => r.stars > ourStars).length;
   return { revenueMul, betterRivalCount, matchedReleases: matched };
+}
+
+function rivalPressureRevenueMul(matchedReleaseCount: number): number {
+  return matchedReleaseCount === 0
+    ? 1
+    : Math.max(0.5, 1 - matchedReleaseCount * 0.1);
+}
+
+export function forecastRivalPressure(
+  genre: GenreId,
+  theme: ThemeId,
+  productCount: number,
+  rivals?: RivalState,
+): {
+  readonly releases: ReadonlyArray<RivalRelease>;
+  readonly matchedReleases: ReadonlyArray<RivalRelease>;
+  readonly revenueMul: number;
+  readonly pressure: '낮음' | '보통' | '높음' | '정면승부';
+} {
+  const currentReleases = forecastRivalReleases(productCount);
+  const priorRelevant = (rivals?.recentReleases ?? []).filter(
+    (r) => Math.abs(r.quarter - productCount) <= 1,
+  );
+  const releases = [...priorRelevant, ...currentReleases];
+  const matchedReleases = releases.filter((r) => r.genre === genre || r.theme === theme);
+  const revenueMul = rivalPressureRevenueMul(matchedReleases.length);
+  const strongest = matchedReleases.reduce((max, r) => Math.max(max, r.stars), 0);
+  const pressure =
+    matchedReleases.length >= 3 || strongest >= 5
+      ? '정면승부'
+      : matchedReleases.length >= 2 || strongest >= 4
+        ? '높음'
+        : matchedReleases.length === 1
+          ? '보통'
+          : '낮음';
+  return { releases, matchedReleases, revenueMul, pressure };
 }

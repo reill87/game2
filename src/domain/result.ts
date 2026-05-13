@@ -258,13 +258,15 @@ export function shipProject(
   // L6 시설: 글로벌 방송 스튜디오 — 출시 매출 +5%.
   const broadcastMul = isFacilityBuilt(prev.facilities, 'global-broadcast-studio') ? 1.05 : 1.0;
   const preRivalRevenue = Math.round(baseCalculated * (globalRevMul > 1.0 ? globalRevMul : 1.0) * satelliteMul * dataFabricMul * ecoRevMul * broadcastMul);
+  // 라이벌 새 출시. 장르 선택 화면의 예고와 같은 결정적 분기 출시 목록을 사용한다.
+  const newRivals = tickRivalReleases(prev.rivals, prev.productIndex);
   // 경쟁사 시장 점유율 — 같은 분기 같은 장르·테마 경쟁 시 매출 감소.
   const ms = computeMarketShareEffect(
     prev.project.genre,
     prev.project.theme,
     stars,
     prev.productIndex,
-    prev.rivals,
+    newRivals,
   );
   const earlyRevenueBonus = BALANCE.earlyRevenueBonusByProduct[prev.productIndex] ?? 0;
   const revenue = Math.round(preRivalRevenue * ms.revenueMul) + earlyRevenueBonus;
@@ -280,8 +282,6 @@ export function shipProject(
   const betterRivalRepDrop = ms.betterRivalCount * 5;
   const reputationGain = Math.max(0, baseReputationGain - betterRivalRepDrop);
   const newReputation = prev.reputation + reputationGain;
-  // 라이벌 새 출시 (우리 출시 직후).
-  const newRivals = tickRivalReleases(prev.rivals, prev.productIndex);
   // 트렌드 카운트다운 — 출시 후 −1, 0이면 null로 만료 (Boot에서 새 트렌드 결정).
   const nextTrend = prev.trend
     ? prev.trend.remainingProjects > 1

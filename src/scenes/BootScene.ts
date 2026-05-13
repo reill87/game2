@@ -30,12 +30,13 @@ import { isSupabaseEnabled } from '@/cloud/supabase';
 import { loadCloudSave, signInWithEmail, getSessionUserId, isLoggedIn } from '@/cloud/sync';
 import { SCENE_KEYS } from './keys';
 
-type QaBootTarget = 'assignment' | 'development';
+type QaBootTarget = 'genre' | 'assignment' | 'development';
 
 function getQaBootTarget(): QaBootTarget | null {
   if (!import.meta.env.DEV || typeof window === 'undefined') return null;
   const params = new URLSearchParams(window.location.search);
   const raw = params.get('qa') ?? params.get('dev');
+  if (raw === 'genre') return 'genre';
   if (raw === 'assignment') return 'assignment';
   if (raw === 'development' || raw === 'dev') return 'development';
   return null;
@@ -101,8 +102,27 @@ export class BootScene extends Phaser.Scene {
 
     const qaTarget = getQaBootTarget();
     if (qaTarget) {
+      const state = makeQaState();
+      if (qaTarget === 'genre') {
+        this.scene.start(SCENE_KEYS.GenreSelect, {
+          productIndex: state.productIndex,
+          gold: state.gold,
+          employees: state.employees,
+          lastResult: null,
+          officeLevel: state.officeLevel,
+          reputation: state.reputation,
+          policy: state.policy,
+          trend: state.trend,
+          rnd: state.rnd,
+          facilities: state.facilities,
+          markets: state.markets,
+          economy: state.economy,
+          rivals: state.rivals,
+        });
+        return;
+      }
       this.scene.start(qaTarget === 'assignment' ? SCENE_KEYS.Assignment : SCENE_KEYS.Development, {
-        state: makeQaState(),
+        state,
         isOnboarding: false,
       });
       return;

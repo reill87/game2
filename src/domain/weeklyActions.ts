@@ -57,10 +57,10 @@ function lowestMoraleEmpId(employees: ReadonlyArray<Employee>): string | null {
 export const WEEKLY_ACTIONS: ReadonlyArray<WeeklyAction> = [
   {
     id: 'team-meeting',
-    label: '팀 회의',
-    desc: '전원 morale +5, stamina −3. 시장성·창의성 소폭 상승.',
+    label: '전략 회의',
+    desc: '경쟁작·시장 포지셔닝 점검. 전원 morale +5, 시장·창의 상승.',
     apCost: 1,
-    apply: (state) => addProjectSignals(applyAllEmployees(state, 5, -3), { market: 1.2, creative: 0.8 }, 0.7),
+    apply: (state) => addProjectSignals(applyAllEmployees(state, 5, -3), { market: 1.8, creative: 1.0, ux: 0.4 }, 0.9),
   },
   {
     id: 'one-on-one',

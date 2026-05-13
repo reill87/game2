@@ -21,7 +21,13 @@ import { EMPTY_RND, type RndState } from '@/domain/rnd';
 import { EMPTY_FACILITIES, type FacilityState } from '@/domain/facilities';
 import { EMPTY_MARKETS, type MarketState } from '@/domain/markets';
 import type { EconomyState } from '@/domain/economy';
-import type { RivalState } from '@/domain/rivals';
+import {
+  RIVALS,
+  forecastRivalPressure,
+  forecastRivalReleases,
+  type RivalRelease,
+  type RivalState,
+} from '@/domain/rivals';
 import type {
   Assignment,
   CompanyPolicy,
@@ -398,7 +404,7 @@ export class GenreSelectScene extends Phaser.Scene {
   // ────────────────────────── status + next ──────────────────────────
   private buildStatus(): void {
     this.statusText = this.add
-      .text(this.cx, 724, '', {
+      .text(this.cx, 744, '', {
         fontFamily: FONT_STACK,
         fontSize: '23px',
         color: TEXT_COLOR.dim,
@@ -412,7 +418,7 @@ export class GenreSelectScene extends Phaser.Scene {
     const w = 360;
     const h = 72;
     const x = this.cx - w / 2;
-    const y = 756;
+    const y = 828;
     this.nextBtnRect = new Phaser.Geom.Rectangle(x, y, w, h);
     this.nextBtnBg = this.add.graphics();
     this.nextBtnText = this.add
@@ -491,22 +497,43 @@ export class GenreSelectScene extends Phaser.Scene {
 
   private updateStatus(): void {
     if (!this.selectedGenre && !this.selectedTheme) {
-      this.statusText.setText('장르와 테마를 각각 하나씩 선택하세요.').setColor(TEXT_COLOR.dim);
+      const forecast = forecastRivalReleases(this.productIndex);
+      const strongest = [...forecast].sort((a, b) => b.stars - a.stars || b.revenue - a.revenue)[0];
+      const competition = strongest
+        ? `이번 분기 경쟁작 ${forecast.length}개 · 최대 위협 ${this.rivalReleaseLabel(strongest)}`
+        : '이번 분기는 경쟁사 출시가 조용합니다.';
+      this.statusText
+        .setText(`장르와 테마를 각각 하나씩 선택하세요.\n${competition}`)
+        .setColor(TEXT_COLOR.dim);
       return;
     }
     if (this.selectedGenre && this.selectedTheme) {
       const g = GENRE_LABEL[this.selectedGenre];
       const t = THEME_LABEL[this.selectedTheme];
       const hint = saturationHint(this.history, this.selectedGenre, this.selectedTheme);
+      const pressure = forecastRivalPressure(this.selectedGenre, this.selectedTheme, this.productIndex, this.rivals);
       const baseText = `선택: ${g.name} × ${t.name}`;
+      const competitionBase = pressure.matchedReleases.length > 0
+        ? `AI 경쟁 ${pressure.pressure}: ${pressure.matchedReleases.length}개 경쟁작 · 예상 매출 압박 ×${pressure.revenueMul.toFixed(1)}`
+        : 'AI 경쟁 낮음: 직접 경쟁작이 적어 안정적인 출시 구간입니다.';
+      const competitionText = hint ? `${competitionBase} · 포화 주의` : competitionBase;
       if (hint) {
-        this.statusText.setText(`${baseText}\n⚠ ${hint}`).setColor(TEXT_COLOR.warn);
+        this.statusText.setText(`${baseText}\n${competitionText}`).setColor(TEXT_COLOR.warn);
       } else {
-        this.statusText.setText(baseText).setColor(TEXT_COLOR.ok);
+        const statusColor = pressure.pressure === '정면승부' || pressure.pressure === '높음'
+          ? TEXT_COLOR.warn
+          : TEXT_COLOR.ok;
+        this.statusText.setText(`${baseText}\n${competitionText}`).setColor(statusColor);
       }
       return;
     }
     this.statusText.setText('아직 한 가지가 선택되지 않았습니다.').setColor(TEXT_COLOR.dim);
+  }
+
+  private rivalReleaseLabel(release: RivalRelease): string {
+    const rival = RIVALS.find((r) => r.id === release.rivalId);
+    const rivalName = rival?.name ?? release.rivalId;
+    return `${rivalName} ${GENRE_LABEL[release.genre].name}/${THEME_LABEL[release.theme].name} ★${release.stars}`;
   }
 
   private drawNextButton(): void {
