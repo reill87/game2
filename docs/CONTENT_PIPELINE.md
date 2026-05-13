@@ -1,5 +1,8 @@
 # 콘텐츠 파이프라인 (초안)
 
+> 현재 경영 시뮬 방향의 대량 콘텐츠 확장 설계는 [CONTENT_SCALE_ARCHITECTURE.md](./CONTENT_SCALE_ARCHITECTURE.md)를 우선 참고한다.
+> 이 문서는 초기 RPG/던전형 실험 메모를 포함하고 있어, 실제 이벤트 100~500개 확장 작업의 기준 문서는 아니다.
+
 ## 1. 원칙
 
 - v1은 **파일 기반 데이터** (JSON 또는 `src/data/*.ts`)  

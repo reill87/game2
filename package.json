@@ -6,7 +6,8 @@
   "description": "스튜디오 경영 시뮬 — Vite + Phaser 3",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "npm run content:validate && tsc --noEmit && vite build",
+    "content:validate": "node scripts/validate-content.mjs",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit"
   },
