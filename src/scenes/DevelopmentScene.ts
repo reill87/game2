@@ -12,7 +12,12 @@ import {
   type GameEvent,
 } from '@/domain/events';
 import { GENRE_LABEL, JOB_LABEL, SLOT_ICON, SLOT_LABEL, THEME_LABEL } from '@/domain/seed';
-import { HEADLINE_BY_STARS, type ReleaseOutcome, type ReviewStars, shipProject } from '@/domain/result';
+import {
+  recomputeCompetitiveRelease,
+  type ReleaseOutcome,
+  type ReviewStars,
+  shipProject,
+} from '@/domain/result';
 import {
   pickExitCandidates,
   RETAIN_COST,
@@ -34,6 +39,12 @@ import {
 } from '@/domain/sprintPhase';
 import { pickOpsDecision, type OpsDecision } from '@/domain/postRelease';
 import { AP_CAP, WEEKLY_ACTIONS, type WeeklyAction } from '@/domain/weeklyActions';
+import {
+  forecastRivalPressure,
+  getActiveRivalCounter,
+  getRivalName,
+  type RivalRelease,
+} from '@/domain/rivals';
 import {
   applyEventProjectSignals,
   normalizeProjectSignals,
@@ -168,6 +179,8 @@ export class DevelopmentScene extends Phaser.Scene {
     }
   >();
   private burnText: Phaser.GameObjects.Text | null = null;
+  private rivalPressureText: Phaser.GameObjects.Text | null = null;
+  private rivalCounterText: Phaser.GameObjects.Text | null = null;
   private statusText!: Phaser.GameObjects.Text;
 
   // Playback controls (Slice 5)
@@ -201,6 +214,8 @@ export class DevelopmentScene extends Phaser.Scene {
   private apBtnText: Phaser.GameObjects.Text | null = null;
   private apBtnRect: Phaser.Geom.Rectangle | null = null;
   private apBtnHit: Phaser.GameObjects.Zone | null = null;
+  private rivalPressureModalContainer: Phaser.GameObjects.Container | null = null;
+  private rivalPressurePromptShown = false;
 
   // 위기 모먼트 모달 + cooldown
   private crisisModalContainer: Phaser.GameObjects.Container | null = null;
@@ -288,6 +303,9 @@ export class DevelopmentScene extends Phaser.Scene {
     this.eventModalContainer = null;
     this.weeklyActionModalContainer?.destroy(true);
     this.weeklyActionModalContainer = null;
+    this.rivalPressureModalContainer?.destroy(true);
+    this.rivalPressureModalContainer = null;
+    this.rivalPressurePromptShown = false;
     this.crisisModalContainer?.destroy(true);
     this.crisisModalContainer = null;
     this.crisisTimerEvent?.remove();
@@ -337,6 +355,7 @@ export class DevelopmentScene extends Phaser.Scene {
     this.buildWeeklyActionButton();
     this.buildStats();
     this.buildAssignmentRecap();
+    this.buildRivalPressurePanel();
     this.buildStatus();
     this.buildActions();
     if (this.state.productIndex >= 1) this.buildPromoSelector();
@@ -789,6 +808,34 @@ export class DevelopmentScene extends Phaser.Scene {
     });
   }
 
+  // ────────────────────────── rival pressure ──────────────────────────
+  private buildRivalPressurePanel(): void {
+    const panelX = this.contentX + 30;
+    const panelY = 828;
+    const panelW = 660;
+    const panelH = 78;
+    makePanel(this, panelX, panelY, panelW, panelH, COLOR.panelEmpty);
+    this.add.text(panelX + 18, panelY + 12, '경쟁 압박', {
+      fontFamily: FONT_STACK,
+      fontSize: '19px',
+      fontStyle: 'bold',
+      color: TEXT_COLOR.dim,
+    });
+    this.rivalPressureText = this.add.text(panelX + 116, panelY + 10, '', {
+      fontFamily: FONT_STACK,
+      fontSize: '20px',
+      fontStyle: 'bold',
+      color: TEXT_COLOR.primary,
+      wordWrap: { width: 510, useAdvancedWrap: true },
+    });
+    this.rivalCounterText = this.add.text(panelX + 18, panelY + 42, '', {
+      fontFamily: FONT_STACK,
+      fontSize: '18px',
+      color: TEXT_COLOR.dim,
+      wordWrap: { width: panelW - 36, useAdvancedWrap: true },
+    });
+  }
+
   // ────────────────────────── status + actions ──────────────────────────
   private buildStatus(): void {
     this.statusText = this.add
@@ -1230,6 +1277,8 @@ export class DevelopmentScene extends Phaser.Scene {
       return;
     }
 
+    if (this.maybeShowRivalPressureMoment()) return;
+
     // 이탈 후보 체크 — streak 임계 도달자가 있으면 퇴사 모달 우선 표시.
     // 단 직원 2명 이하 시엔 이탈 무시(게임 진행 불가 회피).
     if (this.state.employees.length > 2) {
@@ -1288,6 +1337,111 @@ export class DevelopmentScene extends Phaser.Scene {
       this.pauseForModal();
       this.showCollapseModal();
     }
+  }
+
+  private maybeShowRivalPressureMoment(): boolean {
+    if (this.rivalPressurePromptShown || this.state.productIndex < 1 || this.state.project.weeksElapsed < 1) {
+      return false;
+    }
+    if (getActiveRivalCounter(this.state.rivals, this.state.productIndex)) return false;
+    const pressure = forecastRivalPressure(
+      this.state.project.genre,
+      this.state.project.theme,
+      this.state.productIndex,
+      this.state.rivals,
+    );
+    const threat = [...pressure.matchedReleases].sort((a, b) => b.stars - a.stars || b.revenue - a.revenue)[0];
+    if (!threat) return false;
+    this.rivalPressurePromptShown = true;
+    this.pauseForModal();
+    this.showRivalPressureModal(threat, pressure.matchedReleases.length, pressure.revenueMul);
+    return true;
+  }
+
+  private showRivalPressureModal(threat: RivalRelease, competitorCount: number, revenueMul: number): void {
+    playSfx(this, SFX.warning, 0.65);
+    const c = this.add.container(0, 0).setDepth(100);
+    const overlay = this.add
+      .rectangle(0, 0, 720, 1280, 0x000000, 0.72)
+      .setOrigin(0, 0)
+      .setInteractive();
+    c.add(overlay);
+    const panelW = 560;
+    const panelH = 350;
+    const panelX = this.contentX + (720 - panelW) / 2;
+    const panelY = 430;
+    c.add(makePanel(this, panelX, panelY, panelW, panelH, COLOR.panel));
+    const header = this.add.graphics();
+    header.fillStyle(0xb45309, 1);
+    header.fillRoundedRect(panelX, panelY, panelW, 54, 14);
+    header.fillRect(panelX, panelY + 28, panelW, 26);
+    c.add(header);
+    c.add(this.add.text(panelX + panelW / 2, panelY + 14, '경쟁사 움직임 감지', {
+      fontFamily: FONT_STACK,
+      fontSize: '25px',
+      fontStyle: 'bold',
+      color: TEXT_COLOR.primary,
+    }).setOrigin(0.5, 0));
+    const rivalLine = [
+      getRivalName(threat.rivalId),
+      `${GENRE_LABEL[threat.genre].name} × ${THEME_LABEL[threat.theme].name}`,
+      `★${threat.stars}`,
+    ].join(' · ');
+    c.add(this.add.text(panelX + 30, panelY + 84, rivalLine, {
+      fontFamily: FONT_STACK,
+      fontSize: '24px',
+      fontStyle: 'bold',
+      color: TEXT_COLOR.warn,
+      wordWrap: { width: panelW - 60, useAdvancedWrap: true },
+    }));
+    c.add(this.add.text(
+      panelX + 30,
+      panelY + 126,
+      `직접 경쟁작 ${competitorCount}개가 같은 시장을 노립니다. 지금 대응하지 않으면 출시 매출 압박이 ×${revenueMul.toFixed(1)}까지 커집니다.`,
+      {
+        fontFamily: FONT_STACK,
+        fontSize: '22px',
+        color: TEXT_COLOR.dim,
+        wordWrap: { width: panelW - 60, useAdvancedWrap: true },
+      },
+    ));
+
+    const buttonY = panelY + panelH - 76;
+    const openRect = new Phaser.Geom.Rectangle(panelX + 30, buttonY, 240, 52);
+    const keepRect = new Phaser.Geom.Rectangle(panelX + panelW - 270, buttonY, 240, 52);
+    const drawButton = (rect: Phaser.Geom.Rectangle, label: string, primary: boolean): Phaser.GameObjects.Graphics => {
+      const bg = this.add.graphics();
+      bg.fillStyle(primary ? COLOR.btn : COLOR.btnSecondary, 1);
+      bg.fillRoundedRect(rect.x, rect.y, rect.width, rect.height, 12);
+      c.add(bg);
+      c.add(this.add.text(rect.centerX, rect.centerY, label, {
+        fontFamily: FONT_STACK,
+        fontSize: '22px',
+        fontStyle: 'bold',
+        color: primary ? TEXT_COLOR.primary : TEXT_COLOR.dim,
+      }).setOrigin(0.5));
+      return bg;
+    };
+    drawButton(openRect, 'AP 대응 열기', true);
+    drawButton(keepRect, '계속 개발', false);
+    const openHit = this.add.zone(openRect.centerX, openRect.centerY, openRect.width, openRect.height)
+      .setInteractive({ useHandCursor: true });
+    openHit.on('pointerup', () => {
+      this.rivalPressureModalContainer?.destroy(true);
+      this.rivalPressureModalContainer = null;
+      this.speedBeforeModal = null;
+      this.handleOpenWeeklyActions();
+    });
+    const keepHit = this.add.zone(keepRect.centerX, keepRect.centerY, keepRect.width, keepRect.height)
+      .setInteractive({ useHandCursor: true });
+    keepHit.on('pointerup', () => {
+      this.rivalPressureModalContainer?.destroy(true);
+      this.rivalPressureModalContainer = null;
+      this.resumeAfterModal();
+    });
+    c.add([openHit, keepHit]);
+    this.rivalPressureModalContainer = c;
+    applyHiDPI(this);
   }
 
   /** 한 줄 텍스트가 위로 30px 떠오르며 페이드아웃되는 popup. */
@@ -1841,17 +1995,12 @@ export class DevelopmentScene extends Phaser.Scene {
     const newRevenue = Math.round(outcome.revenue * effectiveRevenueMul);
     const rawStars = outcome.stars + starsDelta;
     const newStars = clamp(rawStars, 1, 5) as ReviewStars;
-    const revenueDiff = newRevenue - outcome.revenue;
-
+    const competitive = recomputeCompetitiveRelease(this.state, outcome, newStars, newRevenue);
     const modified: ReleaseOutcome = {
-      ...outcome,
-      revenue: newRevenue,
-      stars: newStars,
-      headline: HEADLINE_BY_STARS[newStars],
+      ...competitive,
       state: {
-        ...outcome.state,
-        gold: outcome.state.gold + revenueDiff,
-        employees: outcome.state.employees.map((e) => ({
+        ...competitive.state,
+        employees: competitive.state.employees.map((e) => ({
           ...e,
           morale: clamp(e.morale + moraleDelta, 0, 100),
         })),
@@ -1877,9 +2026,48 @@ export class DevelopmentScene extends Phaser.Scene {
     if (this.state.productIndex >= 1) this.drawCrunchToggle();
     this.drawWeeklyActionButton();
     this.redrawAssignmentRecap();
+    this.updateRivalPressurePanel();
     this.updateStatus();
     this.updateActionPanel();
     this.updateSprintPhaseDisplay();
+  }
+
+  private updateRivalPressurePanel(): void {
+    if (!this.rivalPressureText || !this.rivalCounterText) return;
+    const pressure = forecastRivalPressure(
+      this.state.project.genre,
+      this.state.project.theme,
+      this.state.productIndex,
+      this.state.rivals,
+    );
+    const topThreat = [...pressure.matchedReleases].sort((a, b) => b.stars - a.stars || b.revenue - a.revenue)[0];
+    const pressureColor =
+      pressure.pressure === '정면승부'
+        ? TEXT_COLOR.bad
+        : pressure.pressure === '높음'
+          ? TEXT_COLOR.warn
+          : pressure.pressure === '보통'
+            ? TEXT_COLOR.primary
+            : TEXT_COLOR.ok;
+    const threatText = topThreat
+      ? [
+          getRivalName(topThreat.rivalId),
+          `${GENRE_LABEL[topThreat.genre].name}/${THEME_LABEL[topThreat.theme].name}`,
+          `★${topThreat.stars}`,
+        ].join(' ')
+      : '직접 경쟁작 적음';
+    this.rivalPressureText
+      .setText([
+        pressure.pressure,
+        `${pressure.matchedReleases.length}개 경쟁`,
+        `매출 압박 ×${pressure.revenueMul.toFixed(1)}`,
+      ].join(' · '))
+      .setColor(pressureColor);
+    const counter = getActiveRivalCounter(this.state.rivals, this.state.productIndex);
+    const counterText = counter
+      ? `대응 중: ${counter.label} · 압박 완화 +${Math.round(counter.revenueShield * 100)}%p`
+      : 'AP 행동에서 차별화/품질/마케팅 대응 가능';
+    this.rivalCounterText.setText(`${threatText} / ${counterText}`);
   }
 
   /** Sprint 단계 텍스트 + 슬롯 가중치 인디케이터 갱신. */
@@ -2165,7 +2353,7 @@ export class DevelopmentScene extends Phaser.Scene {
     this.showWeeklyActionModal();
   }
 
-  /** 주간 행동 모달 — 5개 액션 카드 세로 리스트. */
+  /** 주간 행동 모달 — 팀 관리와 경쟁 대응 액션 카드 리스트. */
   private showWeeklyActionModal(): void {
     const c = this.add.container(0, 0).setDepth(100);
     this.weeklyActionCardViews = [];
@@ -2178,7 +2366,7 @@ export class DevelopmentScene extends Phaser.Scene {
 
     const ap = this.state.availableAp ?? 0;
     const panelW = 640;
-    const panelH = 740;
+    const panelH = 900;
     const panelX = this.contentX + (720 - panelW) / 2;
     const panelY = Math.max(0, (1280 - panelH) / 2);
     c.add(makePanel(this, panelX, panelY, panelW, panelH, COLOR.panel));
@@ -2197,7 +2385,7 @@ export class DevelopmentScene extends Phaser.Scene {
     this.weeklyActionApText = this.add
       .text(panelX + panelW / 2, panelY + 56, `행동 포인트 AP: ${ap} / ${AP_CAP}`, {
         fontFamily: FONT_STACK,
-        fontSize: '30px',
+        fontSize: '28px',
         fontStyle: 'bold',
         color: TEXT_COLOR.primary,
       })
@@ -2205,9 +2393,9 @@ export class DevelopmentScene extends Phaser.Scene {
     c.add(this.weeklyActionApText);
     c.add(
       this.add
-        .text(panelX + 30, panelY + 94, 'AP를 소비해 팀에 즉발 효과를 적용합니다. AP가 남아 있으면 이어서 여러 행동을 선택할 수 있습니다.', {
+        .text(panelX + 30, panelY + 94, 'AP를 소비해 팀에 즉발 효과를 적용합니다. 경쟁 대응은 이번 출시의 매출 압박을 완화합니다.', {
           fontFamily: FONT_STACK,
-          fontSize: '23px',
+          fontSize: '20px',
           color: TEXT_COLOR.dim,
           wordWrap: { width: panelW - 60, useAdvancedWrap: true },
         })
@@ -2217,9 +2405,9 @@ export class DevelopmentScene extends Phaser.Scene {
     // 액션 카드 — 세로 리스트
     const cardX = panelX + 30;
     const cardW = panelW - 60;
-    const cardH = 80;
-    const cardGap = 12;
-    const cardsStartY = panelY + 136;
+    const cardH = 58;
+    const cardGap = 7;
+    const cardsStartY = panelY + 142;
 
     WEEKLY_ACTIONS.forEach((action, i) => {
       const y = cardsStartY + i * (cardH + cardGap);
@@ -2236,22 +2424,22 @@ export class DevelopmentScene extends Phaser.Scene {
       };
       drawCard(false);
 
-      const labelText = this.add.text(cardX + 18, y + 14, action.label, {
+      const labelText = this.add.text(cardX + 18, y + 9, action.label, {
         fontFamily: FONT_STACK,
-        fontSize: '27px',
+        fontSize: '22px',
         fontStyle: 'bold',
         color: TEXT_COLOR.primary,
       });
-      const descText = this.add.text(cardX + 18, y + 42, action.desc, {
+      const descText = this.add.text(cardX + 18, y + 32, action.desc, {
         fontFamily: FONT_STACK,
-        fontSize: '21px',
+        fontSize: '16px',
         color: TEXT_COLOR.dim,
         wordWrap: { width: cardW - 100, useAdvancedWrap: true },
       });
       const costBadge = this.add
         .text(cardX + cardW - 16, y + cardH / 2, `AP -${action.apCost}`, {
           fontFamily: FONT_STACK,
-          fontSize: '23px',
+          fontSize: '20px',
           fontStyle: 'bold',
           color: TEXT_COLOR.ok,
         })

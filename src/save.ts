@@ -49,7 +49,7 @@ import type { NpcId } from './domain/npcs';
 import type { BankruptcyState } from './domain/bankruptcy';
 import type { ExecState } from './domain/exec';
 import { EMPTY_RIVALS, type RivalState, type RivalRelease, RIVALS } from './domain/rivals';
-import type { RivalId } from './domain/rivals';
+import type { RivalCounterId, RivalId } from './domain/rivals';
 
 const KEY = 'game2.save';
 const LEGACY_KEY_V1 = 'game2.save.v1';
@@ -579,34 +579,80 @@ function sanitizeRnd(raw: unknown): RndState {
 /** 경쟁사 출시 이력 sanitize — rivalId 화이트리스트 + 필수 필드 검증. */
 function sanitizeRivals(raw: unknown): RivalState | undefined {
   if (!raw || typeof raw !== 'object') return undefined;
-  const obj = raw as { recentReleases?: unknown };
-  if (!Array.isArray(obj.recentReleases)) return undefined;
+  const obj = raw as Record<string, unknown> & { recentReleases?: unknown };
   const validRivalIds: ReadonlyArray<RivalId> = RIVALS.map((r) => r.id);
   const validIds = new Set<string>(validRivalIds);
+  const validCounters = new Set<RivalCounterId>(['positioning', 'fast-follow', 'quality-bar', 'marketing-blitz']);
   const result: RivalRelease[] = [];
-  for (const item of obj.recentReleases as unknown[]) {
-    if (!item || typeof item !== 'object') continue;
-    const r = item as Record<string, unknown>;
-    if (
-      typeof r['rivalId'] !== 'string' ||
-      !validIds.has(r['rivalId']) ||
-      typeof r['genre'] !== 'string' ||
-      typeof r['theme'] !== 'string' ||
-      typeof r['stars'] !== 'number' ||
-      typeof r['revenue'] !== 'number' ||
-      typeof r['quarter'] !== 'number'
-    ) continue;
-    result.push({
-      rivalId: r['rivalId'] as RivalId,
-      genre: r['genre'] as import('./domain/types').GenreId,
-      theme: r['theme'] as import('./domain/types').ThemeId,
-      stars: r['stars'],
-      revenue: r['revenue'],
-      quarter: r['quarter'],
-    });
+  if (Array.isArray(obj.recentReleases)) {
+    for (const item of obj.recentReleases as unknown[]) {
+      if (!item || typeof item !== 'object') continue;
+      const r = item as Record<string, unknown>;
+      if (
+        typeof r['rivalId'] !== 'string' ||
+        !validIds.has(r['rivalId']) ||
+        typeof r['genre'] !== 'string' ||
+        typeof r['theme'] !== 'string' ||
+        typeof r['stars'] !== 'number' ||
+        typeof r['revenue'] !== 'number' ||
+        typeof r['quarter'] !== 'number'
+      ) continue;
+      result.push({
+        rivalId: r['rivalId'] as RivalId,
+        genre: r['genre'] as import('./domain/types').GenreId,
+        theme: r['theme'] as import('./domain/types').ThemeId,
+        stars: r['stars'],
+        revenue: r['revenue'],
+        quarter: r['quarter'],
+      });
+    }
   }
-  if (result.length === 0) return EMPTY_RIVALS;
-  return { recentReleases: result };
+  const rivalShares: Partial<Record<RivalId, number>> = {};
+  const rawShares = obj['rivalShares'];
+  if (rawShares && typeof rawShares === 'object') {
+    for (const id of validRivalIds) {
+      const value = (rawShares as Record<string, unknown>)[id];
+      if (typeof value === 'number') rivalShares[id] = Math.max(0, Math.min(100, Math.round(value)));
+    }
+  }
+  const rawCounter = obj['activeCounter'];
+  const counter = rawCounter && typeof rawCounter === 'object'
+    ? rawCounter as Record<string, unknown>
+    : null;
+  const activeCounter =
+    counter &&
+    typeof counter['id'] === 'string' &&
+    validCounters.has(counter['id'] as RivalCounterId) &&
+    typeof counter['projectIndex'] === 'number' &&
+    typeof counter['label'] === 'string' &&
+    typeof counter['revenueShield'] === 'number' &&
+    typeof counter['reputationShield'] === 'number'
+      ? {
+          id: counter['id'] as RivalCounterId,
+          projectIndex: Math.max(0, Math.floor(counter['projectIndex'])),
+          label: counter['label'],
+          revenueShield: Math.max(0, Math.min(0.3, counter['revenueShield'])),
+          reputationShield: Math.max(0, Math.min(2, Math.floor(counter['reputationShield']))),
+        }
+      : null;
+  const state: RivalState = {
+    recentReleases: result,
+    ...(activeCounter ? { activeCounter } : {}),
+    ...(typeof obj['playerShare'] === 'number'
+      ? { playerShare: Math.max(0, Math.min(100, Math.round(obj['playerShare']))) }
+      : {}),
+    ...(Object.keys(rivalShares).length > 0 ? { rivalShares } : {}),
+    ...(typeof obj['winStreak'] === 'number' ? { winStreak: Math.max(0, Math.floor(obj['winStreak'])) } : {}),
+    ...(typeof obj['lossStreak'] === 'number' ? { lossStreak: Math.max(0, Math.floor(obj['lossStreak'])) } : {}),
+  };
+  return result.length === 0 &&
+    !activeCounter &&
+    state.playerShare === undefined &&
+    !state.rivalShares &&
+    state.winStreak === undefined &&
+    state.lossStreak === undefined
+    ? EMPTY_RIVALS
+    : state;
 }
 
 /** 경기 사이클 상태 sanitize. */

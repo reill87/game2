@@ -282,6 +282,18 @@ export class StatsScene extends Phaser.Scene {
       fontStyle: 'bold',
       color: TEXT_COLOR.dim,
     });
+    const playerShare = rivals?.playerShare ?? 24;
+    const streakText = (rivals?.winStreak ?? 0) > 0
+      ? `연승 ${rivals?.winStreak}`
+      : (rivals?.lossStreak ?? 0) > 0
+        ? `열세 ${rivals?.lossStreak}`
+        : '흐름 없음';
+    this.add.text(panelX + panelW - 20, panelY + 14, `우리 점유율 ${playerShare}% · ${streakText}`, {
+      fontFamily: FONT_STACK,
+      fontSize: '18px',
+      fontStyle: 'bold',
+      color: playerShare >= 35 ? TEXT_COLOR.ok : playerShare <= 15 ? TEXT_COLOR.bad : TEXT_COLOR.warn,
+    }).setOrigin(1, 0);
 
     // 우리 평균 별점·매출 — 비교 기준.
     const ourAvgStars = history.length > 0
@@ -302,6 +314,7 @@ export class StatsScene extends Phaser.Scene {
       const rivalAvgRevenue = releases.length > 0
         ? Math.round(releases.reduce((s, r) => s + r.revenue, 0) / releases.length)
         : rival.avgRevenue;
+      const share = rivals?.rivalShares?.[rival.id] ?? Math.round((100 - playerShare) / RIVALS.length);
 
       makePanel(this, panelX + 10, y, panelW - 20, rowH - 4, COLOR.panelEmpty, false);
 
@@ -312,8 +325,20 @@ export class StatsScene extends Phaser.Scene {
         fontStyle: 'bold',
         color: TEXT_COLOR.primary,
       });
-      const strengthLabel = { design: '디자인', tech: '기술', marketing: '마케팅', data: '데이터', operations: '운영' }[rival.strength];
-      this.add.text(panelX + 24, y + 26, `[${strengthLabel}]  최근 ★${rivalAvgStars.toFixed(1)}  ${formatGold(rivalAvgRevenue)}`, {
+      const strengthLabel = {
+        design: '디자인',
+        tech: '기술',
+        marketing: '마케팅',
+        data: '데이터',
+        operations: '운영',
+      }[rival.strength];
+      const rivalMeta = [
+        `[${strengthLabel}]`,
+        `점유 ${share}%`,
+        `최근 ★${rivalAvgStars.toFixed(1)}`,
+        formatGold(rivalAvgRevenue),
+      ].join('  ');
+      this.add.text(panelX + 24, y + 26, rivalMeta, {
         fontFamily: FONT_STACK,
         fontSize: '17px',
         color: TEXT_COLOR.dim,

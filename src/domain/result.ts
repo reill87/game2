@@ -17,7 +17,12 @@ import {
   ECONOMY_PHASE_LABEL,
   EMPTY_ECONOMY,
 } from './economy';
-import { computeMarketShareEffect, tickRivalReleases } from './rivals';
+import {
+  computeMarketShareEffect,
+  getRivalName,
+  tickRivalReleases,
+  updateRivalStandings,
+} from './rivals';
 import type { RivalRelease } from './rivals';
 import { normalizeProjectSignals } from './projectSignals';
 import type { Employee, GameState, PromoTier, Rank } from './types';
@@ -107,12 +112,23 @@ export interface ReleaseOutcome {
   };
   /** 시장 경쟁 — 같은 분기 라이벌과의 매출 점유율 효과. */
   readonly marketShare: {
+    /** 대응 전 매출 배수. */
+    readonly baseRevenueMul: number;
     /** 우리 매출에 곱한 배수. */
     readonly revenueMul: number;
     /** 우리보다 잘한 라이벌 수 — 명성 -5씩. */
     readonly betterRivalCount: number;
     /** 매치된 라이벌 출시 목록. */
     readonly matchedReleases: ReadonlyArray<RivalRelease>;
+    /** AP 경쟁 대응으로 완화된 경우 표시. */
+    readonly counterLabel?: string;
+    /** 이번 분기 전체 경쟁 매출 중 우리 점유율. */
+    readonly quarterPlayerShare: number;
+    /** 장기 시장 점유율 감각값. */
+    readonly playerShare: number;
+    readonly playerShareDelta: number;
+    readonly winnerName: string;
+    readonly winnerRevenue: number;
   };
   /** released=true, gold = (prev.gold − promo.cost) + revenue. reputation도 누적. */
   readonly state: GameState;
@@ -125,6 +141,21 @@ export const HEADLINE_BY_STARS: Readonly<Record<ReviewStars, string>> = {
   2: '★★ 야근 자국이 그대로 보인다.',
   1: '★ 출시한 것 자체가 성과.',
 };
+
+function computeReleaseReputation(
+  prev: GameState,
+  stars: ReviewStars,
+  betterRivalCount: number,
+): { gain: number; total: number } {
+  // 시설: 회사 e스포츠팀 — 출시 시 명성 +1, 글로벌 방송 스튜디오 — +2.
+  const esportsBonus = isFacilityBuilt(prev.facilities, 'esports-team') ? 1 : 0;
+  const broadcastRepBonus = isFacilityBuilt(prev.facilities, 'global-broadcast-studio') ? 2 : 0;
+  const baseReputationGain = stars * REPUTATION.perStarOnRelease + esportsBonus + broadcastRepBonus;
+  // 경쟁사 명성 영향 — 우리보다 잘한 라이벌 1개당 명성 −5.
+  const betterRivalRepDrop = betterRivalCount * 5;
+  const gain = Math.max(0, baseReputationGain - betterRivalRepDrop);
+  return { gain, total: prev.reputation + gain };
+}
 
 function computeStars(score: number): ReviewStars {
   if (score >= 80) return 5;
@@ -259,29 +290,28 @@ export function shipProject(
   const broadcastMul = isFacilityBuilt(prev.facilities, 'global-broadcast-studio') ? 1.05 : 1.0;
   const preRivalRevenue = Math.round(baseCalculated * (globalRevMul > 1.0 ? globalRevMul : 1.0) * satelliteMul * dataFabricMul * ecoRevMul * broadcastMul);
   // 라이벌 새 출시. 장르 선택 화면의 예고와 같은 결정적 분기 출시 목록을 사용한다.
-  const newRivals = tickRivalReleases(prev.rivals, prev.productIndex);
+  const provisionalRivals = tickRivalReleases(prev.rivals, prev.productIndex);
   // 경쟁사 시장 점유율 — 같은 분기 같은 장르·테마 경쟁 시 매출 감소.
   const ms = computeMarketShareEffect(
     prev.project.genre,
     prev.project.theme,
     stars,
     prev.productIndex,
-    newRivals,
+    provisionalRivals,
   );
   const earlyRevenueBonus = BALANCE.earlyRevenueBonusByProduct[prev.productIndex] ?? 0;
   const revenue = Math.round(preRivalRevenue * ms.revenueMul) + earlyRevenueBonus;
+  const standingUpdate = updateRivalStandings(prev.rivals, prev.productIndex, {
+    stars,
+    revenue,
+  });
   // 경기 tickEconomy — 출시마다 카운터 +1, 주기 도달 시 새 index 추첨.
   const prevEconomy = prev.economy ?? EMPTY_ECONOMY;
   const newEconomy = tickEconomy(prevEconomy);
   const economyCycleChanged = newEconomy.cyclesElapsed === 0 && newEconomy.index !== prevEconomy.index;
-  // 시설: 회사 e스포츠팀 — 출시 시 명성 +1, 글로벌 방송 스튜디오 — +2.
-  const esportsBonus = isFacilityBuilt(prev.facilities, 'esports-team') ? 1 : 0;
-  const broadcastRepBonus = isFacilityBuilt(prev.facilities, 'global-broadcast-studio') ? 2 : 0;
-  const baseReputationGain = stars * REPUTATION.perStarOnRelease + esportsBonus + broadcastRepBonus;
-  // 경쟁사 명성 영향 — 우리보다 잘한 라이벌 1개당 명성 −5.
-  const betterRivalRepDrop = ms.betterRivalCount * 5;
-  const reputationGain = Math.max(0, baseReputationGain - betterRivalRepDrop);
-  const newReputation = prev.reputation + reputationGain;
+  const releaseReputation = computeReleaseReputation(prev, stars, ms.betterRivalCount);
+  const reputationGain = releaseReputation.gain;
+  const newReputation = releaseReputation.total;
   // 트렌드 카운트다운 — 출시 후 −1, 0이면 null로 만료 (Boot에서 새 트렌드 결정).
   const nextTrend = prev.trend
     ? prev.trend.remainingProjects > 1
@@ -319,7 +349,7 @@ export function shipProject(
     trend: nextTrend,
     exec: nextExec,
     economy: newEconomy,
-    rivals: newRivals,
+    rivals: standingUpdate.rivals,
   });
   const state: GameState = { ...released, gold: released.gold + revenue };
 
@@ -361,10 +391,73 @@ export function shipProject(
       prevIndex: prevEconomy.index,
     },
     marketShare: {
+      baseRevenueMul: ms.baseRevenueMul,
       revenueMul: ms.revenueMul,
       betterRivalCount: ms.betterRivalCount,
       matchedReleases: ms.matchedReleases,
+      ...(ms.counterLabel ? { counterLabel: ms.counterLabel } : {}),
+      quarterPlayerShare: standingUpdate.standing.quarterPlayerShare,
+      playerShare: standingUpdate.standing.playerShare,
+      playerShareDelta: standingUpdate.standing.playerShareDelta,
+      winnerName: standingUpdate.standing.winner === 'player'
+        ? '우리 회사'
+        : getRivalName(standingUpdate.standing.winner),
+      winnerRevenue: standingUpdate.standing.winnerRevenue,
     },
     state,
+  };
+}
+
+export function recomputeCompetitiveRelease(
+  prev: GameState,
+  outcome: ReleaseOutcome,
+  stars: ReviewStars,
+  revenue: number,
+): ReleaseOutcome {
+  const provisionalRivals = tickRivalReleases(prev.rivals, prev.productIndex);
+  const ms = computeMarketShareEffect(
+    prev.project.genre,
+    prev.project.theme,
+    stars,
+    prev.productIndex,
+    provisionalRivals,
+  );
+  const standingUpdate = updateRivalStandings(prev.rivals, prev.productIndex, {
+    stars,
+    revenue,
+  });
+  const releaseReputation = computeReleaseReputation(prev, stars, ms.betterRivalCount);
+  const nextExec = tickExec(prev.exec, releaseReputation.gain);
+  return {
+    ...outcome,
+    stars,
+    headline: HEADLINE_BY_STARS[stars],
+    revenue,
+    reputation: {
+      ...outcome.reputation,
+      gain: releaseReputation.gain,
+      total: releaseReputation.total,
+    },
+    marketShare: {
+      baseRevenueMul: ms.baseRevenueMul,
+      revenueMul: ms.revenueMul,
+      betterRivalCount: ms.betterRivalCount,
+      matchedReleases: ms.matchedReleases,
+      ...(ms.counterLabel ? { counterLabel: ms.counterLabel } : {}),
+      quarterPlayerShare: standingUpdate.standing.quarterPlayerShare,
+      playerShare: standingUpdate.standing.playerShare,
+      playerShareDelta: standingUpdate.standing.playerShareDelta,
+      winnerName: standingUpdate.standing.winner === 'player'
+        ? '우리 회사'
+        : getRivalName(standingUpdate.standing.winner),
+      winnerRevenue: standingUpdate.standing.winnerRevenue,
+    },
+    state: {
+      ...outcome.state,
+      gold: outcome.state.gold - outcome.revenue + revenue,
+      reputation: releaseReputation.total,
+      exec: nextExec,
+      rivals: standingUpdate.rivals,
+    },
   };
 }

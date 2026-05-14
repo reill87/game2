@@ -25,6 +25,7 @@ import {
   RIVALS,
   forecastRivalPressure,
   forecastRivalReleases,
+  getRivalName,
   type RivalRelease,
   type RivalState,
 } from '@/domain/rivals';
@@ -103,6 +104,7 @@ export class GenreSelectScene extends Phaser.Scene {
   private nextBtnRect!: Phaser.Geom.Rectangle;
 
   private statusText!: Phaser.GameObjects.Text;
+  private competitionBoard: Phaser.GameObjects.Container | null = null;
   /** 매 create() 시 갱신. */
   private cx = 360;
   private contentX = 0;
@@ -165,6 +167,7 @@ export class GenreSelectScene extends Phaser.Scene {
     this.buildThemeRow();
     this.buildStatus();
     this.buildNextButton();
+    this.drawCompetitionBoard();
     addMuteToggle(this);
     this.redrawAll();
     applyHiDPI(this);
@@ -479,7 +482,81 @@ export class GenreSelectScene extends Phaser.Scene {
     this.drawCardSet(this.genreCards, this.selectedGenre);
     this.drawCardSet(this.themeCards, this.selectedTheme);
     this.updateStatus();
+    this.drawCompetitionBoard();
     this.drawNextButton();
+  }
+
+  private drawCompetitionBoard(): void {
+    this.competitionBoard?.destroy(true);
+    const c = this.add.container(0, 0);
+    const panelX = this.contentX + 44;
+    const panelY = 930;
+    const panelW = 632;
+    const panelH = 224;
+    const bg = this.add.graphics();
+    bg.fillStyle(COLOR.panel, 0.96);
+    bg.fillRoundedRect(panelX, panelY, panelW, panelH, 14);
+    bg.lineStyle(1, COLOR.panelStroke, 0.75);
+    bg.strokeRoundedRect(panelX, panelY, panelW, panelH, 14);
+    c.add(bg);
+
+    const forecast = this.selectedGenre && this.selectedTheme
+      ? forecastRivalPressure(this.selectedGenre, this.selectedTheme, this.productIndex, this.rivals).matchedReleases
+      : forecastRivalReleases(this.productIndex);
+    const title = this.selectedGenre && this.selectedTheme
+      ? '선택 조합 직접 경쟁'
+      : '이번 분기 경쟁사 출시 예고';
+    c.add(this.add.text(panelX + 18, panelY + 14, title, {
+      fontFamily: FONT_STACK,
+      fontSize: '22px',
+      fontStyle: 'bold',
+      color: TEXT_COLOR.warn,
+    }));
+
+    const rows = [...forecast]
+      .sort((a, b) => b.stars - a.stars || b.revenue - a.revenue)
+      .slice(0, 3);
+    if (rows.length === 0) {
+      c.add(this.add.text(panelX + 18, panelY + 64, '직접 경쟁 출시가 조용합니다. 포지션을 넓게 잡기 좋은 분기입니다.', {
+        fontFamily: FONT_STACK,
+        fontSize: '21px',
+        color: TEXT_COLOR.ok,
+        wordWrap: { width: panelW - 36, useAdvancedWrap: true },
+      }));
+    }
+    rows.forEach((r, i) => {
+      const y = panelY + 52 + i * 50;
+      const rival = RIVALS.find((item) => item.id === r.rivalId);
+      const rowBg = this.add.graphics();
+      rowBg.fillStyle(COLOR.panelEmpty, 0.95);
+      rowBg.fillRoundedRect(panelX + 14, y, panelW - 28, 42, 9);
+      c.add(rowBg);
+      c.add(this.add.text(panelX + 28, y + 7, getRivalName(r.rivalId), {
+        fontFamily: FONT_STACK,
+        fontSize: '18px',
+        fontStyle: 'bold',
+        color: TEXT_COLOR.primary,
+      }));
+      c.add(this.add.text(panelX + 220, y + 7, `${GENRE_LABEL[r.genre].name} × ${THEME_LABEL[r.theme].name}`, {
+        fontFamily: FONT_STACK,
+        fontSize: '17px',
+        color: TEXT_COLOR.dim,
+      }));
+      c.add(this.add.text(panelX + panelW - 26, y + 7, `★${r.stars} · ${formatGold(r.revenue)}`, {
+        fontFamily: FONT_STACK,
+        fontSize: '18px',
+        fontStyle: 'bold',
+        color: rival?.strength === 'marketing' ? TEXT_COLOR.warn : TEXT_COLOR.primary,
+      }).setOrigin(1, 0));
+    });
+
+    const share = this.rivals?.playerShare ?? 24;
+    c.add(this.add.text(panelX + 18, panelY + panelH - 34, `우리 장기 점유율 ${share}% · 경쟁을 피하면 안정, 맞붙으면 승패 보상이 커집니다.`, {
+      fontFamily: FONT_STACK,
+      fontSize: '18px',
+      color: TEXT_COLOR.dim,
+    }));
+    this.competitionBoard = c;
   }
 
   private drawCardSet<K extends string>(map: Map<K, CardView<K>>, selected: K | null): void {
@@ -514,7 +591,10 @@ export class GenreSelectScene extends Phaser.Scene {
       const pressure = forecastRivalPressure(this.selectedGenre, this.selectedTheme, this.productIndex, this.rivals);
       const baseText = `선택: ${g.name} × ${t.name}`;
       const competitionBase = pressure.matchedReleases.length > 0
-        ? `AI 경쟁 ${pressure.pressure}: ${pressure.matchedReleases.length}개 경쟁작 · 예상 매출 압박 ×${pressure.revenueMul.toFixed(1)}`
+        ? [
+            `AI 경쟁 ${pressure.pressure}: ${pressure.matchedReleases.length}개 경쟁작`,
+            `예상 매출 압박 ×${pressure.revenueMul.toFixed(1)}`,
+          ].join(' · ')
         : 'AI 경쟁 낮음: 직접 경쟁작이 적어 안정적인 출시 구간입니다.';
       const competitionText = hint ? `${competitionBase} · 포화 주의` : competitionBase;
       if (hint) {

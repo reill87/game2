@@ -4,13 +4,18 @@
  */
 import type { Employee, GameState } from './types';
 import { addProjectSignals } from './projectSignals';
+import { applyRivalCounter, type RivalCounterId } from './rivals';
 
 export type WeeklyActionId =
   | 'team-meeting'   // 팀 회의
   | 'one-on-one'     // 1:1 면담
   | 'lounge'         // 휴게실 휴식
   | 'daily-standup'  // 데일리 스탠드업
-  | 'tech-review';   // 기술 리뷰
+  | 'tech-review'    // 기술 리뷰
+  | 'rival-positioning'
+  | 'rival-fast-follow'
+  | 'rival-quality'
+  | 'rival-marketing';
 
 export interface WeeklyAction {
   readonly id: WeeklyActionId;
@@ -38,6 +43,18 @@ function applyAllEmployees(
       morale: clamp100(e.morale + dMorale),
       stamina: clamp100(e.stamina + dStamina),
     })),
+  };
+}
+
+function applyCompetitionAction(
+  state: GameState,
+  counterId: RivalCounterId,
+  patch: (state: GameState) => GameState,
+): GameState {
+  const next = patch(state);
+  return {
+    ...next,
+    rivals: applyRivalCounter(next.rivals, next.productIndex, counterId),
   };
 }
 
@@ -125,6 +142,83 @@ export const WEEKLY_ACTIONS: ReadonlyArray<WeeklyAction> = [
       };
       return addProjectSignals(next, { tech: 2.0 }, 0.5);
     },
+  },
+  {
+    id: 'rival-positioning',
+    label: '차별화 포지셔닝',
+    desc: '경쟁작과 겹치는 지점을 피합니다. 시장·창의 상승, 매출 압박 완화.',
+    apCost: 1,
+    apply: (state) =>
+      applyCompetitionAction(
+        state,
+        'positioning',
+        (s) => addProjectSignals(applyAllEmployees(s, 2, -2), { market: 2.8, creative: 1.8, ux: 0.6 }, 0.9),
+      ),
+  },
+  {
+    id: 'rival-fast-follow',
+    label: '빠른 추격 출시',
+    desc: '경쟁사보다 먼저 기능을 묶습니다. Progress +7%, BugDebt +5.',
+    apCost: 1,
+    apply: (state) =>
+      applyCompetitionAction(
+        state,
+        'fast-follow',
+        (s) => {
+          const signaled = addProjectSignals(applyAllEmployees(s, 1, -4), { tech: 1.4, market: 0.8 }, 0.7);
+          return {
+            ...signaled,
+            project: {
+              ...signaled.project,
+              progress: Math.min(100, signaled.project.progress + 7),
+              bugDebt: Math.min(100, signaled.project.bugDebt + 5),
+            },
+          };
+        },
+      ),
+  },
+  {
+    id: 'rival-quality',
+    label: '품질 승부',
+    desc: '경쟁작보다 완성도로 맞섭니다. BugDebt −7, 기술·UX 상승.',
+    apCost: 1,
+    apply: (state) =>
+      applyCompetitionAction(
+        state,
+        'quality-bar',
+        (s) => {
+          const signaled = addProjectSignals(applyAllEmployees(s, 0, -3), { tech: 1.8, ux: 1.4 }, 0.8);
+          return {
+            ...signaled,
+            project: {
+              ...signaled.project,
+              bugDebt: Math.max(0, signaled.project.bugDebt - 7),
+            },
+          };
+        },
+      ),
+  },
+  {
+    id: 'rival-marketing',
+    label: '마케팅 선점',
+    desc: '출시 전 인지도를 선점합니다. -80g, Appeal·시장 상승.',
+    apCost: 1,
+    apply: (state) =>
+      applyCompetitionAction(
+        state,
+        'marketing-blitz',
+        (s) => {
+          const signaled = addProjectSignals(applyAllEmployees(s, 3, -2), { market: 3.2, creative: 0.7 }, 1.0);
+          return {
+            ...signaled,
+            gold: signaled.gold - 80,
+            project: {
+              ...signaled.project,
+              appeal: signaled.project.appeal + (signaled.project.appealEnabled ? 10 : 0),
+            },
+          };
+        },
+      ),
   },
 ];
 

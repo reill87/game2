@@ -628,14 +628,31 @@ export class ResultScene extends Phaser.Scene {
     // 시장 경쟁 row — 라이벌 매치 시 표시.
     const ms = o.marketShare;
     const rivalMap = new Map(RIVALS.map((r) => [r.id, r] as const));
-    const marketShareRows: ReadonlyArray<readonly [string, string, string]> =
-      ms.matchedReleases.length > 0
-        ? [
+    const counterSuffix = ms.counterLabel ? ` (${ms.counterLabel} 대응)` : '';
+    const marketShareRows: ReadonlyArray<readonly [string, string, string]> = [
+      ...(ms.matchedReleases.length > 0
+        ? ([
             [
               '시장 경쟁',
-              `라이벌 ${ms.matchedReleases.length}개 경쟁 · 매출 ×${ms.revenueMul.toFixed(1)}`,
+              `라이벌 ${ms.matchedReleases.length}개 경쟁 · 매출 ×${ms.revenueMul.toFixed(2)}${counterSuffix}`,
               ms.revenueMul < 1 ? TEXT_COLOR.bad : TEXT_COLOR.dim,
             ],
+          ] as const)
+        : ([
+            ['시장 경쟁', '직접 경쟁작 적음 · 매출 압박 없음', TEXT_COLOR.ok],
+          ] as const)),
+      [
+        '분기 승자',
+        `${ms.winnerName} · 최고 매출 ${formatGold(ms.winnerRevenue)} · 우리 분기 점유 ${ms.quarterPlayerShare}%`,
+        ms.winnerName === '우리 회사' ? TEXT_COLOR.ok : TEXT_COLOR.warn,
+      ],
+      [
+        '장기 점유율',
+        `우리 ${ms.playerShare}% (${ms.playerShareDelta >= 0 ? '+' : ''}${ms.playerShareDelta}p)`,
+        ms.playerShareDelta >= 0 ? TEXT_COLOR.ok : TEXT_COLOR.bad,
+      ],
+      ...(ms.matchedReleases.length > 0
+        ? [
             ...ms.matchedReleases
               .filter((r) => r.stars > o.stars)
               .map((r) => {
@@ -647,7 +664,8 @@ export class ResultScene extends Phaser.Scene {
                 ] as const;
               }),
           ]
-        : [];
+        : []),
+    ];
 
     const baseRows: ReadonlyArray<readonly [string, string, string]> = [
       ['매출', `+${formatGold(o.revenue)}`, TEXT_COLOR.ok],
