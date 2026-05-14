@@ -4,7 +4,13 @@ import type { Types } from 'phaser';
 import { isMatched, SLOT_ORDER } from '@/domain/match';
 import { PROMO, SIDE_PROJECT } from '@/domain/balance';
 import { isRndPurchased } from '@/domain/rnd';
-import { categoryOf, EVENT_CATEGORY_LABEL, pickRandomEvent, type GameEvent } from '@/domain/events';
+import {
+  categoryOf,
+  EVENT_CATEGORY_LABEL,
+  pickRandomEvent,
+  type EventCategory,
+  type GameEvent,
+} from '@/domain/events';
 import { GENRE_LABEL, JOB_LABEL, SLOT_ICON, SLOT_LABEL, THEME_LABEL } from '@/domain/seed';
 import { HEADLINE_BY_STARS, type ReleaseOutcome, type ReviewStars, shipProject } from '@/domain/result';
 import {
@@ -47,8 +53,9 @@ import { EVENT_CATEGORY_TEXTURE } from '@/eventCategoryAssets';
 import { ICONS } from '@/icons';
 import { loadData, DEFAULT_COMPANY_NAME, clearData } from '@/save';
 import { playSfx, SFX } from '@/sounds';
-import { COLOR, FONT_STACK, TEXT_COLOR, TINT } from '@/theme';
+import { COLOR, FONT_STACK, NUMBER_FONT_STACK, TEXT_COLOR, TINT } from '@/theme';
 import { formatGold } from '@/ui';
+import { microPulse } from '@/ui/animations';
 import { addMuteToggle } from '@/util/muteToggle';
 import { conditionTextColor, drawConditionFill } from '@/util/condition';
 import { applyHiDPI } from '@/util/hidpi';
@@ -61,6 +68,20 @@ import { SCENE_KEYS } from './keys';
 
 const GAUGE_W = 600;
 const GAUGE_H = 18;
+
+const EVENT_CATEGORY_TONE: Readonly<Record<EventCategory, { fill: number; text: string }>> = {
+  A: { fill: 0x38bdf8, text: '#38bdf8' },
+  B: { fill: 0xa78bfa, text: '#a78bfa' },
+  C: { fill: 0x4f6fff, text: '#8aa1ff' },
+  D: { fill: 0xf472b6, text: '#f472b6' },
+  E: { fill: 0x22c55e, text: '#4ade80' },
+  F: { fill: 0xf59e0b, text: '#fbbf24' },
+  G: { fill: 0x14b8a6, text: '#5eead4' },
+  H: { fill: 0xf97316, text: '#fb923c' },
+  I: { fill: 0xe55f5f, text: '#ff9a9a' },
+  J: { fill: 0xef4444, text: '#f87171' },
+  K: { fill: 0x84cc16, text: '#bef264' },
+};
 
 function setButtonShown(view: ButtonView, shown: boolean): void {
   view.bg.setVisible(shown);
@@ -338,29 +359,31 @@ export class DevelopmentScene extends Phaser.Scene {
     const theme = THEME_LABEL[this.state.project.theme].name;
     const companyName = loadData()?.companyName ?? DEFAULT_COMPANY_NAME;
     const titleBg = this.add.graphics();
-    drawRaisedRect(titleBg, this.cx - 200, 24, 400, 42, COLOR.panelEmpty, {
+    const titleCenterX = this.contentX + 310;
+    const titleW = 280;
+    drawRaisedRect(titleBg, titleCenterX - titleW / 2, 24, titleW, 42, COLOR.panelEmpty, {
       radius: 21,
       shadow: false,
       gloss: true,
       stroke: COLOR.panelStroke,
       strokeAlpha: 0.55,
     });
-    this.add.text(this.cx, 45, companyName, titleStyle).setOrigin(0.5);
+    this.add.text(titleCenterX, 45, companyName, { ...titleStyle, fontSize: '29px' }).setOrigin(0.5);
     const chipBg = this.add.graphics();
-    drawRaisedRect(chipBg, this.cx - 170, 76, 340, 30, COLOR.btnSecondary, {
+    drawRaisedRect(chipBg, titleCenterX - 135, 76, 270, 30, COLOR.btnSecondary, {
       radius: 15,
       shadow: false,
       gloss: true,
     });
-    this.add.text(this.cx, 91, `개발 중 · ${genre} × ${theme}`, {
+    this.add.text(titleCenterX, 91, `개발 중 · ${genre} × ${theme}`, {
       fontFamily: FONT_STACK,
-      fontSize: '19px',
+      fontSize: '18px',
       fontStyle: 'bold',
       color: TEXT_COLOR.dim,
     }).setOrigin(0.5);
 
     this.weekText = this.add
-      .text(this.cx, 110, '', {
+      .text(titleCenterX, 110, '', {
         fontFamily: FONT_STACK,
         fontSize: '24px',
         color: TEXT_COLOR.dim,
@@ -502,13 +525,14 @@ export class DevelopmentScene extends Phaser.Scene {
 
     const labelStyle: Types.GameObjects.Text.TextStyle = {
       fontFamily: FONT_STACK,
-      fontSize: '26px',
+      fontSize: '24px',
       fontStyle: 'bold',
       color: TEXT_COLOR.dim,
     };
     const valueStyle: Types.GameObjects.Text.TextStyle = {
-      fontFamily: FONT_STACK,
-      fontSize: '26px',
+      fontFamily: NUMBER_FONT_STACK,
+      fontSize: '28px',
+      fontStyle: 'bold',
       color: TEXT_COLOR.primary,
     };
 
@@ -516,18 +540,18 @@ export class DevelopmentScene extends Phaser.Scene {
     const ICON_GAP = 8;
     const labelX = panelX + 24 + ICON_SIZE + ICON_GAP;
 
-    // Progress
+    this.drawMetricBand(panelX + 16, panelY + 14, panelW - 32, 74, COLOR.gaugeFillProgress);
     this.addLabelIcon(panelX + 24, panelY + 28, ICONS.progress.key, TINT.dim);
-    this.add.text(labelX, panelY + 20, 'Progress', labelStyle);
+    this.add.text(labelX, panelY + 20, '개발 진행', labelStyle);
     this.progressText = this.add
       .text(panelX + panelW - 24, panelY + 20, '0.0%', valueStyle)
       .setOrigin(1, 0);
     this.progressBar = this.add.graphics();
     this.drawGauge(this.progressBar, panelX + 24, panelY + 52, 0, COLOR.gaugeFillProgress);
 
-    // BugDebt
+    this.drawMetricBand(panelX + 16, panelY + 94, panelW - 32, 74, COLOR.gaugeFillBug);
     this.addLabelIcon(panelX + 24, panelY + 108, ICONS.bug.key, TINT.bad);
-    this.add.text(labelX, panelY + 100, 'BugDebt', labelStyle);
+    this.add.text(labelX, panelY + 100, '버그 부채', labelStyle);
     this.bugText = this.add
       .text(panelX + panelW - 24, panelY + 100, '0 / 100', valueStyle)
       .setOrigin(1, 0);
@@ -536,8 +560,9 @@ export class DevelopmentScene extends Phaser.Scene {
 
     // Appeal (해금 시에만)
     if (appealEnabled) {
+      this.drawMetricBand(panelX + 16, panelY + 174, panelW - 32, 74, COLOR.gaugeFillAppeal);
       this.addLabelIcon(panelX + 24, panelY + 188, ICONS.sparkle.key, TINT.dim);
-      this.add.text(labelX, panelY + 180, 'Appeal', labelStyle);
+      this.add.text(labelX, panelY + 180, '어필 점수', labelStyle);
       this.appealText = this.add
         .text(panelX + panelW - 24, panelY + 180, '0', valueStyle)
         .setOrigin(1, 0);
@@ -546,7 +571,7 @@ export class DevelopmentScene extends Phaser.Scene {
     }
 
     const signalsY = appealEnabled ? panelY + 258 : panelY + 178;
-    this.add.text(panelX + 24, signalsY - 22, '성공 요소', {
+    this.add.text(panelX + 24, signalsY - 22, '프로젝트 성공 요소', {
       fontFamily: FONT_STACK,
       fontSize: '19px',
       fontStyle: 'bold',
@@ -555,6 +580,14 @@ export class DevelopmentScene extends Phaser.Scene {
     const signalKeys: ProjectSignalKey[] = ['tech', 'ux', 'creative', 'market'];
     signalKeys.forEach((key, i) => {
       const x = panelX + 24 + i * 160;
+      const chipBg = this.add.graphics();
+      drawRaisedRect(chipBg, x - 8, signalsY - 6, 130, 32, COLOR.panelEmpty, {
+        radius: 8,
+        shadow: false,
+        gloss: true,
+        stroke: COLOR.panelStroke,
+        strokeAlpha: 0.35,
+      });
       this.add.text(x, signalsY, PROJECT_SIGNAL_LABEL[key], {
         fontFamily: FONT_STACK,
         fontSize: '17px',
@@ -571,10 +604,10 @@ export class DevelopmentScene extends Phaser.Scene {
         .setOrigin(1, 0);
     });
 
-    // Gold
     const goldY = appealEnabled ? panelY + 320 : panelY + 240;
+    this.drawMetricBand(panelX + 16, goldY - 10, panelW - 32, 54, TINT.warn);
     this.addLabelIcon(panelX + 24, goldY + 8, ICONS.coins.key, TINT.warn);
-    this.add.text(labelX, goldY, 'Gold', labelStyle);
+    this.add.text(labelX, goldY, '보유 골드', labelStyle);
     this.goldText = this.add
       .text(panelX + panelW - 24, goldY, '0', valueStyle)
       .setOrigin(1, 0);
@@ -608,6 +641,19 @@ export class DevelopmentScene extends Phaser.Scene {
       .setDisplaySize(16, 16)
       .setOrigin(0, 0.5)
       .setTint(tint);
+  }
+
+  private drawMetricBand(x: number, y: number, w: number, h: number, accent: number): void {
+    const g = this.add.graphics();
+    drawRaisedRect(g, x, y, w, h, COLOR.panelEmpty, {
+      radius: 12,
+      shadow: false,
+      gloss: true,
+      stroke: COLOR.panelStroke,
+      strokeAlpha: 0.42,
+    });
+    g.fillStyle(accent, 0.9);
+    g.fillRoundedRect(x, y + 8, 4, h - 16, 2);
   }
 
   private drawGauge(g: Phaser.GameObjects.Graphics, x: number, y: number, ratio: number, fill: number): void {
@@ -1285,34 +1331,45 @@ export class DevelopmentScene extends Phaser.Scene {
     const panel = makePanel(this, panelX, panelY, panelW, panelH, COLOR.panel);
     c.add(panel);
 
-    // 카테고리 chip — 패널 상단 좌측. 작은 라벨로만.
     const cat = categoryOf(ev);
+    const tone = EVENT_CATEGORY_TONE[cat];
+    const headerBg = this.add.graphics();
+    drawRaisedRect(headerBg, panelX + 18, panelY + 16, panelW - 36, 78, COLOR.panelEmpty, {
+      radius: 14,
+      shadow: false,
+      gloss: true,
+      stroke: tone.fill,
+      strokeAlpha: 0.65,
+    });
+    headerBg.fillStyle(tone.fill, 0.95);
+    headerBg.fillRoundedRect(panelX + 18, panelY + 16, 5, 78, 3);
+    c.add(headerBg);
+
     c.add(
       this.add
-        .text(panelX + 24, panelY + 22, `[${cat}] ${EVENT_CATEGORY_LABEL[cat]}`, {
+        .text(panelX + 38, panelY + 26, `[${cat}] ${EVENT_CATEGORY_LABEL[cat]}`, {
           fontFamily: FONT_STACK,
-          fontSize: '21px',
+          fontSize: '20px',
           fontStyle: 'bold',
-          color: TEXT_COLOR.warn,
+          color: tone.text,
         })
         .setOrigin(0, 0),
     );
 
-    // 제목 — chip 아래.
     c.add(
       this.add
-        .text(panelX + panelW / 2, panelY + 56, ev.title, {
+        .text(panelX + 38, panelY + 51, ev.title, {
           fontFamily: FONT_STACK,
-          fontSize: '36px',
+          fontSize: '34px',
           fontStyle: 'bold',
           color: TEXT_COLOR.primary,
         })
-        .setOrigin(0.5, 0),
+        .setOrigin(0, 0),
     );
 
     // 설명 — 제목 아래. 폭 = panel-padding.
     const descX = panelX + 30;
-    const descY = panelY + 102;
+    const descY = panelY + 112;
     const descText = this.add
       .text(descX, descY, ev.description, {
         fontFamily: FONT_STACK,
@@ -1327,8 +1384,8 @@ export class DevelopmentScene extends Phaser.Scene {
     // 선택지 — 패널 하단부터 위로 쌓아 올림.
     const choiceX = panelX + 30;
     const choiceW = panelW - 60;
-    const choiceH = 88;
-    const choiceGap = 14;
+    const choiceH = 112;
+    const choiceGap = 12;
     const choicesTotalH = ev.choices.length * choiceH + (ev.choices.length - 1) * choiceGap;
     const choicesStartY = panelY + panelH - choicesTotalH - 30;
 
@@ -1364,21 +1421,45 @@ export class DevelopmentScene extends Phaser.Scene {
       const btnBg = this.add.graphics();
       const drawBtn = (pressed: boolean): void => {
         btnBg.clear();
-        btnBg.fillStyle(pressed ? COLOR.btnSecondaryDown : COLOR.btnSecondary, 1);
-        btnBg.fillRoundedRect(choiceX, y, choiceW, choiceH, 14);
+        drawRaisedRect(
+          btnBg,
+          choiceX,
+          y,
+          choiceW,
+          choiceH,
+          pressed ? COLOR.btnSecondaryDown : COLOR.btnSecondary,
+          {
+            radius: 14,
+            pressed,
+            gloss: true,
+            shadow: true,
+            stroke: pressed ? tone.fill : COLOR.panelStroke,
+            strokeAlpha: pressed ? 0.9 : 0.5,
+          },
+        );
+        btnBg.fillStyle(tone.fill, pressed ? 0.95 : 0.72);
+        btnBg.fillRoundedRect(choiceX, y + 14, 4, choiceH - 28, 2);
       };
       drawBtn(false);
 
-      const label = this.add.text(choiceX + 22, y + 18, ch.label, {
+      const choiceNo = this.add.text(choiceX + 20, y + 22, `선택 ${i + 1}`, {
         fontFamily: FONT_STACK,
-        fontSize: '29px',
+        fontSize: '17px',
+        fontStyle: 'bold',
+        color: tone.text,
+      });
+      const label = this.add.text(choiceX + 104, y + 16, ch.label, {
+        fontFamily: FONT_STACK,
+        fontSize: '26px',
         fontStyle: 'bold',
         color: TEXT_COLOR.primary,
       });
-      const summary = this.add.text(choiceX + 22, y + 50, ch.summary, {
+      const summary = this.add.text(choiceX + 104, y + 58, ch.summary, {
         fontFamily: FONT_STACK,
-        fontSize: '21px',
+        fontSize: '18px',
         color: TEXT_COLOR.dim,
+        wordWrap: { width: choiceW - 130, useAdvancedWrap: true },
+        lineSpacing: 2,
       });
 
       const hit = this.add
@@ -1391,7 +1472,7 @@ export class DevelopmentScene extends Phaser.Scene {
         this.handleEventChoice(ev, i);
       });
 
-      c.add([btnBg, label, summary, hit]);
+      c.add([btnBg, choiceNo, label, summary, hit]);
     });
 
     this.eventModalContainer = c;
@@ -1861,27 +1942,42 @@ export class DevelopmentScene extends Phaser.Scene {
   /** displayStats가 state의 현재값으로 부드럽게 따라가게 하고, 매 프레임 패널을 다시 그린다. */
   private tweenStats(): void {
     this.statsTween?.stop();
-    this.statsTween = this.tweens.add({
-      targets: this.displayStats,
+    const from = { ...this.displayStats };
+    const to = {
       p: this.state.project.progress,
       b: this.state.project.bugDebt,
       a: this.state.project.appeal,
       g: this.state.gold,
+    };
+    this.statsTween = this.tweens.add({
+      targets: this.displayStats,
+      p: to.p,
+      b: to.b,
+      a: to.a,
+      g: to.g,
       duration: 600,
       ease: 'Cubic.easeOut',
       onUpdate: () => this.drawStatPanel(),
-      onComplete: () => this.drawStatPanel(),
+      onComplete: () => {
+        this.drawStatPanel();
+        if (Math.abs(to.p - from.p) >= 0.1) microPulse(this, this.progressText, 1.05);
+        if (Math.abs(to.b - from.b) >= 1) microPulse(this, this.bugText, 1.05);
+        if (this.appealText && Math.abs(to.a - from.a) >= 1) microPulse(this, this.appealText, 1.05);
+        if (Math.abs(to.g - from.g) >= 1) microPulse(this, this.goldText, 1.05);
+      },
     });
     this.drawStatPanel();
   }
 
   private drawStatPanel(): void {
     const { p, b, a, g } = this.displayStats;
-    this.progressText.setText(`${p.toFixed(1)}%`);
+    this.progressText
+      .setText(`${p.toFixed(1)}%`)
+      .setColor(p >= 100 ? TEXT_COLOR.ok : TEXT_COLOR.primary);
     this.bugText
       .setText(`${Math.round(b)} / 100`)
       .setColor(b >= 70 ? TEXT_COLOR.bad : TEXT_COLOR.primary);
-    this.goldText.setText(String(Math.round(g)));
+    this.goldText.setText(formatGold(Math.round(g)));
 
     const panelX = this.contentX + (720 - 690) / 2 + 24;
     this.drawGauge(this.progressBar, panelX, 172, p / 100, COLOR.gaugeFillProgress);
@@ -2012,16 +2108,14 @@ export class DevelopmentScene extends Phaser.Scene {
   // ────────────────────────── 주간 액션(AP) 버튼 ──────────────────────────
 
   /**
-   * AP 버튼 빌드 — 사이드 프로젝트 왼쪽에 배치.
+   * AP 버튼 빌드 — 상단 좌측, 음소거 버튼 오른쪽에 배치.
    * productIndex 무관하게 항상 노출(AP는 1작부터 있음).
    */
   private buildWeeklyActionButton(): void {
-    const w = 100;
-    const h = 40;
-    // 야근 버튼(124) + 사이드 프로젝트(110) + 간격(10+10) 왼쪽에 배치
-    const sideX = this.contentX + 720 - 14 - 124 - 10 - 110;
-    const x = sideX - 10 - w;
-    const y = 18;
+    const w = 104;
+    const h = 48;
+    const x = this.contentX + 58;
+    const y = 14;
     this.apBtnRect = new Phaser.Geom.Rectangle(x, y, w, h);
     this.apBtnBg = this.add.graphics();
     this.apBtnText = this.add
@@ -2044,11 +2138,21 @@ export class DevelopmentScene extends Phaser.Scene {
     if (!this.apBtnBg || !this.apBtnText || !this.apBtnRect || !this.apBtnHit) return;
     const ap = this.state.availableAp ?? 0;
     const hasAp = ap > 0;
-    const fill = hasAp ? 0x2a5a2a : COLOR.btnSecondary;
+    const fill = hasAp ? 0x1f5f46 : COLOR.btnSecondary;
     const r = this.apBtnRect;
     this.apBtnBg.clear();
-    this.apBtnBg.fillStyle(fill, 1);
-    this.apBtnBg.fillRoundedRect(r.x, r.y, r.width, r.height, 12);
+    drawRaisedRect(this.apBtnBg, r.x, r.y, r.width, r.height, fill, {
+      radius: 14,
+      gloss: true,
+      shadow: true,
+      stroke: hasAp ? COLOR.matchOk : COLOR.panelStroke,
+      strokeAlpha: hasAp ? 0.85 : 0.45,
+    });
+    const dotY = r.y + r.height - 9;
+    for (let i = 0; i < AP_CAP; i++) {
+      this.apBtnBg.fillStyle(i < ap ? COLOR.matchOk : COLOR.gaugeBg, 1);
+      this.apBtnBg.fillRoundedRect(r.x + 27 + i * 19, dotY, 13, 4, 2);
+    }
     this.apBtnText
       .setText(`행동\nAP ${ap}/${AP_CAP}`)
       .setColor(hasAp ? TEXT_COLOR.ok : TEXT_COLOR.dim);
