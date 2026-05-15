@@ -25,6 +25,7 @@ import {
 } from './rivals';
 import type { RivalRelease } from './rivals';
 import { normalizeProjectSignals } from './projectSignals';
+import { applyLateGameRelease, type LateGameContractId } from './lateGame';
 import type { Employee, GameState, PromoTier, Rank } from './types';
 
 function clamp(n: number, lo: number, hi: number): number {
@@ -130,6 +131,15 @@ export interface ReleaseOutcome {
     readonly winnerName: string;
     readonly winnerRevenue: number;
   };
+  /** 후반부 대형 계약 / 초월 국면 결과. 없으면 아직 후반부 미진입. */
+  readonly lateGame: {
+    readonly contractId: LateGameContractId | null;
+    readonly contractName: string;
+    readonly revenueBonus: number;
+    readonly progressGain: number;
+    readonly completed: boolean;
+    readonly transcendenceJustUnlocked: boolean;
+  } | null;
   /** released=true, gold = (prev.gold − promo.cost) + revenue. reputation도 누적. */
   readonly state: GameState;
 }
@@ -300,7 +310,9 @@ export function shipProject(
     provisionalRivals,
   );
   const earlyRevenueBonus = BALANCE.earlyRevenueBonusByProduct[prev.productIndex] ?? 0;
-  const revenue = Math.round(preRivalRevenue * ms.revenueMul) + earlyRevenueBonus;
+  const baseRevenueAfterCompetition = Math.round(preRivalRevenue * ms.revenueMul) + earlyRevenueBonus;
+  const lateGameUpdate = applyLateGameRelease(prev, baseRevenueAfterCompetition, stars, finalScore);
+  const revenue = baseRevenueAfterCompetition + lateGameUpdate.revenueBonus;
   const standingUpdate = updateRivalStandings(prev.rivals, prev.productIndex, {
     stars,
     revenue,
@@ -350,6 +362,7 @@ export function shipProject(
     exec: nextExec,
     economy: newEconomy,
     rivals: standingUpdate.rivals,
+    lateGame: lateGameUpdate.state,
   });
   const state: GameState = { ...released, gold: released.gold + revenue };
 
@@ -404,6 +417,25 @@ export function shipProject(
         : getRivalName(standingUpdate.standing.winner),
       winnerRevenue: standingUpdate.standing.winnerRevenue,
     },
+    lateGame: lateGameUpdate.contract
+      ? {
+          contractId: lateGameUpdate.contract.id,
+          contractName: lateGameUpdate.contract.name,
+          revenueBonus: lateGameUpdate.revenueBonus,
+          progressGain: lateGameUpdate.progressGain,
+          completed: lateGameUpdate.completed,
+          transcendenceJustUnlocked: lateGameUpdate.transcendenceJustUnlocked,
+        }
+      : lateGameUpdate.transcendenceJustUnlocked
+        ? {
+            contractId: null,
+            contractName: '초월 국면',
+            revenueBonus: 0,
+            progressGain: 0,
+            completed: false,
+            transcendenceJustUnlocked: true,
+          }
+        : null,
     state,
   };
 }

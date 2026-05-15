@@ -405,6 +405,12 @@ export class SettingsScene extends Phaser.Scene {
           acquisitions: existing.acquisitions ?? EMPTY_ACQUISITIONS,
           lastAssignment: existing.lastAssignment,
           lastSupport: existing.lastSupport,
+          mails: existing.mails,
+          bankruptcy: existing.bankruptcy,
+          exec: existing.exec,
+          economy: existing.economy,
+          rivals: existing.rivals,
+          lateGame: existing.lateGame,
           companyName: name,
         });
       }

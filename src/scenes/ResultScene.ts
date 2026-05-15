@@ -36,6 +36,11 @@ import {
   type RndState,
 } from '@/domain/rnd';
 import {
+  EMPTY_LATE_GAME,
+  normalizeLateGame,
+  type LateGameState,
+} from '@/domain/lateGame';
+import {
   ECONOMY_PHASE_LABEL,
   EMPTY_ECONOMY,
   getEconomyPhase,
@@ -179,6 +184,8 @@ export class ResultScene extends Phaser.Scene {
   private goldCountTween: Phaser.Tweens.Tween | null = null;
   /** 수신 메일 목록 — 최대 30개 보관. */
   private liveMails: ReadonlyArray<MailMessage> = [];
+  /** 후반부 대형 계약 / 초월 국면 상태. */
+  private liveLateGame: LateGameState = EMPTY_LATE_GAME;
 
   // office panel widgets
   private officeStatusText: Phaser.GameObjects.Text | null = null;
@@ -267,6 +274,14 @@ export class ResultScene extends Phaser.Scene {
     this.liveFacilities = existing?.facilities ?? EMPTY_FACILITIES;
     this.liveMarkets = existing?.markets ?? EMPTY_MARKETS;
     this.liveAcquisitions = existing?.acquisitions ?? EMPTY_ACQUISITIONS;
+    {
+      const outcomeLateGame = normalizeLateGame(data.outcome.state.lateGame ?? existing?.lateGame);
+      const savedLateGame = normalizeLateGame(existing?.lateGame);
+      this.liveLateGame = {
+        ...outcomeLateGame,
+        transcendenceNotified: outcomeLateGame.transcendenceNotified || savedLateGame.transcendenceNotified,
+      };
+    }
     // endingsShown 로드 — save.ts의 sanitizeEndingsShown이 endingShown(deprecated) 마이그레이션을
     // 이미 처리하므로 여기서는 endingsShown만 보면 된다.
     type EndingId = 'acquisition' | 'ipo' | 'global-no1' | 'unicorn' | 'global-hq';
@@ -356,6 +371,11 @@ export class ResultScene extends Phaser.Scene {
           confettiBurst(this, 360, 400, { count: 24 });
         });
       });
+    }
+    if (this.outcome.lateGame?.transcendenceJustUnlocked && !this.liveLateGame.transcendenceNotified) {
+      this.liveLateGame = { ...this.liveLateGame, transcendenceNotified: true };
+      this.persistResult();
+      this.time.delayedCall(1600, () => this.showTranscendenceUnlockModal());
     }
     // 엔딩 분기 — 가장 높은 미달성 임계 우선.
     const totalRevenue = this.history.reduce((s, r) => s + r.revenue, 0);
@@ -477,6 +497,7 @@ export class ResultScene extends Phaser.Scene {
       ...(o.state.exec ? { exec: o.state.exec } : {}),
       economy: this.liveEconomy,
       ...(o.state.rivals ? { rivals: o.state.rivals } : {}),
+      lateGame: this.liveLateGame,
     });
     this.savedAt = saved?.savedAt ?? null;
   }
@@ -503,6 +524,47 @@ export class ResultScene extends Phaser.Scene {
       playSfx(this, SFX.tap);
       this.scene.start(SCENE_KEYS.Settings, { returnTo: SCENE_KEYS.Result });
     });
+  }
+
+  private showTranscendenceUnlockModal(): void {
+    const modal = createModal(this, {
+      w: 600,
+      h: 360,
+      title: '초월 국면 해금',
+      subtitle: '현실 회사의 R&D 한계를 모두 돌파했습니다.',
+      scrimAlpha: 0.78,
+    });
+    const { x, y, width } = modal.contentArea;
+    modal.layer.add(this.add.text(x + 4, y + 10, '이제 회사는 단순한 소프트웨어 조직이 아니라, 시장과 현실을 함께 설계하는 단계로 넘어갑니다.', {
+      fontFamily: FONT_STACK,
+      fontSize: '23px',
+      color: TEXT_COLOR.primary,
+      wordWrap: { width: width - 8, useAdvancedWrap: true },
+      lineSpacing: 8,
+    }));
+    modal.layer.add(this.add.text(x + 4, y + 112, [
+      'AI자율성: 프로젝트가 회사 밖의 시스템까지 최적화합니다.',
+      '현실안정도: 초월 기술을 무리하게 쓰면 세계가 흔들립니다.',
+      '특이점: 후반부 목표를 완료할수록 다음 단계가 가까워집니다.',
+    ].join('\n'), {
+      fontFamily: FONT_STACK,
+      fontSize: '20px',
+      color: TEXT_COLOR.dim,
+      wordWrap: { width: width - 8, useAdvancedWrap: true },
+      lineSpacing: 8,
+    }));
+    const ok = createButton(this, {
+      x: x + width - 190,
+      y: y + 238,
+      w: 180,
+      h: 54,
+      label: '확인',
+      onTap: () => modal.close(),
+    });
+    modal.layer.add(ok.bg);
+    modal.layer.add(ok.text);
+    modal.layer.add(ok.hit);
+    confettiBurst(this, 360, 360, { count: 48 });
   }
 
   // ────────────────────────── header ──────────────────────────
@@ -659,6 +721,38 @@ export class ResultScene extends Phaser.Scene {
     const ecoRow: ReadonlyArray<readonly [string, string, string]> = [
       ['경기', `${o.economy.phase} (지표 ${o.economy.index} · 매출 ×${ecoMulVal.toFixed(1)})`, ecoRowColor],
     ];
+    const late = this.liveLateGame;
+    const lateRows: ReadonlyArray<readonly [string, string, string]> =
+      o.lateGame
+        ? ([
+            [
+              '대형 계약',
+              `${o.lateGame.contractName} · 진행 +${o.lateGame.progressGain}%${o.lateGame.completed ? ' · 완료' : ''}`,
+              o.lateGame.completed ? TEXT_COLOR.ok : TEXT_COLOR.warn,
+            ],
+            ...(o.lateGame.revenueBonus > 0
+              ? ([['계약 보너스', `+${formatGold(o.lateGame.revenueBonus)}`, TEXT_COLOR.ok]] as const)
+              : []),
+          ] as const)
+        : ([] as ReadonlyArray<readonly [string, string, string]>);
+    const lateMetricRows: ReadonlyArray<readonly [string, string, string]> =
+      late.transcendenceUnlocked
+        ? ([
+            [
+              '초월 지표',
+              `AI자율 ${late.metrics.aiAutonomy} · 현실안정 ${late.metrics.realityStability} · 특이점 ${late.metrics.singularity}`,
+              late.metrics.realityStability < 45 ? TEXT_COLOR.bad : '#c4b5fd',
+            ],
+          ] as const)
+        : late.completedContracts.length > 0 || late.activeContract
+          ? ([
+              [
+                '후반 지표',
+                `플랫폼 ${late.metrics.platform} · 신뢰 ${late.metrics.enterpriseTrust} · 안정 ${late.metrics.operationalStability} · 부채 ${late.metrics.techDebt}`,
+                late.metrics.techDebt >= 70 ? TEXT_COLOR.bad : TEXT_COLOR.primary,
+              ],
+            ] as const)
+          : ([] as ReadonlyArray<readonly [string, string, string]>);
 
     // 시장 경쟁 row — 라이벌 매치 시 표시.
     const ms = o.marketShare;
@@ -706,6 +800,8 @@ export class ResultScene extends Phaser.Scene {
       ['매출', `+${formatGold(o.revenue)}`, TEXT_COLOR.ok],
       ['명성', repValue, TEXT_COLOR.warn],
       ...marketShareRows,
+      ...lateRows,
+      ...lateMetricRows,
       ...trendRow,
       ...ecoRow,
       ['BugDebt', `${Math.round(project.bugDebt)} / 100`, project.bugDebt >= 70 ? TEXT_COLOR.bad : TEXT_COLOR.primary],

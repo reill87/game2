@@ -29,11 +29,23 @@ import {
   type RivalRelease,
   type RivalState,
 } from '@/domain/rivals';
+import {
+  EMPTY_LATE_GAME,
+  LATE_GAME_CONTRACTS,
+  LATE_GAME_START_PRODUCT,
+  defaultLateGameContract,
+  isLateGameEligible,
+  normalizeLateGame,
+  setLateGameContract,
+  type LateGameContractId,
+  type LateGameState,
+} from '@/domain/lateGame';
 import type {
   Assignment,
   CompanyPolicy,
   Employee,
   GenreId,
+  OfficeLevel,
   ThemeId,
   TrendStatus,
 } from '@/domain/types';
@@ -69,7 +81,7 @@ export class GenreSelectScene extends Phaser.Scene {
 
   private productIndex = 1;
   private gold = 0;
-  private officeLevel: 1 | 2 | 3 = 1;
+  private officeLevel: OfficeLevel = 1;
   private reputation = 0;
   private policy: CompanyPolicy = DEFAULT_POLICY;
   private trend: TrendStatus | null = null;
@@ -92,9 +104,12 @@ export class GenreSelectScene extends Phaser.Scene {
   private economy: EconomyState | undefined = undefined;
   /** 경쟁사 출시 이력 — newProject로 전달. */
   private rivals: RivalState | undefined = undefined;
+  /** 후반부 대형 계약 / 초월 국면 상태 — newProject로 전달. */
+  private lateGame: LateGameState = EMPTY_LATE_GAME;
 
   private selectedGenre: GenreId | null = null;
   private selectedTheme: ThemeId | null = null;
+  private selectedContract: LateGameContractId | null = null;
 
   private genreCards = new Map<GenreId, CardView<GenreId>>();
   private themeCards = new Map<ThemeId, CardView<ThemeId>>();
@@ -105,6 +120,7 @@ export class GenreSelectScene extends Phaser.Scene {
 
   private statusText!: Phaser.GameObjects.Text;
   private competitionBoard: Phaser.GameObjects.Container | null = null;
+  private lateGameBoard: Phaser.GameObjects.Container | null = null;
   /** 매 create() 시 갱신. */
   private cx = 360;
   private contentX = 0;
@@ -116,7 +132,7 @@ export class GenreSelectScene extends Phaser.Scene {
   init(data: {
     productIndex: number;
     gold: number;
-    officeLevel?: 1 | 2 | 3;
+    officeLevel?: OfficeLevel;
     reputation?: number;
     policy?: CompanyPolicy;
     trend?: TrendStatus | null;
@@ -132,6 +148,7 @@ export class GenreSelectScene extends Phaser.Scene {
     exec?: import('@/domain/exec').ExecState;
     economy?: EconomyState;
     rivals?: RivalState;
+    lateGame?: LateGameState;
   }): void {
     this.productIndex = data.productIndex;
     this.gold = data.gold;
@@ -151,8 +168,12 @@ export class GenreSelectScene extends Phaser.Scene {
     this.exec = data.exec;
     this.economy = data.economy;
     this.rivals = data.rivals;
+    this.lateGame = normalizeLateGame(data.lateGame);
     this.selectedGenre = null;
     this.selectedTheme = null;
+    this.selectedContract = isLateGameEligible(this.productIndex) || this.lateGame.transcendenceUnlocked
+      ? this.lateGame.activeContract ?? defaultLateGameContract(this.productIndex)
+      : null;
   }
 
   create(): void {
@@ -168,6 +189,7 @@ export class GenreSelectScene extends Phaser.Scene {
     this.buildStatus();
     this.buildNextButton();
     this.drawCompetitionBoard();
+    this.drawLateGameBoard();
     addMuteToggle(this);
     this.redrawAll();
     applyHiDPI(this);
@@ -473,6 +495,9 @@ export class GenreSelectScene extends Phaser.Scene {
       ...(this.exec ? { exec: this.exec } : {}),
       ...(this.economy ? { economy: this.economy } : {}),
       ...(this.rivals ? { rivals: this.rivals } : {}),
+      lateGame: this.selectedContract
+        ? setLateGameContract(this.lateGame, this.selectedContract)
+        : this.lateGame,
     });
     this.scene.start(SCENE_KEYS.Assignment, { state, lastResult: this.lastResult });
   }
@@ -483,6 +508,7 @@ export class GenreSelectScene extends Phaser.Scene {
     this.drawCardSet(this.themeCards, this.selectedTheme);
     this.updateStatus();
     this.drawCompetitionBoard();
+    this.drawLateGameBoard();
     this.drawNextButton();
   }
 
@@ -557,6 +583,83 @@ export class GenreSelectScene extends Phaser.Scene {
       color: TEXT_COLOR.dim,
     }));
     this.competitionBoard = c;
+  }
+
+  private drawLateGameBoard(): void {
+    this.lateGameBoard?.destroy(true);
+    if (!isLateGameEligible(this.productIndex) && !this.lateGame.transcendenceUnlocked) return;
+
+    const c = this.add.container(0, 0);
+    const panelX = this.contentX + 44;
+    const panelY = 1164;
+    const panelW = 632;
+    const panelH = 96;
+    const bg = this.add.graphics();
+    bg.fillStyle(COLOR.panel, 0.96);
+    bg.fillRoundedRect(panelX, panelY, panelW, panelH, 14);
+    bg.lineStyle(1, this.lateGame.transcendenceUnlocked ? 0xa78bfa : COLOR.panelStroke, 0.85);
+    bg.strokeRoundedRect(panelX, panelY, panelW, panelH, 14);
+    c.add(bg);
+
+    const title = this.lateGame.transcendenceUnlocked
+      ? '초월 국면 · 현실 회사 이후'
+      : `후반부 대형 계약 · ${LATE_GAME_START_PRODUCT + 1}번째 프로젝트 이후`;
+    c.add(this.add.text(panelX + 18, panelY + 12, title, {
+      fontFamily: FONT_STACK,
+      fontSize: '21px',
+      fontStyle: 'bold',
+      color: this.lateGame.transcendenceUnlocked ? '#c4b5fd' : TEXT_COLOR.warn,
+    }));
+
+    const m = this.lateGame.metrics;
+    const metricLine = this.lateGame.transcendenceUnlocked
+      ? `AI ${m.aiAutonomy} · 현실 ${m.realityStability} · 특이점 ${m.singularity}`
+      : `플랫폼 ${m.platform} · 신뢰 ${m.enterpriseTrust} · 안정 ${m.operationalStability} · 부채 ${m.techDebt}`;
+    c.add(this.add.text(panelX + panelW - 18, panelY + 14, metricLine, {
+      fontFamily: FONT_STACK,
+      fontSize: '15px',
+      color: TEXT_COLOR.dim,
+    }).setOrigin(1, 0));
+
+    const cardW = 145;
+    const cardH = 38;
+    const gap = 8;
+    const startX = panelX + 18;
+    LATE_GAME_CONTRACTS.forEach((contract, i) => {
+      const x = startX + i * (cardW + gap);
+      const y = panelY + 48;
+      const selected = this.selectedContract === contract.id;
+      const done = this.lateGame.completedContracts.includes(contract.id);
+      const cardBg = this.add.graphics();
+      cardBg.fillStyle(done ? 0x12321f : selected ? COLOR.panel : COLOR.panelEmpty, 0.98);
+      cardBg.lineStyle(selected ? 3 : 1, selected ? COLOR.selected : COLOR.panelStroke, done ? 0.9 : 0.7);
+      cardBg.fillRoundedRect(x, y, cardW, cardH, 10);
+      cardBg.strokeRoundedRect(x, y, cardW, cardH, 10);
+      c.add(cardBg);
+      c.add(this.add.text(x + 8, y + 10, done ? '완료' : selected ? `${this.lateGame.contractProgress}%` : '계약', {
+        fontFamily: FONT_STACK,
+        fontSize: '13px',
+        fontStyle: 'bold',
+        color: done ? TEXT_COLOR.ok : selected ? TEXT_COLOR.warn : TEXT_COLOR.dim,
+      }));
+      c.add(this.add.text(x + cardW - 8, y + 9, contract.name, {
+        fontFamily: FONT_STACK,
+        fontSize: '14px',
+        fontStyle: 'bold',
+        color: TEXT_COLOR.primary,
+        align: 'right',
+        wordWrap: { width: cardW - 46, useAdvancedWrap: true },
+      }).setOrigin(1, 0));
+      const hit = this.add.zone(x + cardW / 2, y + cardH / 2, cardW, cardH).setInteractive({ useHandCursor: true });
+      hit.on('pointerup', () => {
+        playSfx(this, SFX.tap);
+        this.selectedContract = contract.id;
+        this.redrawAll();
+      });
+      c.add(hit);
+    });
+
+    this.lateGameBoard = c;
   }
 
   private drawCardSet<K extends string>(map: Map<K, CardView<K>>, selected: K | null): void {

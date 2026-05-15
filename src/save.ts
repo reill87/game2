@@ -50,6 +50,7 @@ import type { BankruptcyState } from './domain/bankruptcy';
 import type { ExecState } from './domain/exec';
 import { EMPTY_RIVALS, type RivalState, type RivalRelease, RIVALS } from './domain/rivals';
 import type { RivalCounterId, RivalId } from './domain/rivals';
+import { normalizeLateGame, type LateGameState } from './domain/lateGame';
 
 const KEY = 'game2.save';
 const LEGACY_KEY_V1 = 'game2.save.v1';
@@ -126,6 +127,8 @@ export interface SaveData {
   readonly economy?: EconomyState;
   /** 경쟁사 출시 이력 — 옵셔널 (옛 데이터 호환). */
   readonly rivals?: RivalState;
+  /** 후반부 대형 계약 / 초월 국면 상태 — 옵셔널 (옛 데이터 호환). */
+  readonly lateGame?: LateGameState;
 }
 
 /** 회사명 기본값. */
@@ -262,6 +265,7 @@ export function saveData(input: {
   exec?: ExecState;
   economy?: EconomyState;
   rivals?: RivalState;
+  lateGame?: LateGameState;
 }): SaveData | null {
   const storage = getStorage();
   if (!storage) return null;
@@ -292,6 +296,7 @@ export function saveData(input: {
     ...(input.exec ? { exec: input.exec } : {}),
     ...(input.economy ? { economy: input.economy } : {}),
     ...(input.rivals ? { rivals: input.rivals } : {}),
+    ...(input.lateGame ? { lateGame: input.lateGame } : {}),
   };
   try {
     storage.setItem(KEY, JSON.stringify(full));
@@ -736,6 +741,7 @@ function interpret(storage: Storage, parsed: unknown, fromLegacy: boolean): Save
       ...(obj.exec ? { exec: sanitizeExec(obj.exec) } : {}),
       ...(obj.economy ? { economy: sanitizeEconomy(obj.economy) } : {}),
       ...(obj.rivals ? { rivals: sanitizeRivals(obj.rivals) } : {}),
+      ...(obj.lateGame ? { lateGame: normalizeLateGame(obj.lateGame) } : {}),
     };
     if (fromLegacy) {
       saveDataDirect(storage, sanitized);

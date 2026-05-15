@@ -582,6 +582,8 @@ export function newProject(opts: {
   economy?: import('./economy').EconomyState;
   /** 경쟁사 출시 이력 — 옵셔널 (옛 데이터 호환). */
   rivals?: import('./rivals').RivalState;
+  /** 후반부 대형 계약 / 초월 국면 상태 — 옵셔널 (옛 데이터 호환). */
+  lateGame?: import('./lateGame').LateGameState;
 }): GameState {
   return {
     employees: opts.employees,
@@ -620,6 +622,7 @@ export function newProject(opts: {
     ...(opts.exec ? { exec: opts.exec } : {}),
     ...(opts.economy ? { economy: opts.economy } : {}),
     ...(opts.rivals ? { rivals: opts.rivals } : {}),
+    ...(opts.lateGame ? { lateGame: opts.lateGame } : {}),
   };
 }
 

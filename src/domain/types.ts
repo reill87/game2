@@ -12,6 +12,7 @@ import type { PrestigeBonus } from './prestige';
 import type { BankruptcyState } from './bankruptcy';
 import type { ExecState } from './exec';
 import type { RivalState } from './rivals';
+import type { LateGameState } from './lateGame';
 
 /** 사옥 단계 — 1 (분당 셰어) ~ 6 (글로벌 본사 타워). 새 단계 추가 시 여기만 늘리면 됨. */
 export type OfficeLevel = 1 | 2 | 3 | 4 | 5 | 6;
@@ -210,4 +211,6 @@ export interface GameState {
   readonly economy?: EconomyState;
   /** 경쟁사 출시 이력 — 옵셔널 (옛 데이터 호환). */
   readonly rivals?: RivalState;
+  /** 후반부 대형 계약 / 초월 국면 상태 — 옵셔널 (옛 데이터 호환). */
+  readonly lateGame?: LateGameState;
 }
