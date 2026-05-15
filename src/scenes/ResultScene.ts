@@ -73,7 +73,7 @@ import {
   type EmployeeEquipment,
   type EquipmentSlot,
 } from '@/domain/equipment';
-import type { CompanyPolicy, Employee, OfficeLevel, Track } from '@/domain/types';
+import type { CompanyPolicy, Employee, Job, OfficeLevel, Track } from '@/domain/types';
 import { ICONS } from '@/icons';
 import { BGM } from '@/bgm';
 import { OFFICE_ILLUSTRATION } from '@/illustrations';
@@ -90,7 +90,7 @@ import { NPCS } from '@/domain/npcs';
 import { detectNewMilestones, type Milestone, type MilestoneId } from '@/domain/milestones';
 import { playSfx, SFX } from '@/sounds';
 import { COLOR, FONT_STACK, TEXT_COLOR, TINT } from '@/theme';
-import { formatGold, formatNumber, createModal, createButton, confettiBurst, showToast, countUp, microPulse, addCategoryStripe } from '@/ui';
+import { formatGold, formatNumber, createModal, createButton, createScrollArea, confettiBurst, showToast, countUp, microPulse, addCategoryStripe } from '@/ui';
 import { TYPE } from '@/theme';
 import { applyHiDPI } from '@/util/hidpi';
 import { addMuteToggle } from '@/util/muteToggle';
@@ -101,6 +101,41 @@ import { onResize } from '@/util/viewport';
 import { buildYearEndReport, calendarFor, type YearEndReport } from '@/domain/calendar';
 
 import { SCENE_KEYS } from './keys';
+
+const EQUIPMENT_SLOTS: ReadonlyArray<EquipmentSlot> = ['desk', 'chair', 'monitor', 'laptop'];
+
+const JOB_SHORT_LABEL: Readonly<Record<Job, string>> = {
+  planner: 'PM',
+  designer: 'DES',
+  programmer: 'DEV',
+  qa: 'QA',
+  marketing: 'MKT',
+  data: 'DATA',
+};
+
+function jobAccentColor(job: Job): number {
+  switch (job) {
+    case 'planner':
+      return TINT.warn;
+    case 'designer':
+      return 0x7c5cff;
+    case 'programmer':
+      return COLOR.btn;
+    case 'qa':
+      return TINT.ok;
+    case 'marketing':
+      return 0xf59e0b;
+    case 'data':
+      return 0x22c55e;
+  }
+}
+
+interface EquipmentPurchasePlan {
+  readonly employeeId: string;
+  readonly slot: EquipmentSlot;
+  readonly tier: number;
+  readonly cost: number;
+}
 
 /** 출시 결과 화면. 자동 저장(localStorage)되며 [처음으로]는 Boot로 돌아가 골드를 이월한다. */
 export class ResultScene extends Phaser.Scene {
@@ -2093,17 +2128,18 @@ export class ResultScene extends Phaser.Scene {
       : 0;
 
     const tabCols = 6;
-    const tabH = 36;
+    const tabH = 46;
     const tabGap = 6;
     const tabRowGap = 6;
     const tabRows = Math.max(1, Math.ceil(emps.length / tabCols));
     const tabsBlockH = tabRows * tabH + (tabRows - 1) * tabRowGap;
 
+    const bulkH = 132;
     const slotCardH = 64;
     const slotGap = 8;
     const slotsH = 4 * slotCardH + 3 * slotGap;
     const panelW = 620;
-    const panelH = Math.min(1240, 80 + tabsBlockH + 8 + 16 + slotsH + 16 + 48 + 16);
+    const panelH = Math.min(1240, 80 + tabsBlockH + 14 + bulkH + 16 + slotsH + 16 + 48 + 16);
 
     const modal = createModal(this, {
       w: panelW,
@@ -2123,18 +2159,145 @@ export class ResultScene extends Phaser.Scene {
     const empTabs: Array<{
       bg: Phaser.GameObjects.Graphics;
       text: Phaser.GameObjects.Text;
+      jobText: Phaser.GameObjects.Text;
+      hit: Phaser.GameObjects.Zone;
     }> = [];
-    const slotsContainerY = tabsY + tabsBlockH + 16;
+    const bulkContainerY = tabsY + tabsBlockH + 14;
+    const bulkContainer = this.add.container(panelX + 24, bulkContainerY);
+    layer.add(bulkContainer);
+    const slotsContainerY = bulkContainerY + bulkH + 16;
     const slotsContainer = this.add.container(panelX + 24, slotsContainerY);
     layer.add(slotsContainer);
+
+    const rebuildBulkActions = (): void => {
+      bulkContainer.removeAll(true);
+      const emp = emps[selectedIdx];
+      const cardW = panelW - 48;
+
+      const bg = this.add.graphics();
+      drawRaisedRect(bg, 0, 0, cardW, bulkH, COLOR.panelEmpty, {
+        radius: 8,
+        shadow: true,
+        gloss: true,
+      });
+      bulkContainer.add(bg);
+
+      bulkContainer.add(
+        this.add.text(14, 12, '일괄 구매 / 업그레이드', {
+          fontFamily: FONT_STACK,
+          fontSize: '20px',
+          fontStyle: 'bold',
+          color: TEXT_COLOR.primary,
+        }),
+      );
+      bulkContainer.add(
+        this.add
+          .text(cardW - 14, 14, `보유 ${formatGold(this.liveGold)}`, {
+            fontFamily: FONT_STACK,
+            fontSize: '16px',
+            fontStyle: 'bold',
+            color: TEXT_COLOR.warn,
+          })
+          .setOrigin(1, 0),
+      );
+
+      const addBulkButton = (
+        label: string,
+        x: number,
+        y: number,
+        w: number,
+        h: number,
+        plan: ReadonlyArray<EquipmentPurchasePlan>,
+        focusId: string | null,
+      ): void => {
+        const totalCost = this.getEquipmentPlanCost(plan);
+        const enabled = plan.length > 0 && this.liveGold >= totalCost;
+        const btnBg = this.add.graphics();
+        btnBg.fillStyle(enabled ? COLOR.btn : COLOR.btnDisabled, 1);
+        btnBg.fillRoundedRect(x, y, w, h, 8);
+        bulkContainer.add(btnBg);
+
+        const subLabel = plan.length === 0
+          ? '완료'
+          : `${formatGold(totalCost)} · ${plan.length}개`;
+        const text = this.add
+          .text(x + w / 2, y + h / 2, `${label}\n${subLabel}`, {
+            fontFamily: FONT_STACK,
+            fontSize: '15px',
+            fontStyle: 'bold',
+            color: enabled ? TEXT_COLOR.primary : TEXT_COLOR.disabled,
+            align: 'center',
+            lineSpacing: 1,
+            wordWrap: { width: w - 10, useAdvancedWrap: true },
+          })
+          .setOrigin(0.5);
+        bulkContainer.add(text);
+
+        if (!enabled) return;
+        const hit = this.add
+          .zone(x + w / 2, y + h / 2, w, h)
+          .setInteractive({ useHandCursor: true });
+        hit.on('pointerup', () => {
+          playSfx(this, SFX.buy);
+          if (!this.applyEquipmentBulkPurchase(plan)) return;
+          layer.destroy();
+          this.openEquipmentModal(focusId);
+        });
+        bulkContainer.add(hit);
+      };
+
+      const topGap = 8;
+      const topW = (cardW - 28 - topGap * 2) / 3;
+      const topY = 42;
+      addBulkButton(
+        emp ? `${emp.name.slice(0, 4)} 전체 +1` : '선택 직원 +1',
+        14,
+        topY,
+        topW,
+        36,
+        emp ? this.createEquipmentPurchasePlan([emp], EQUIPMENT_SLOTS) : [],
+        emp?.id ?? null,
+      );
+      addBulkButton(
+        '미장착 기본 지급',
+        14 + (topW + topGap),
+        topY,
+        topW,
+        36,
+        this.createEquipmentPurchasePlan(emps, EQUIPMENT_SLOTS, { onlyEmpty: true }),
+        emp?.id ?? null,
+      );
+      addBulkButton(
+        '전 직원 전체 +1',
+        14 + (topW + topGap) * 2,
+        topY,
+        topW,
+        36,
+        this.createEquipmentPurchasePlan(emps, EQUIPMENT_SLOTS),
+        emp?.id ?? null,
+      );
+
+      const slotGap2 = 6;
+      const slotW = (cardW - 28 - slotGap2 * 3) / 4;
+      EQUIPMENT_SLOTS.forEach((slot, i) => {
+        addBulkButton(
+          `${SLOT_LABEL[slot]} +1`,
+          14 + i * (slotW + slotGap2),
+          86,
+          slotW,
+          32,
+          this.createEquipmentPurchasePlan(emps, [slot]),
+          emp?.id ?? null,
+        );
+      });
+    };
 
     const rebuildSlots = (empIdx: number): void => {
       slotsContainer.removeAll(true);
       const emp = emps[empIdx];
       if (!emp) return;
       const currentEq: EmployeeEquipment = emp.equipment ?? {};
-      const slots: EquipmentSlot[] = ['desk', 'chair', 'monitor', 'laptop'];
-      slots.forEach((slot, si) => {
+      EQUIPMENT_SLOTS.forEach((slot, si) => {
         const sy = si * (slotCardH + slotGap);
         const cardW = panelW - 48;
         // 슬롯 카드 배경.
@@ -2224,7 +2387,12 @@ export class ResultScene extends Phaser.Scene {
     };
 
     const rebuildTabs = (): void => {
-      empTabs.forEach((t) => { t.bg.destroy(); t.text.destroy(); });
+      empTabs.forEach((t) => {
+        t.bg.destroy();
+        t.text.destroy();
+        t.jobText.destroy();
+        t.hit.destroy();
+      });
       empTabs.length = 0;
       emps.forEach((emp, i) => {
         const row = Math.floor(i / tabCols);
@@ -2235,16 +2403,27 @@ export class ResultScene extends Phaser.Scene {
         const bg = this.add.graphics();
         bg.fillStyle(isSelected ? COLOR.btn : COLOR.btnSecondary, 1);
         bg.fillRoundedRect(tx, ty, tabW, tabH, 8);
+        bg.fillStyle(jobAccentColor(emp.job), isSelected ? 0.95 : 0.75);
+        bg.fillRoundedRect(tx + 4, ty + 4, 5, tabH - 8, 3);
         layer.add(bg);
         const txt = this.add
-          .text(tx + tabW / 2, ty + tabH / 2, emp.name.slice(0, 4), {
+          .text(tx + tabW / 2, ty + 10, emp.name.slice(0, 4), {
             fontFamily: FONT_STACK,
             fontSize: '17px',
             fontStyle: isSelected ? 'bold' : 'normal',
             color: TEXT_COLOR.primary,
           })
-          .setOrigin(0.5);
+          .setOrigin(0.5, 0);
         layer.add(txt);
+        const jobTxt = this.add
+          .text(tx + tabW / 2, ty + 29, JOB_SHORT_LABEL[emp.job], {
+            fontFamily: FONT_STACK,
+            fontSize: '12px',
+            fontStyle: 'bold',
+            color: isSelected ? TEXT_COLOR.warn : TEXT_COLOR.dim,
+          })
+          .setOrigin(0.5, 0);
+        layer.add(jobTxt);
         const hit = this.add
           .zone(tx + tabW / 2, ty + tabH / 2, tabW, tabH)
           .setInteractive({ useHandCursor: true });
@@ -2253,14 +2432,16 @@ export class ResultScene extends Phaser.Scene {
           if (selectedIdx !== i) {
             selectedIdx = i;
             rebuildTabs();
+            rebuildBulkActions();
             rebuildSlots(selectedIdx);
           }
         });
-        empTabs.push({ bg, text: txt });
+        empTabs.push({ bg, text: txt, jobText: jobTxt, hit });
       });
     };
 
     rebuildTabs();
+    rebuildBulkActions();
     rebuildSlots(selectedIdx);
 
     // 닫기 버튼.
@@ -2302,18 +2483,83 @@ export class ResultScene extends Phaser.Scene {
     this.refreshSaveFooter();
   }
 
+  private createEquipmentPurchasePlan(
+    employees: ReadonlyArray<Employee>,
+    slots: ReadonlyArray<EquipmentSlot>,
+    options: { readonly onlyEmpty?: boolean } = {},
+  ): ReadonlyArray<EquipmentPurchasePlan> {
+    const plan: EquipmentPurchasePlan[] = [];
+    employees.forEach((emp) => {
+      slots.forEach((slot) => {
+        const currentTier = emp.equipment?.[slot] ?? 0;
+        if (options.onlyEmpty && currentTier > 0) return;
+        const nextTier = currentTier + 1;
+        const nextDef = EQUIPMENT_TIERS[nextTier - 1];
+        if (!nextDef) return;
+        plan.push({
+          employeeId: emp.id,
+          slot,
+          tier: nextTier,
+          cost: nextDef.cost,
+        });
+      });
+    });
+    return plan;
+  }
+
+  private getEquipmentPlanCost(plan: ReadonlyArray<EquipmentPurchasePlan>): number {
+    return plan.reduce((sum, item) => sum + item.cost, 0);
+  }
+
+  private applyEquipmentBulkPurchase(plan: ReadonlyArray<EquipmentPurchasePlan>): boolean {
+    const totalCost = this.getEquipmentPlanCost(plan);
+    if (plan.length === 0 || this.liveGold < totalCost) return false;
+
+    const byEmployee = new Map<string, EquipmentPurchasePlan[]>();
+    plan.forEach((item) => {
+      const items = byEmployee.get(item.employeeId) ?? [];
+      items.push(item);
+      byEmployee.set(item.employeeId, items);
+    });
+
+    this.liveGold -= totalCost;
+    this.liveEmployees = this.liveEmployees.map((emp) => {
+      const items = byEmployee.get(emp.id);
+      if (!items?.length) return emp;
+      const nextEquipment: Partial<Record<EquipmentSlot, number>> = { ...(emp.equipment ?? {}) };
+      items.forEach((item) => {
+        const currentTier = nextEquipment[item.slot] ?? 0;
+        if (item.tier > currentTier) nextEquipment[item.slot] = item.tier;
+      });
+      return { ...emp, equipment: nextEquipment };
+    });
+
+    const employeeById = new Map(this.liveEmployees.map((emp) => [emp.id, emp]));
+    this.hiredEmployees = this.hiredEmployees.map((emp) => employeeById.get(emp.id) ?? emp);
+
+    this.persistResult();
+    this.refreshOfficePanel();
+    this.refreshSaveFooter();
+    confettiBurst(this, 360, 640, { count: Math.min(32, 10 + plan.length) });
+    showToast(this, `🧰 장비 ${plan.length}개 일괄 업그레이드`, { tone: 'ok' });
+    return true;
+  }
+
   // ────────────────────────── 시설 modal ──────────────────────────
   private openFacilitiesModal(): void {
     const cardH = 124;
     const cardGap = 10;
     const headerH = 80;
-    const footerH = 60;
+    const footerH = 68;
     const panelW = 600;
-    const panelH = headerH + FACILITIES.length * (cardH + cardGap) - cardGap + footerH + 16;
+    const panelH = 1080;
+    const contentH = FACILITIES.length * (cardH + cardGap) - cardGap;
+    const viewportH = panelH - headerH - footerH - 20;
 
     const modal = createModal(this, {
       w: panelW,
       h: panelH,
+      y: 80,
       category: 'facility',
       title: '회사 시설',
       subtitle: '한 번 건설하면 모든 프로젝트에 영구 적용',
@@ -2325,13 +2571,40 @@ export class ResultScene extends Phaser.Scene {
     const cardsY0 = panelY + headerH;
     const cardX = panelX + 20;
     const cardW = panelW - 40;
+    const scroll = createScrollArea(this, {
+      x: cardX,
+      y: cardsY0,
+      w: cardW,
+      h: viewportH,
+      contentH,
+    });
+    layer.add(scroll.hit);
+    layer.add(scroll.container);
+
     FACILITIES.forEach((item, i) => {
-      const cy = cardsY0 + i * (cardH + cardGap);
-      this.buildFacilityCard(layer, cardX, cy, cardW, cardH, item, () => {
+      const cy = i * (cardH + cardGap);
+      this.buildFacilityCard(scroll.container, 0, cy, cardW, cardH, item, () => {
         modal.close();
         this.applyFacilityBuild(item.id);
       });
     });
+
+    const closeBtn = createButton(this, {
+      x: panelX + 20,
+      y: panelY + panelH - 54,
+      w: panelW - 40,
+      h: 38,
+      label: '닫기',
+      variant: 'secondary',
+      size: 'md',
+      onTap: () => {
+        playSfx(this, SFX.tap);
+        modal.close();
+      },
+    });
+    layer.add(closeBtn.bg);
+    layer.add(closeBtn.text);
+    layer.add(closeBtn.hit);
   }
 
   private buildFacilityCard(

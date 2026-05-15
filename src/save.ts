@@ -14,7 +14,7 @@
  */
 import { CONDITION } from './domain/balance';
 import { MILESTONES, type MilestoneId } from './domain/milestones';
-import { EMPTY_RND, type RndId, type RndState, type RndProgress } from './domain/rnd';
+import { EMPTY_RND, RND_ITEMS, type RndId, type RndState, type RndProgress } from './domain/rnd';
 import type { EconomyState } from './domain/economy';
 import {
   EMPTY_FACILITIES,
@@ -387,35 +387,7 @@ function readAndParse(storage: Storage, key: string): unknown {
   }
 }
 
-const VALID_RND_IDS: ReadonlyArray<RndId> = [
-  'test-automation',
-  'ci-cd',
-  'design-system',
-  'process-standard',
-  'employer-branding',
-  'finance-automation',
-  'data-driven',
-  'global-expansion',
-  // Tier 2
-  'ai-pair-programming',
-  'auto-design-tools',
-  'continuous-integration',
-  'analytics-platform',
-  'i18n-platform',
-  'security-program',
-  'cloud-migration',
-  'remote-collaboration',
-  // Tier 3
-  'self-cloud-infra',
-  'global-hr-network',
-  'autonomous-deploy',
-  'ai-pm-assistant',
-  // Tier 4
-  'quantum-deploy',
-  'satellite-network',
-  'neural-architecture',
-  'company-os',
-];
+const VALID_RND_IDS: ReadonlyArray<RndId> = RND_ITEMS.map((item) => item.id);
 
 const VALID_MARKET_IDS: ReadonlyArray<MarketId> = MARKETS.map((m) => m.id);
 

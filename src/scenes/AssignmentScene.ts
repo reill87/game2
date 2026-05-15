@@ -15,7 +15,7 @@ import {
   THEME_LABEL,
   TRAIT_LABEL,
 } from '@/domain/seed';
-import type { Rank } from '@/domain/types';
+import type { Job, Rank } from '@/domain/types';
 import { isTutorialAssignmentReady, place, placeSupport } from '@/domain/tick';
 import type { Employee, GameState, SlotKind } from '@/domain/types';
 import { AVATAR_KEY } from '@/avatars';
@@ -79,6 +79,34 @@ function rankBadgeColor(rank: Rank): number {
       return COLOR.matchOk;
     case 'lead':
       return TINT.warn;
+  }
+}
+
+const JOB_BADGE_ORDER: ReadonlyArray<Job> = ['planner', 'designer', 'programmer', 'qa', 'marketing', 'data'];
+
+const JOB_BADGE_SHORT: Readonly<Record<Job, string>> = {
+  planner: 'PM',
+  designer: 'DES',
+  programmer: 'DEV',
+  qa: 'QA',
+  marketing: 'MKT',
+  data: 'DATA',
+};
+
+function jobBadgeColor(job: Job): number {
+  switch (job) {
+    case 'planner':
+      return TINT.warn;
+    case 'designer':
+      return 0x7c5cff;
+    case 'programmer':
+      return COLOR.btn;
+    case 'qa':
+      return TINT.ok;
+    case 'marketing':
+      return 0xf59e0b;
+    case 'data':
+      return 0x22c55e;
   }
 }
 
@@ -328,13 +356,24 @@ export class AssignmentScene extends Phaser.Scene {
     const { cols, cardW, cardH, gap, rowGap } = layout;
     const totalW = cardW * cols + gap * (cols - 1);
     const startX = this.contentX + (720 - totalW) / 2;
-    const startY = 540;
+    const startY = 568;
 
     this.add
-      .text(this.cx, startY - 26, `직원 (${count}명)`, {
+      .text(this.cx, startY - 56, `직원 (${count}명)`, {
         fontFamily: FONT_STACK,
         fontSize: '24px',
         color: TEXT_COLOR.dim,
+      })
+      .setOrigin(0.5);
+
+    this.add
+      .text(this.cx, startY - 28, this.buildJobSummaryLabel(), {
+        fontFamily: FONT_STACK,
+        fontSize: '17px',
+        fontStyle: 'bold',
+        color: TEXT_COLOR.warn,
+        align: 'center',
+        wordWrap: { width: 660, useAdvancedWrap: true },
       })
       .setOrigin(0.5);
 
@@ -351,6 +390,8 @@ export class AssignmentScene extends Phaser.Scene {
   private makeEmployeeView(emp: Employee, x: number, y: number, w: number, h: number): EmployeeView {
     const rect = new Phaser.Geom.Rectangle(x, y, w, h);
     const bg = this.add.graphics();
+    const compact = h < 180;
+    const ultraCompact = h < 120;
 
     // 직급 배지 — 좌상단 작은 컬러 사각형 + 1글자 약어 (N/J/S/L)
     const badgeW = 22;
@@ -369,14 +410,29 @@ export class AssignmentScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
+    const jobBadgeLabel = ultraCompact ? JOB_BADGE_SHORT[emp.job] : compact ? JOB_BADGE_SHORT[emp.job] : JOB_LABEL[emp.job];
+    const jobBadgeW = ultraCompact ? 34 : compact ? 48 : 74;
+    const jobBadgeH = 18;
+    const jobBadgeX = x + w - jobBadgeW - 8;
+    const jobBadgeY = y + 8;
+    const jobBadgeBg = this.add.graphics();
+    jobBadgeBg.fillStyle(jobBadgeColor(emp.job), 0.95);
+    jobBadgeBg.fillRoundedRect(jobBadgeX, jobBadgeY, jobBadgeW, jobBadgeH, 4);
+    this.add
+      .text(jobBadgeX + jobBadgeW / 2, jobBadgeY + jobBadgeH / 2, jobBadgeLabel, {
+        fontFamily: FONT_STACK,
+        fontSize: ultraCompact ? '12px' : '14px',
+        fontStyle: 'bold',
+        color: TEXT_COLOR.primary,
+      })
+      .setOrigin(0.5);
+
     // 컴팩트 모드 — 카드 높이 < 180일 때 (직원 7명+).
     // 울트라 컴팩트 — h < 120일 때 (17~24명, L5/L6). job 라벨 생략.
-    const compact = h < 180;
-    const ultraCompact = h < 120;
-    const avatarSize = ultraCompact ? 28 : compact ? 36 : 60;
-    const avatarY = ultraCompact ? y + 38 : compact ? y + 50 : y + 56 + avatarSize / 2;
-    const nameY = compact ? y + 6 : y + 30;
-    const nameSize = ultraCompact ? '14px' : compact ? '18px' : '26px';
+    const avatarSize = ultraCompact ? 24 : compact ? 36 : 60;
+    const avatarY = ultraCompact ? y + 54 : compact ? y + 50 : y + 56 + avatarSize / 2;
+    const nameY = ultraCompact ? y + 28 : compact ? y + 6 : y + 30;
+    const nameSize = ultraCompact ? '13px' : compact ? '18px' : '26px';
     const jobY = ultraCompact ? y + 56 : compact ? y + 76 : y + 130;
     const traitY = compact ? y + 92 : y + 148;
     const skillBadgeSize = compact ? '16px' : '20px';
@@ -411,9 +467,9 @@ export class AssignmentScene extends Phaser.Scene {
 
     // 스킬 배지 — 1.0 초과분만 우상단에 작게.
     const skillPct = Math.round((emp.skill - 1) * 100);
-    if (skillPct > 0) {
+    if (skillPct > 0 && !ultraCompact) {
       this.add
-        .text(x + w - 12, y + 8, `+${skillPct}%`, {
+        .text(x + w - 12, ultraCompact || compact ? y + 30 : y + 32, `+${skillPct}%`, {
           fontFamily: FONT_STACK,
           fontSize: skillBadgeSize,
           fontStyle: 'bold',
@@ -455,8 +511,8 @@ export class AssignmentScene extends Phaser.Scene {
     const barW = ultraCompact ? 44 : 56;
     const barH = 3;
     const barX = x + w / 2 - barW / 2;
-    const moraleBarY = ultraCompact ? y + h - 28 : y + h - 38;
-    const staminaBarY = ultraCompact ? y + h - 22 : y + h - 30;
+    const moraleBarY = ultraCompact ? y + h - 24 : y + h - 38;
+    const staminaBarY = ultraCompact ? y + h - 18 : y + h - 30;
     const conditionFontSize = ultraCompact ? '10px' : compact ? '11px' : '12px';
     this.add.text(barX - 4, moraleBarY - 7, '사기', {
       fontFamily: FONT_STACK,
@@ -519,6 +575,15 @@ export class AssignmentScene extends Phaser.Scene {
       rect,
       hit,
     };
+  }
+
+  private buildJobSummaryLabel(): string {
+    const counts = new Map<Job, number>();
+    this.state.employees.forEach((emp) => counts.set(emp.job, (counts.get(emp.job) ?? 0) + 1));
+    return JOB_BADGE_ORDER
+      .filter((job) => (counts.get(job) ?? 0) > 0)
+      .map((job) => `${JOB_BADGE_SHORT[job]} ${counts.get(job)}`)
+      .join('  ·  ');
   }
 
   // ────────────────────────── start button ──────────────────────────
