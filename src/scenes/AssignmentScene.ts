@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import type { Types } from 'phaser';
 
-import { isMatched, SLOT_ORDER } from '@/domain/match';
+import { expectedJob, isMatched, SLOT_ORDER } from '@/domain/match';
 import {
   GENRE_LABEL,
   isSlotActive,
@@ -17,7 +17,7 @@ import {
 } from '@/domain/seed';
 import type { Job, Rank } from '@/domain/types';
 import { isTutorialAssignmentReady, place, placeSupport } from '@/domain/tick';
-import type { Employee, GameState, SlotKind } from '@/domain/types';
+import type { Assignment, Employee, GameState, SlotKind, SupportAssignment } from '@/domain/types';
 import { AVATAR_KEY } from '@/avatars';
 import { BGM } from '@/bgm';
 import { ICONS } from '@/icons';
@@ -25,7 +25,7 @@ import type { SavedResult } from '@/save';
 import { playSfx, SFX } from '@/sounds';
 import { addMuteToggle } from '@/util/muteToggle';
 import { COLOR, FONT_STACK, TEXT_COLOR, TINT } from '@/theme';
-import { formatGold } from '@/ui';
+import { createButton, formatGold } from '@/ui';
 import { conditionTextColor, drawConditionFill } from '@/util/condition';
 import { applyHiDPI } from '@/util/hidpi';
 import { addIconLabel } from '@/util/iconLabel';
@@ -110,6 +110,10 @@ function jobBadgeColor(job: Job): number {
   }
 }
 
+function compareEmployeeStamina(a: Employee, b: Employee): number {
+  return b.stamina - a.stamina || b.morale - a.morale || b.skill - a.skill || a.name.localeCompare(b.name);
+}
+
 interface SlotView {
   bg: Phaser.GameObjects.Graphics;
   slotLabel: Phaser.GameObjects.Text;
@@ -192,6 +196,7 @@ export class AssignmentScene extends Phaser.Scene {
     this.buildHeader();
     this.buildSlots();
     this.buildEmployees();
+    this.buildAutoAssignButton();
     this.buildStartButton();
     this.buildStatus();
     addMuteToggle(this);
@@ -584,6 +589,58 @@ export class AssignmentScene extends Phaser.Scene {
       .filter((job) => (counts.get(job) ?? 0) > 0)
       .map((job) => `${JOB_BADGE_SHORT[job]} ${counts.get(job)}`)
       .join('  ·  ');
+  }
+
+  private buildAutoAssignButton(): void {
+    const btn = createButton(this, {
+      x: this.cx - 180,
+      y: 1094,
+      w: 360,
+      h: 44,
+      label: '체력순 자동 배치',
+      variant: 'secondary',
+      size: 'md',
+      disabled: this.state.employees.length === 0,
+      onTap: () => this.autoAssignByStamina(),
+    });
+    void btn;
+  }
+
+  private autoAssignByStamina(): void {
+    if (this.state.employees.length === 0) return;
+
+    const activePrimarySlots = SLOT_ORDER.filter((slot) => isSlotActive(this.state.officeLevel, slot));
+    const activeSupportSlots = SLOT_ORDER.filter((slot) => isSupportSlotActive(this.state.officeLevel, slot));
+    const remaining = [...this.state.employees].sort(compareEmployeeStamina);
+    const nextAssignment: Assignment = {};
+    const nextSupport: SupportAssignment = {};
+
+    const pickForSlot = (slot: SlotKind): Employee | null => {
+      if (remaining.length === 0) return null;
+      const expected = expectedJob(slot);
+      const matchedIdx = remaining.findIndex((emp) => emp.job === expected);
+      const idx = matchedIdx >= 0 ? matchedIdx : 0;
+      const [picked] = remaining.splice(idx, 1);
+      return picked ?? null;
+    };
+
+    activePrimarySlots.forEach((slot) => {
+      const picked = pickForSlot(slot);
+      if (picked) nextAssignment[slot] = picked.id;
+    });
+    activeSupportSlots.forEach((slot) => {
+      const picked = pickForSlot(slot);
+      if (picked) nextSupport[slot] = picked.id;
+    });
+
+    this.selectedEmpId = null;
+    this.state = {
+      ...this.state,
+      assignment: nextAssignment,
+      support: nextSupport,
+    };
+    playSfx(this, SFX.toggle);
+    this.redraw();
   }
 
   // ────────────────────────── start button ──────────────────────────
